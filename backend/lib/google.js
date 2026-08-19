@@ -208,6 +208,7 @@ export async function getEvents(calendars, { timeMin, timeMax, maxResults = 50 }
         start: e.start?.dateTime || e.start?.date,
         end: e.end?.dateTime || e.end?.date,
         attendees: e.attendees?.length || 0,
+        recurringEventId: e.recurringEventId || null,
         updated: e.updated || "",
       }));
   });

@@ -25,15 +25,97 @@
     "comingUpDays": 14,
     "maxPerSection": 6,
     "maxRepeats": 6,
-    "_maxRepeats_note": "After this many briefs, an unchanged item with no deadline goes quiet. Anything with a clock running is never suppressed.",
+    "_maxRepeats_note": "After this many briefs, an unchanged item with no deadline goes quiet. Anything with a clock running — or that you wrote in CAPS — is never suppressed.",
     "retainDays": 90
+  },
+
+  "categories": {
+    "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names — this is the only place they appear.",
+    "_matching": "calendarPatterns match the calendar's name, titlePatterns match the event title or email subject, tiers match an email's rule tier. All are case-insensitive substring matches.",
+
+    "definitions": [
+      {
+        "id": "critical", "label": "Can't miss", "weight": 50, "unmissable": true,
+        "calendarPatterns": ["cannot miss", "can't miss", "must attend"],
+        "titlePatterns": []
+      },
+      {
+        "id": "opportunity", "label": "Opportunity", "weight": 48,
+        "tiers": ["opportunity"],
+        "calendarPatterns": [],
+        "titlePatterns": ["interview", "co-op", "internship", "job offer", "application", "recruiter"]
+      },
+      {
+        "id": "assessment", "label": "Test", "weight": 44, "unmissable": true,
+        "calendarPatterns": ["test", "quiz", "exam"],
+        "titlePatterns": ["midterm", "final exam", "exam", "quiz", "test", "presentation", "defence", "defense"]
+      },
+      {
+        "id": "important", "label": "Important", "weight": 42, "unmissable": true,
+        "calendarPatterns": ["important"],
+        "titlePatterns": []
+      },
+      {
+        "id": "work", "label": "Work", "weight": 40,
+        "tiers": ["work"],
+        "calendarPatterns": ["work", "shift", "job"],
+        "titlePatterns": ["shift", "opening", "closing", "training", "timesheet", "payroll"]
+      },
+      {
+        "id": "family", "label": "Family", "weight": 38,
+        "tiers": ["family"],
+        "calendarPatterns": ["family", "home"],
+        "titlePatterns": []
+      },
+      {
+        "id": "deadline", "label": "Deadline", "weight": 36,
+        "calendarPatterns": ["deadline", "due"],
+        "titlePatterns": ["due", "deadline", "submit", "closes", "expires", "last day"]
+      },
+      {
+        "id": "class", "label": "Class", "weight": 34,
+        "calendarPatterns": ["class", "school", "lecture", "course"],
+        "titlePatterns": ["lecture", "lab", "tutorial", "seminar", "studio", "office hours"]
+      },
+      {
+        "id": "admin", "label": "Admin", "weight": 28,
+        "tiers": ["school"],
+        "calendarPatterns": [],
+        "titlePatterns": ["registration", "tuition", "transcript", "enrolment", "enrollment", "invoice", "renewal", "form"]
+      },
+      {
+        "id": "appointment", "label": "Appointment", "weight": 26,
+        "calendarPatterns": ["appointment"],
+        "titlePatterns": ["appointment", "physio", "dentist", "doctor", "clinic", "optometrist", "haircut", "checkup"]
+      },
+      {
+        "id": "personal", "label": "Personal", "weight": 24,
+        "calendarPatterns": [],
+        "titlePatterns": []
+      }
+    ]
+  },
+
+  "ranking": {
+    "_comment": "Added on top of the category weight to produce one score per item. Every contribution is recorded on the item as _rankWhy, so you can always see why something ranked where it did.",
+    "needsReplyBoost": 12,
+    "conflictBoost": 14,
+    "emphasisBoost": 15,
+    "_emphasisBoost_note": "You write things in CAPS when they matter. A title that is ≥70% uppercase (and longer than 3 letters) gets this, so your own convention is respected without listing any specific event.",
+    "unmissableBoost": 10,
+    "changedBoost": 6,
+    "maxFatiguePenalty": 8
   },
 
   "email": {
     "query": "in:inbox -in:trash -in:spam -category:promotions -category:social newer_than:14d",
     "maxResults": 40,
     "minScore": 60,
-    "_minScore_note": "Emails scoring below this never reach the model. Lower it to widen the net, raise it to spend less."
+    "_minScore_note": "Emails scoring below this never reach the model. Lower it to widen the net, raise it to spend less.",
+    "boostScope": "in:inbox newer_than:14d",
+    "maxBoostResults": 20,
+    "maxBoostTerms": 20,
+    "_boost_note": "Terms marked searchBody below are sent to Gmail as a full-text query, so mail that mentions your workplace deep in the body, or is signed by a colleague at the bottom, is caught without downloading a single message. Costs one extra id-list call per tier."
   },
 
   "rules": {
@@ -48,12 +130,13 @@
     },
 
     "people": [
-      { "match": ["mom", "mum", "mother"], "label": "Mom", "tier": "family" },
-      { "match": ["dad", "father"], "label": "Dad", "tier": "family" },
-      { "match": ["dave leal", "leal"], "label": "Dave Leal", "tier": "work" },
-      { "match": ["samantha cowley", "cowley"], "label": "Samantha Cowley", "tier": "work" },
-      { "match": ["jill desjardins", "desjardins"], "label": "Jill Desjardins", "tier": "work" }
+      { "match": ["mom", "mum", "mother"], "label": "Mom", "tier": "family", "searchBody": false },
+      { "match": ["dad", "father"], "label": "Dad", "tier": "family", "searchBody": false },
+      { "match": ["dave leal", "leal"], "label": "Dave Leal", "tier": "work", "searchBody": true },
+      { "match": ["samantha cowley", "cowley"], "label": "Samantha Cowley", "tier": "work", "searchBody": true },
+      { "match": ["jill desjardins", "desjardins"], "label": "Jill Desjardins", "tier": "work", "searchBody": true }
     ],
+    "_people_note": "searchBody also finds them in signatures. Only distinctive terms (7+ characters, or a multi-word phrase) are ever body-searched — 'mom' and 'dad' would match half the inbox, so they stay header-only.",
 
     "domains": [
       { "match": "ottawa.ca", "label": "City of Ottawa", "tier": "work" }
@@ -62,24 +145,35 @@
     "topics": {
       "opportunity": {
         "score": 100,
+        "searchBody": true,
         "keywords": [
           "interview", "interviews", "position", "job", "hiring", "hire",
           "application", "applied", "co-op", "coop", "internship", "intern",
           "offer", "recruiter", "recruitment", "posting", "candidate",
           "resume", "cv", "cover letter", "prospectus", "opportunity",
           "shortlisted", "onboarding", "reference check"
+        ],
+        "bodyKeywords": [
+          "interview", "internship", "shortlisted", "cover letter",
+          "recruiter", "onboarding", "reference check", "co-op position"
         ]
       },
       "work": {
         "score": 92,
+        "searchBody": true,
         "keywords": [
           "richcraft", "recreation complex", "rec complex", "shift", "shifts",
           "schedule change", "timesheet", "payroll", "availability",
           "lifeguard", "aquatics", "facility", "supervisor"
+        ],
+        "bodyKeywords": [
+          "richcraft", "recreation complex", "rec complex", "timesheet",
+          "lifeguard", "aquatics", "schedule change"
         ]
       },
       "school": {
         "score": 78,
+        "searchBody": false,
         "keywords": [
           "assignment", "midterm", "final exam", "quiz", "deadline", "due date",
           "lab report", "tutorial", "syllabus", "grade", "professor",
@@ -101,8 +195,8 @@
       "Sydney's Demands",
       "CANNOT MISS"
     ],
-    "alwaysImportant": ["CANNOT MISS", "IMPORTANT EVENTS", "Tests & Quizzes"],
-    "horizonDays": 14
+    "horizonDays": 14,
+    "_note": "The calendar's own name is never printed in the brief — for the default calendar that name is your email address, which tells you nothing. It's used to derive the category chip instead."
   },
 
   "money": {

@@ -1,8 +1,12 @@
 // BriefItem.jsx — one line of the brief.
 //
-// Urgency is shown as a bordered chip carrying a WORD, never colour alone —
-// so it survives colourblindness, greyscale printing and a glance from across
-// a desk.
+// Three layers, and none of them repeats another:
+//   left    when it is
+//   title   what it is  (+ urgency, which is a bordered chip carrying a WORD,
+//           never colour alone, so it survives colourblindness and greyscale)
+//   meta    what kind of thing it is, then facts the title doesn't carry
+//
+// Hovering a row shows why it ranked where it did.
 
 const URGENCY_WORD = {
   critical: "NOW",
@@ -16,44 +20,49 @@ function dueLabel(item) {
   if (d < 0) return `${Math.abs(d)}d overdue`;
   if (d === 0) return "today";
   if (d === 1) return "tomorrow";
-  return `${d} days`;
+  return `in ${d} days`;
 }
 
-function whenColumn(item, timezone) {
+function whenColumn(item, timeZone) {
   if (item.source === "note") return `${item.meta?.age ?? ""}d`;
   if (!item.dueAt) return "";
   const date = new Date(item.dueAt);
   const d = item._daysUntil;
 
-  if (item.kind === "today" && !item.meta?.allDay) {
+  if (item.kind === "today") {
+    if (item.meta?.allDay) return "all day";
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true,
+      timeZone, hour: "numeric", minute: "2-digit", hour12: true,
     }).format(date).replace(/\s?([ap])\.?m\.?/i, (_, p) => ` ${p.toUpperCase()}M`);
   }
-  if (item.kind === "today") return "all day";
-  if (d !== null && d <= 6 && d >= 0) {
-    return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, weekday: "short" }).format(date);
+  if (d !== null && d >= 0 && d <= 6) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone, weekday: "short" }).format(date);
   }
-  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone, month: "short", day: "numeric" }).format(date);
+  return new Intl.DateTimeFormat("en-CA", { timeZone, month: "short", day: "numeric" }).format(date);
 }
 
 export default function BriefItem({ item, timezone, onAction, busy }) {
-  // Today's events already carry their time in the left column; an urgency
-  // chip on top of that is noise, and everything today would wear one.
-  const urgencyWord = item.kind === "today" ? null : URGENCY_WORD[item._urgency];
+  const isToday = item.kind === "today";
+
+  // Today's rows already carry their time in the left column; an urgency chip
+  // on top would appear on literally everything happening today.
+  const urgencyWord = isToday ? null : URGENCY_WORD[item._urgency];
   const due = dueLabel(item);
 
-  // "told you 3×" is the point of the memory model — but only for things
-  // that persist. Saying it about today's lecture is just noise.
-  const isToday = item.kind === "today";
-  const metaBits = [
+  // "told you 3×" is the point of the memory model — but only for things that
+  // persist. Saying it about today's lecture is noise.
+  const facts = [
     item.detail,
     !isToday && item.surfaceCount > 2 ? `told you ${item.surfaceCount}×` : null,
     !isToday && due ? due : null,
   ].filter(Boolean);
 
+  const receipt = item._rankWhy?.length
+    ? `Ranked ${item._rank} — ${item._rankWhy.join(", ")}`
+    : undefined;
+
   return (
-    <div className={`item${busy ? " busy" : ""}`}>
+    <div className={`item${busy ? " busy" : ""}`} title={receipt}>
       <div className="when">{whenColumn(item, timezone)}</div>
 
       <div className="body">
@@ -75,20 +84,24 @@ export default function BriefItem({ item, timezone, onAction, busy }) {
           {item._new && !item._changed && (
             <span className="chip neutral"><span className="dot" aria-hidden="true">+</span>NEW</span>
           )}
-          {item.meta?.needsPrep && item.kind === "today" && (
-            <span className="chip warning"><span className="dot" aria-hidden="true">◆</span>PREP</span>
-          )}
         </div>
 
-        {metaBits.length > 0 && (
-          <div className="meta">
-            <span className="src">{metaBits[0]}</span>
-            {metaBits.slice(1).map((b, i) => <span key={i}> · {b}</span>)}
-          </div>
-        )}
+        <div className="meta">
+          {item.categoryLabel && <span className="tag">{item.categoryLabel}</span>}
+          {facts.map((f, i) => (
+            <span key={i} className={i === 0 ? "lead" : undefined}>
+              {i === 0 && !item.categoryLabel ? "" : " · "}{f}
+            </span>
+          ))}
+          {/* Only worth saying when we couldn't show the note itself —
+              otherwise the note IS the prep, and this would just repeat it. */}
+          {item.meta?.needsPrep && isToday && !item.detail && (
+            <span className="tag prep">needs prep</span>
+          )}
+        </div>
       </div>
 
-      {item.kind !== "today" && (
+      {!isToday && (
         <div className="actions">
           <button onClick={() => onAction(item.id, "done")} title="Done — never show again">Done</button>
           <button onClick={() => onAction(item.id, "snooze")} title="Hide for 3 days">Later</button>

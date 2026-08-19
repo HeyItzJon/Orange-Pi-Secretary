@@ -108,11 +108,17 @@ export async function collectNotes(config) {
       source: "note",
       kind: "loose-thread",
       title: `"${tasks[0]}"`,
-      detail: `${f.name} · ${path.dirname(f.rel).replace(/\\/g, "/")} · untouched ${f.age}d`,
+      // The age already shows in the row's left column — don't say it twice.
+      detail: `${f.name} · ${path.dirname(f.rel).replace(/\\/g, "/")}`,
       url: null,
       dueAt: null,
-      // Older = louder, but capped so notes never outrank a real deadline.
-      priority: Math.min(58, 40 + Math.floor(f.age / 7)),
+      category: "note",
+      categoryLabel: "Loose thread",
+      // Older = louder, but capped low so a note never outranks a real
+      // deadline. These are nudges, not obligations.
+      categoryWeight: Math.min(22, 12 + Math.floor(f.age / 7)),
+      unmissable: false,
+      emphasised: false,
       tier: "note",
       reasons: [`${tasks.length} open task${tasks.length > 1 ? "s" : ""}`, `stale ${f.age}d`],
       contentHash: contentHash({ t: tasks, a: Math.floor(f.age / 7) }),

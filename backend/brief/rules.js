@@ -3,12 +3,17 @@
 // What gets said, and how loudly. Pure functions, no network, no AI —
 // which means this is the part you can actually test, tune and trust.
 //
-// Three jobs:
+// Four jobs:
 //   urgency()  — the clock. Same item, different volume as a date approaches.
-//   assign()   — every item lands in exactly ONE section, so nothing is ever
-//                said twice in the same brief.
-//   suppress() — once you've been told N times and nothing changed and
+//   rank()     — ONE transparent score per item, with a receipt. v1 sorted by
+//                a flat "priority" that mixed importance and urgency together,
+//                so ties were everywhere and nothing explained itself.
+//   assign()   — every item lands in exactly ONE section, so nothing is said
+//                twice in the same brief.
+//   suppress() — once you've been told enough times, and nothing changed, and
 //                nothing is close, stop saying it.
+
+import { rankItem } from "../lib/classify.js";
 
 export const SECTIONS = ["today", "needsYou", "newSince", "comingUp", "money", "looseThreads"];
 
@@ -33,8 +38,6 @@ export function urgency(item, now = new Date()) {
   if (days <= 7) return "warning";
   return null;
 }
-
-const URGENCY_RANK = { critical: 3, serious: 2, warning: 1, null: 0 };
 
 export function daysUntil(item, now = new Date()) {
   if (!item.dueAt) return null;
@@ -74,7 +77,8 @@ function needsAction(item, u) {
 export function suppress(item, u, cfg) {
   const max = cfg.maxRepeats ?? 6;
   if (item.changed) return false;
-  if (u) return false; // anything with a clock running keeps its voice
+  if (u) return false;                       // a clock running keeps its voice
+  if (item.unmissable || item.emphasised) return false; // you flagged it yourself
   return (item.surfaceCount || 0) >= max;
 }
 
@@ -89,16 +93,6 @@ function sectionFor(item, { u, fresh }) {
   return null;
 }
 
-function compare(a, b) {
-  const ur = URGENCY_RANK[String(b._urgency)] - URGENCY_RANK[String(a._urgency)];
-  if (ur) return ur;
-  if (b.priority !== a.priority) return (b.priority || 0) - (a.priority || 0);
-  if (a.dueAt && b.dueAt) return new Date(a.dueAt) - new Date(b.dueAt);
-  if (a.dueAt) return -1;
-  if (b.dueAt) return 1;
-  return 0;
-}
-
 /**
  * Select and arrange everything for one brief.
  * Returns { sections, surfacedIds, counts }.
@@ -107,19 +101,17 @@ export function selectForBrief(items, { now = new Date(), lastBriefAt = null, co
   const cfg = config.brief || {};
   const horizon = cfg.comingUpDays ?? 14;
   const perSection = cfg.maxPerSection ?? 6;
-  const minPriority = cfg.minPriority ?? 0;
 
   const buckets = Object.fromEntries(SECTIONS.map((s) => [s, []]));
 
   for (const raw of items) {
     if (!isActive(raw, now)) continue;
-    if ((raw.priority || 0) < minPriority) continue;
 
     const u = urgency(raw, now);
     const fresh = isNew(raw, lastBriefAt);
-
-    // Anything beyond the horizon stays quiet until it gets closer.
     const dLeft = daysUntil(raw, now);
+
+    // Beyond the horizon it stays quiet until it gets closer.
     if (dLeft !== null && dLeft > horizon && raw.kind !== "today") continue;
 
     // Past events are history, not news.
@@ -130,19 +122,32 @@ export function selectForBrief(items, { now = new Date(), lastBriefAt = null, co
     const section = sectionFor(raw, { u, fresh });
     if (!section) continue;
 
+    const { score, why } = rankItem({ ...raw, changed: raw.changed || fresh }, { now, config });
+
     buckets[section].push({
       ...raw,
       _urgency: u,
       _new: fresh,
       _changed: Boolean(raw.changed),
       _daysUntil: dLeft,
+      _rank: score,
+      _rankWhy: why,
     });
   }
 
-  // Today reads chronologically; everything else reads by importance.
+  // Today reads chronologically — it's a schedule, not a ranking.
   buckets.today.sort((a, b) => new Date(a.dueAt || 0) - new Date(b.dueAt || 0));
+
+  // Everything else reads by rank, with the deadline breaking ties.
   for (const s of SECTIONS) {
-    if (s !== "today") buckets[s].sort(compare);
+    if (s === "today") continue;
+    buckets[s].sort((a, b) => {
+      if (b._rank !== a._rank) return b._rank - a._rank;
+      if (a.dueAt && b.dueAt) return new Date(a.dueAt) - new Date(b.dueAt);
+      if (a.dueAt) return -1;
+      if (b.dueAt) return 1;
+      return String(a.title).localeCompare(String(b.title));
+    });
   }
 
   const sections = {};

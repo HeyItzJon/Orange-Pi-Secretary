@@ -103,8 +103,21 @@ body {
 .item .title { font-size: 14.5px; color: var(--ink); }
 .item .title a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); }
 .item .title a:hover { border-bottom-color: var(--muted); }
-.item .meta { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.item .meta { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
 .item .meta .src { color: var(--ink-2); }
+.item .meta .lead { color: var(--ink-2); }
+
+/* Category tag — deliberately quiet. It answers "what kind of thing is this",
+   which is orientation, not alarm. Urgency owns the loud colours. */
+.tag {
+  display: inline-block;
+  font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2); background: var(--border);
+  padding: 1.5px 6px 2px; border-radius: 4px;
+  margin-right: 2px; vertical-align: 1px;
+}
+.tag.prep { margin-left: 7px; margin-right: 0; color: var(--warning); background: transparent; border: 1px solid currentColor; }
 
 .actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
 .item:hover .actions, .item:focus-within .actions { opacity: 1; }

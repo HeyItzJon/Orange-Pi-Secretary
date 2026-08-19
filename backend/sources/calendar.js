@@ -1,17 +1,21 @@
 // sources/calendar.js
 //
-// Calendar events become items directly. No AI at all — an event already
-// knows what it is, and asking a model to restate it was pure cost in v1.
+// Calendar events become items directly. No AI — an event already knows what
+// it is, and asking a model to restate it was pure cost in v1.
 //
-// Two fixes carried over from the audit:
-//   - day grouping is done in an explicit timezone, not the server's locale
-//     (which on the Pi will not be Ottawa)
-//   - calendar name matching normalises curly apostrophes, so "Sydney's
-//     Demands" finally resolves
+// The detail line is the thing worth getting right. It must EARN its space:
+// the title is already on screen, the time is already in the left column, and
+// the category is already a chip. So the detail shows only what none of those
+// carry — what you wrote in the event description, how long it runs, where it
+// is, who else is coming.
+//
+// It never prints the calendar's own name. For the default calendar that name
+// is your email address, which tells you nothing.
 
 import { logger } from "../lib/log.js";
 import { resolveCalendars, getEvents } from "../lib/google.js";
 import { itemId, contentHash } from "../lib/ids.js";
+import { categorise, isEmphasised, isEmailLike, durationLabel } from "../lib/classify.js";
 
 const log = logger("calendar");
 
@@ -29,6 +33,33 @@ export function timeLabel(date, timeZone) {
 
 function overlaps(a, b) {
   return new Date(a.start) < new Date(b.end) && new Date(b.start) < new Date(a.end);
+}
+
+/**
+ * Google descriptions arrive as HTML with boilerplate (Meet links, "view your
+ * event at..."). Pull the first line that's actually a human note.
+ */
+export function usefulNote(description, { maxLength = 96 } = {}) {
+  if (!description) return null;
+  const text = String(description)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+
+  const noise = /^(https?:\/\/|-{3,}|_{3,}|join |dial |meeting id|passcode|view your event|this invitation|do not edit)/i;
+
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+/g, " ").trim();
+    if (line.length < 3) continue;
+    if (noise.test(line)) continue;
+    if (/^[\W_]+$/.test(line)) continue;
+    return line.length > maxLength ? `${line.slice(0, maxLength - 1).trimEnd()}…` : line;
+  }
+  return null;
 }
 
 export async function collectCalendar(config, { force = false } = {}) {
@@ -51,44 +82,50 @@ export async function collectCalendar(config, { force = false } = {}) {
   log.info(`${events.length} events over ${horizonDays} days`);
 
   const todayKey = dayKey(now, tz);
-  const alwaysImportant = (cfg.alwaysImportant || []).map((s) => s.toLowerCase());
   const items = [];
 
   for (const e of events) {
     const isToday = dayKey(e.start, tz) === todayKey;
-    const important = alwaysImportant.includes(e.calendarName.toLowerCase());
-    const needsPrep = Boolean(e.description?.trim()) || e.attendees > 0;
+    const category = categorise(
+      { title: e.summary, calendarName: e.calendarName, body: e.description },
+      config
+    );
+    const emphasised = isEmphasised(e.summary);
 
-    // Base score: important calendars outrank ordinary ones, today outranks later.
-    let priority = important ? 85 : 65;
-    if (isToday) priority += 10;
-    if (needsPrep) priority += 3;
+    // Only facts the rest of the row doesn't already show.
+    const note = usefulNote(e.description);
+    const detail = [
+      note,
+      isToday ? null : timeLabel(e.start, tz),
+      durationLabel(e.start, e.end, e.allDay),
+      e.location ? e.location.split(",")[0].trim().slice(0, 40) : null,
+      e.attendees > 1 ? `${e.attendees} people` : null,
+    ].filter(Boolean).join(" · ");
 
     items.push({
       id: itemId("calendar", `${e.calendarId}:${e.id}`),
       source: "calendar",
       kind: isToday ? "today" : "upcoming",
       title: e.summary,
-      // Today's row already shows the time in its left column, so repeating
-      // it here is clutter. Future rows show a date there, so they keep it.
-      detail: [
-        e.calendarName,
-        isToday || e.allDay ? null : timeLabel(e.start, tz),
-        e.location || null,
-      ].filter(Boolean).join(" · "),
+      detail,
       url: e.htmlLink,
       dueAt: e.start,
-      priority,
-      tier: important ? "important" : "school",
-      reasons: [important ? `${e.calendarName} calendar` : "calendar"],
-      contentHash: contentHash({ s: e.summary, st: e.start, en: e.end, l: e.location }),
+      category: category.id,
+      categoryLabel: category.label,
+      categoryWeight: category.weight,
+      unmissable: Boolean(category.unmissable),
+      emphasised,
+      tier: category.id,
+      reasons: [category.why, emphasised ? "written in caps" : null].filter(Boolean),
+      contentHash: contentHash({ s: e.summary, st: e.start, en: e.end, l: e.location, d: note }),
       meta: {
-        calendarName: e.calendarName,
+        calendarName: isEmailLike(e.calendarName) ? "Personal" : e.calendarName,
         allDay: e.allDay,
         start: e.start,
         end: e.end,
         attendees: e.attendees,
-        needsPrep,
+        recurring: Boolean(e.recurringEventId),
+        needsPrep: Boolean(note) || e.attendees > 1,
       },
     });
   }
@@ -109,12 +146,16 @@ export async function collectCalendar(config, { force = false } = {}) {
         id: itemId("calendar", `conflict:${pair}`),
         source: "calendar",
         kind: "conflict",
-        title: `Overlap: ${a.summary} and ${b.summary}`,
-        detail: `${dayKey(a.start, tz)} · ${timeLabel(a.start, tz)} and ${timeLabel(b.start, tz)}`,
+        title: `${a.summary} overlaps ${b.summary}`,
+        detail: `${timeLabel(a.start, tz)} and ${timeLabel(b.start, tz)} · same day`,
         url: a.htmlLink,
         dueAt: a.start,
-        priority: 92,
-        tier: "important",
+        category: "conflict",
+        categoryLabel: "Clash",
+        categoryWeight: 46,
+        unmissable: true,
+        emphasised: false,
+        tier: "conflict",
         reasons: ["two events overlap"],
         contentHash: contentHash({ a: a.start, b: b.start, x: a.summary, y: b.summary }),
         meta: { conflict: true },
@@ -128,10 +169,14 @@ export async function collectCalendar(config, { force = false } = {}) {
       source: "calendar",
       kind: "system",
       title: `Calendar not found: ${missing.join(", ")}`,
-      detail: "Name in config.json doesn't match Google. Check spelling in the Calendar settings.",
+      detail: "The name in config.json doesn't match Google. Run `npm run doctor` to see the real list.",
       url: "https://calendar.google.com/calendar/r/settings",
       dueAt: null,
-      priority: 55,
+      category: "system",
+      categoryLabel: "Setup",
+      categoryWeight: 30,
+      unmissable: false,
+      emphasised: false,
       tier: "system",
       reasons: ["configuration"],
       contentHash: contentHash({ missing }),
