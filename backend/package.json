@@ -1,0 +1,25 @@
+{
+  "name": "pi-secretary-backend",
+  "version": "0.1.0",
+  "description": "Modular backend for the AI secretary dashboard. Reads data sources, sends a summary to an AI provider, stores insights, serves them to the frontend.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "generate-now": "node -e \"import('./modules/pipeline.js').then(m => m.runPipeline())\""
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "googleapis": "^176.0.0",
+    "node-cron": "^3.0.3",
+    "open": "^11.0.1",
+    "yahoo-finance2": "^4.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

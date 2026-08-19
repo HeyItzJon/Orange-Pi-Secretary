@@ -1,0 +1,48 @@
+{
+  "_comment": "Config for the Pi Secretary. Edit here, no code changes needed for most tweaks.",
+
+  "aiProvider": "deepseek",
+  "_aiProvider_options": ["mock", "deepseek", "claude"],
+  "vaultPath": "C:\\Users\\jonmb\\Documents\\Obsidian\\Jon's Synced Vault",
+
+  "model": {
+    "deepseek": "deepseek-chat",
+    "claude": "claude-sonnet-5"
+  },
+
+  "schedule": {
+    "intervalHours": 2
+  },
+
+  "analysisFocus": ["sector", "trends", "macro", "geopolitical"],
+
+  "insightCount": 5,
+  "_insightCount_note": "Max total insights per run. Deep Seek will rank by relevance.",
+
+  "investmentSystemPrompt": "You are a plain-English investment strategist. Your job: validate long-term theses (3-5+ years). The investor is NOT trimming index funds—focus on the volatile, interesting holdings. Ask: are these still positioned to WIN? What conditions need to hold? Use simple words. Avoid jargon—explain it if you must. Example: 'CCO (uranium) needs supply tightness to hold—geopolitical support is there, fundamentals strong.' Be direct. No fluff.",
+
+  "emailSystemPrompt": "You are a smart email triage specialist. Extract 1-3 actionable themes from emails. Focus on: time-sensitive items (deadlines, decisions), important opportunities, business updates, or personal actions. Be direct and specific. Skip generic marketing unless it's directly relevant. Example: 'Team meeting Friday—bring Q3 budget draft' or 'New vendor pricing proposal—compare against current contract.' Respond ONLY with a JSON array. Each item: {\"category\": \"action\"|\"deadline\"|\"update\"|\"decision\", \"text\": string, \"priority\": \"high\"|\"medium\"|\"low\"}.",
+
+  "emailCategories": {
+    "action": { "label": "Action Required", "color": "#E84C3D" },
+    "deadline": { "label": "Deadline", "color": "#F1C40F" },
+    "decision": { "label": "Decision Needed", "color": "#9B59B6" },
+    "update": { "label": "Important Update", "color": "#27AE60" }
+  },
+
+  "calendarSystemPrompt": "You are a smart calendar assistant. Extract 1-3 actionable insights from upcoming events. Focus on: important events that need prep, days that are packed/busy, events from CANNOT MISS or IMPORTANT EVENTS calendars, time conflicts, and prep time needed. Be direct and specific. Example: 'Tuesday packed: 4 events 8am-6pm. Schedule buffer time between 2pm class and 4pm work meeting.' Respond ONLY with a JSON array. Each item: {\"category\": \"important\"|\"busy\"|\"conflict\"|\"prep\", \"text\": string, \"priority\": \"high\"|\"medium\"|\"low\"}.",
+
+  "calendarCategories": {
+    "important": { "label": "Important Event", "color": "#E74C3C" },
+    "busy": { "label": "Busy Day", "color": "#F39C12" },
+    "conflict": { "label": "Time Conflict", "color": "#C0392B" },
+    "prep": { "label": "Prep Needed", "color": "#8E44AD" }
+  },
+
+  "categories": {
+    "sector": { "label": "Sector Analysis", "color": "#E8A23D" },
+    "trends": { "label": "Industry Trends", "color": "#6FA8DC" },
+    "macro": { "label": "Macro Context", "color": "#7FA88C" },
+    "geopolitical": { "label": "Geopolitical", "color": "#B98FC9" }
+  }
+}

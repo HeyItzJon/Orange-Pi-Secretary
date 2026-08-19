@@ -1,0 +1,7 @@
+node_modules/
+.env
+client_secret.json
+backend/data/
+backend/config/
+frontend/dist/
+*.log
