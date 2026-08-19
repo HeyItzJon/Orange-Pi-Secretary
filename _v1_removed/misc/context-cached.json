@@ -1,0 +1,101 @@
+{
+  "fed": {
+    "currentRate": "5.25-5.50%",
+    "outlook": "Holding steady; potential cut in Q1 2027 if inflation continues cooling",
+    "lastUpdate": "2026-08-18T16:00:00.319Z"
+  },
+  "sectors": {
+    "sectors": {
+      "Technology": {
+        "ytdChange": 8.2,
+        "description": "Semiconductors steady, AI hype cooling slightly"
+      },
+      "Energy": {
+        "ytdChange": -3.1,
+        "description": "Oil/gas under pressure from rate expectations and supply"
+      },
+      "Financials": {
+        "ytdChange": 5.4,
+        "description": "Banks benefiting from rate stability, insurance under pressure"
+      },
+      "Materials": {
+        "ytdChange": -1.8,
+        "description": "Uranium volatile on geopolitical hopes; lithium weak"
+      },
+      "Industrials": {
+        "ytdChange": 6.1,
+        "description": "Defense spending strong; aerospace supply chain easing"
+      },
+      "Consumer": {
+        "ytdChange": -2.5,
+        "description": "Retail weak; discretionary pullback on rate uncertainty"
+      },
+      "Utilities": {
+        "ytdChange": 3.2,
+        "description": "Nuclear renaissance driving energy infrastructure"
+      }
+    },
+    "lastUpdate": "2026-08-18T16:00:00.319Z"
+  },
+  "trends": {
+    "trends": [
+      {
+        "theme": "Semiconductors",
+        "trend": "AI demand sustaining prices despite cyclical concerns"
+      },
+      {
+        "theme": "Uranium",
+        "trend": "Peace talks and nuclear expansion driving interest; geopolitical risk remains"
+      },
+      {
+        "theme": "Defense Contractors",
+        "trend": "Elevated spending on Ukraine and NATO; tariff talk could affect supply chains"
+      },
+      {
+        "theme": "Clean Energy / EVs",
+        "trend": "Subsidy uncertainty under new policy; transition slowdown possible"
+      },
+      {
+        "theme": "Financials",
+        "trend": "Rate stability preferred; no major rate cuts expected near-term"
+      }
+    ],
+    "lastUpdate": "2026-08-18T16:00:00.319Z"
+  },
+  "macro": {
+    "macroShifts": [
+      {
+        "shift": "USD Strength",
+        "impact": "CAD/USD near parity; benefits US holdings, hurts CAD exporters"
+      },
+      {
+        "shift": "Oil/Commodities",
+        "impact": "Oil ~$75/bbl, stable; gold up on uncertainty; copper demand weak"
+      },
+      {
+        "shift": "Rate Trajectory",
+        "impact": "No imminent cuts; terminal rate holding at 5.25-5.50%"
+      }
+    ],
+    "geopolitical": [
+      {
+        "event": "Ukraine/Russia",
+        "impact": "Elevated defense spending; energy price volatility; sanctions on tech"
+      },
+      {
+        "event": "US-China Tariffs",
+        "impact": "Tech supply chains at risk; semiconductor costs may rise; manufacturing uncertain"
+      },
+      {
+        "event": "Middle East",
+        "impact": "Oil supply stable but geopolitical premium remains"
+      },
+      {
+        "event": "Canada-US Trade",
+        "impact": "Tariff threats; CAD pressure; exporters vulnerable"
+      }
+    ],
+    "lastUpdate": "2026-08-18T16:00:00.319Z"
+  },
+  "fetchedAt": "2026-08-18T16:00:00.319Z"
+}

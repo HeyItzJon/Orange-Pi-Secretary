@@ -1,152 +1,199 @@
-# Pi Secretary — Starter Framework
+# Pi Secretary v2
 
-A small, modular framework for an AI-powered dashboard: a backend that reads
-data sources on a schedule and asks an AI for insights, and a React frontend
-with switchable "pages" (Briefing, Investments) that displays them.
+A morning brief that earns its place.
 
-Right now everything runs on **mock data** so you can see the whole pipeline
-work for free before connecting anything real (your Obsidian vault, a real
-AI provider, real market data).
+Reads your calendar, inbox, portfolio and Obsidian vault, and tells you what
+you need to know today — then shuts up about it until something changes.
 
-## How the pieces fit together
+**Rules decide what surfaces. The model only writes it up.**
 
-```
-backend/                    <- Node.js server (runs on your computer, later on the Pi)
-  config.json                <- THE FILE YOU'LL EDIT MOST. Change AI provider,
-                                 focus areas, how often it runs, prompt text.
-  .env                        <- API keys (you create this, never commit it)
-  modules/
-    vaultAnalyzer.js          <- reads your Obsidian vault (currently mock data)
-    marketData.js             <- reads portfolio/news (currently mock data)
-    aiClient.js                <- talks to DeepSeek/Claude/mock — swap providers here
-    pipeline.js                <- combines the above, saves data/insights.json
-    scheduler.js                <- runs pipeline.js on a timer (default: every 2h)
-  data/insights.json           <- the AI's latest output (this is what the frontend reads)
-  server.js                    <- Express server: API + serves the built frontend
+---
 
-frontend/                    <- React app (built with Vite)
-  src/App.jsx                  <- page switching lives here (add new pages in one line)
-  src/components/
-    BriefingPage.jsx            <- shows AI insights
-    InvestmentsPage.jsx          <- shows portfolio + news
-    InsightCard.jsx, Header.jsx  <- reusable pieces
-```
+## What changed from v1
 
-**Why nothing crashes on page load:** the AI and data calls only happen
-inside `scheduler.js`, on a timer. The browser never triggers them — it just
-reads whatever `pipeline.js` last saved to `data/insights.json`. This is the
-fix for the ticker-query crashes you were hitting before.
+v1 regenerated "insights" from scratch every two hours. It had no memory, so
+it could never say what was *new* and never stopped repeating itself; and it
+asked the model to decide what mattered, which it couldn't know.
 
-## Part 1 — Run it locally on your computer (do this first)
+v2 keeps a store of **items** with stable ids, so it knows what it has
+already told you and how many times. What gets shown is decided by rules you
+can read and tune in `config.json`.
 
-You need [Node.js](https://nodejs.org) installed (the LTS version, 18 or newer).
-Check with:
-```bash
-node -v
-```
+v1's market intelligence (`marketContext.js`) returned hardcoded strings —
+a fixed Fed rate, invented sector performance, invented geopolitical risks —
+and fed them to the model under the heading "Market Reality". That module is
+gone. Nothing in v2 invents a fact.
 
-**Start the backend** (in one terminal window):
+---
+
+## Getting started
+
 ```bash
 cd backend
 npm install
-npm start
+npm run doctor      # checks credentials, calendars, vault, portfolio
+npm run brief:dry   # full run with NO AI calls — good first test
+npm run brief       # full run with narration
+npm start           # server + scheduler on :3001
 ```
-You should see:
-```
-[server] Running at http://localhost:3001
-[scheduler] Pipeline will run every 2 hour(s).
-[pipeline] Running with provider "mock"...
-[pipeline] Saved 4 insights.
-```
-That last line means it worked — mock data flowed all the way through.
 
-**Start the frontend** (in a second terminal window, don't close the first):
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run build       # REQUIRED — the server serves frontend/dist
 ```
-It will print a local URL, usually `http://localhost:5173`. Open that in
-your browser. You should see the dashboard with two tabs: **Briefing** and
-**Investments**, both showing mock data.
 
-While `npm run dev` is running, any change you make to a `.jsx` or `.css`
-file appears in the browser instantly — no restart needed. That's your
-edit-and-see-it loop for the frontend.
+`npm run doctor` is the first thing to run whenever something looks wrong.
+It tells you in plain language which credential is missing, which calendar
+name doesn't match Google, and whether the frontend is built.
 
-For the backend, if you used `npm start`, you need to stop it (Ctrl+C) and
-run `npm start` again after editing a `.js` file. Or use `npm run dev`
-instead of `npm start` in the backend folder too — it auto-restarts on save.
+---
 
-## Part 2 — Tweak how it thinks
+## How a brief is assembled
 
-Open `backend/config.json`. This is plain text, no code. Things you can
-change immediately:
+```
+calendar ─┐
+inbox ────┤                                        ┌─ Today
+money ────┼─→ items (stable id, memory) ─→ rules ──┼─ Needs you
+notes ────┘                                        ├─ New since yesterday
+                                                   ├─ Coming up
+                                                   ├─ Money
+                                                   └─ Loose threads
+```
 
-- `"analysisFocus"` — remove a category you don't care about, e.g. delete `"patterns"`
-- `"insightCount"` — how many insights to generate
-- `"systemPrompt"` — the instructions the AI follows. Rewrite this in your
-  own words to change its "personality" or priorities.
-- `"schedule.intervalHours"` — how often the pipeline runs
+Every item lands in **exactly one** section, so nothing is ever said twice in
+the same brief. Empty sections are hidden. A short brief is the system
+working.
 
-After changing `config.json`, either wait for the next scheduled run, or
-force it immediately:
+### The memory model
+
+Each item carries `firstSeen`, `surfaceCount`, `contentHash` and `status`.
+That's what makes the useful behaviours possible:
+
+| Behaviour | Mechanism |
+|---|---|
+| "New since yesterday" | `firstSeen` is after the last brief |
+| Stops repeating | `surfaceCount` past `maxRepeats`, unchanged, no deadline |
+| Escalates | urgency derived from `dueAt` — quiet at 10 days, loud at 1 |
+| Detects a change | `contentHash` differs → resurfaces as CHANGED |
+| "I know, stop" | `status` set to done / dismissed / snoozed |
+
+Anything with a deadline running is **never** suppressed, however often
+you've been told.
+
+---
+
+## API budget
+
+The model is called for exactly two things: classifying the handful of emails
+that already passed your rules (one batched call), and writing one summary
+line. Everything else is deterministic.
+
+Cost control, in the order it happens:
+
+1. Gmail message ids are immutable, so already-seen ids are dropped before
+   anything is fetched. Most runs stop here.
+2. Messages are fetched with `format=metadata` and a header whitelist, not
+   `format=full`.
+3. Newsletters (`List-Unsubscribe`), muted senders and anything that doesn't
+   match your rules are dropped — no tokens spent.
+4. Survivors go to the model in ONE call, cached by content hash.
+5. Calendar, money and notes never call the model at all.
+
+A quiet morning costs one Gmail list call and nothing else.
+Watch it at `GET /api/usage`.
+
+Set `ai.provider` to `"off"` in `config.json` to run the whole system with
+zero AI calls. The brief still renders; it just has no summary line.
+
+---
+
+## Configuration
+
+Everything worth tuning is in `backend/config.json`.
+
+- **`rules`** — who and what matters. Priority order is opportunities, then
+  work and family, then school. Add a name to `rules.people` or a domain to
+  `rules.domains` and it outranks everything generic. This is the single
+  biggest lever on output quality.
+- **`email.minScore`** — the bar an email must clear to reach the model.
+  Lower to widen the net, raise it to spend less.
+- **`brief.maxRepeats`** — how many times an unchanged, undated item is
+  allowed to speak before going quiet.
+- **`calendar.targets`** — must match Google exactly. Curly apostrophes and
+  `&` are normalised automatically, so `Sydney's Demands` resolves either way.
+  `npm run doctor` prints what Google actually returns.
+- **`money`** — thresholds. Nothing is surfaced unless one fires.
+- **`notes.watchFolders`** — which vault folders to watch for loose threads.
+
+---
+
+## API
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/brief` | the current brief |
+| GET | `/api/items` | everything the system knows (`?status=open`) |
+| GET | `/api/usage` | token spend, by day |
+| GET | `/api/health` | liveness |
+| POST | `/api/refresh` | all sources, then compose |
+| POST | `/api/refresh/:source` | `email` · `calendar` · `money` · `notes` |
+| POST | `/api/brief/rebuild` | recompose from memory — no API calls |
+| POST | `/api/items/:id/done` | never show again |
+| POST | `/api/items/:id/dismiss` | same, but "not relevant" |
+| POST | `/api/items/:id/snooze` | body `{days: 3}` |
+| POST | `/api/items/:id/reopen` | undo |
+
+---
+
+## Schedule
+
+| | |
+|---|---|
+| Calendar + email pull | 06:30, 12:30, 18:30 |
+| Notes | 06:20 |
+| Money | 17:15 (after close) |
+| Brief composed | 06:40 |
+
+Times are local to `config.timezone`, checked once a minute. No cron
+dependency.
+
+---
+
+## Tests
+
 ```bash
-curl -X POST http://localhost:3001/api/refresh
+node scripts/test-rules.js
 ```
-(There's also a "Run pipeline now" button in the UI if the briefing is empty.)
 
-## Part 3 — Connect a real AI provider (when you're ready)
+Covers the clock, suppression, newness, section assignment, and the email
+triage rules. The rules engine is pure, so it tests without touching Gmail,
+the model, or the system clock.
 
-1. Copy `backend/.env.example` to `backend/.env`
-2. Add your API key (DeepSeek or Anthropic) to that file
-3. In `config.json`, change `"aiProvider"` from `"mock"` to `"deepseek"` or `"claude"`
-4. Restart the backend
+---
 
-Nothing else changes — `aiClient.js` handles the swap internally. This is
-what "modular" means in practice: one line in a config file, not a code rewrite.
+## Notes for the Pi
 
-## Part 4 — Connect your real Obsidian vault (when you're ready)
+- **Ethernet only.** The Zero 3's WiFi chip (Unisoc UWE5622) has documented
+  transmit-queue timeouts and scan failures needing a reboot.
+- **No local LLM.** Measured ~1 tok/s for a 1B model and 35–60 s to first
+  token. This system calls an API; the Pi is the scheduler, cache and display.
+- **The microSD is the only storage and the top failure mode.** Take a `dd`
+  image backup — that's the actual recovery plan. A power bank with
+  pass-through charging is the best $15 of reliability you can buy, because
+  power loss during a write is how these boards usually die.
+- Buy 2 GB or 4 GB, never 1.5 GB (U-Boot RAM-probe bug → boot crashes).
+- Armbian Debian 13 minimal, kernel 6.18.x. Node arm64 is Tier-1.
 
-Right now `backend/modules/vaultAnalyzer.js` returns fake data shaped like a
-real vault scan. Once Syncthing has your vault mirrored onto the Pi (or
-even just onto this computer for testing), we'll rewrite the inside of
-that one function to actually read files. Nothing else in the project needs
-to change — every other module just consumes whatever `vaultAnalyzer.js`
-returns.
+---
 
-Same idea for `backend/modules/marketData.js` when you're ready for real
-tickers/news — we'll swap the inside for a real API call with proper
-fallback handling, one ticker at a time, so it never crashes the way it did
-in Claude.
+## Storage
 
-## Part 5 — Move it to the Orange Pi (later, once this feels solid)
+One JSON file at `backend/data/secretary.json`, written atomically
+(temp + rename, so a power cut can't corrupt it) behind an in-process mutex.
+That mutex is the fix for v1's bug where the scheduler and a manual refresh
+would overwrite each other.
 
-Rough shape of what that'll look like (we'll go step by step when you're there):
-```bash
-# Build the frontend once, ahead of time:
-cd frontend && npm run build
-
-# Copy the whole project to the Pi:
-scp -r pi-secretary/ pi@<pi-ip-address>:/home/pi/
-
-# On the Pi, install Node, then:
-cd pi-secretary/backend
-npm install
-npm start
-
-# Point the kiosk browser at:
-http://localhost:3001
-```
-We'll refine this once we're actually on the Pi — this is just the shape of
-it so nothing here feels mysterious later.
-
-## Adding a new "page" later
-
-1. Create a new component in `frontend/src/components/`
-2. Add `{ id: "yourpage", label: "Your Page" }` to the `PAGES` array in `App.jsx`
-3. Add one line rendering it in the `<main>` section of `App.jsx`
-
-That's the whole framework — this is designed so almost everything you'll
-want to change lives in `config.json` or one clearly-named file, not
-scattered across the codebase.
+Single user, a few thousand items over years — a JSON file is the right tool.
+If it ever outgrows that, swap `lib/store.js` for `node:sqlite`; nothing else
+in the codebase knows how storage works.
