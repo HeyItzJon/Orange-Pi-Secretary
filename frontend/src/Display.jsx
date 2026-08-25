@@ -43,6 +43,19 @@ function LiveClock({ timeZone }) {
 }
 
 function Strip({ strip }) {
+  // Which block's card is pinned open by a tap — :hover already does this on
+  // a mouse, but a touch screen has no hover, so a tap toggles the same card
+  // via this instead. A document-level listener closes it on the next tap
+  // anywhere else; each block's own handler stops that tap from immediately
+  // re-closing what it just opened.
+  const [openId, setOpenId] = useState(null);
+  useEffect(() => {
+    if (openId == null) return;
+    const close = () => setOpenId(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [openId]);
+
   if (!strip) return null;
   return (
     <div className="strip-wrap">
@@ -56,8 +69,12 @@ function Strip({ strip }) {
         {strip.blocks.map((b) => (
           <div
             key={b.id}
-            className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${b.left > 62 ? " flip" : ""}`}
+            className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${b.left > 62 ? " flip" : ""}${openId === b.id ? " open" : ""}`}
             style={{ left: `${b.left}%`, width: `${b.width}%` }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpenId((cur) => (cur === b.id ? null : b.id));
+            }}
           >
             {b.label && (
               <span className="bl">
@@ -65,8 +82,10 @@ function Strip({ strip }) {
                 {b.time && <em>{b.time}</em>}
               </span>
             )}
-            {/* A twenty-minute gap is two pixels wide. Hover is how it gets to
-                say what it is without stealing room from the events that fit. */}
+            {/* A twenty-minute gap is two pixels wide. Hover — or a tap, on a
+                touch screen, see openId above — is how it gets to say what it
+                is without stealing width from the events that fit their own
+                label. */}
             {b.detail && (
               <span className="card">
                 <b>{b.detail.title}</b>

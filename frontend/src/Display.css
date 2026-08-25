@@ -143,9 +143,17 @@
 .blk {
   position: absolute; top: 0; bottom: 0; border-radius: 3px; overflow: hidden;
   background: var(--fill); border-left: 2px solid transparent;
+  /* The ring that makes overlapping/adjacent blocks legible: box-shadow
+     (not border) so it doesn't perturb the left/width percentages above,
+     and it's drawn in the strip's own background colour so two abutting
+     or overlapping blocks read as separated by a seam rather than fused
+     into one shape. Whichever block paints on top (later in the array)
+     still shows its own ring right up to wherever it covers the other. */
+  box-shadow: 0 0 0 1px var(--rule);
   display: flex; align-items: center;
+  cursor: pointer;
 }
-.blk.imp { box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.blk.imp { box-shadow: 0 0 0 1px var(--rule), inset 0 0 0 1px rgba(255,255,255,.16); }
 .blk.past { opacity: .4; }
 .blk .bl {
   padding: 0 7px; font-size: 11px; color: var(--ink);
@@ -518,10 +526,11 @@
    The strip is the one graphic on the site, and a twenty-minute gap between
    classes is two pixels of it. Rather than widen every sliver until the bar
    is a row of stubs, the narrow ones stay narrow and say what they are on
-   hover. Nothing here is load-bearing: everything in the card is also in the
-   rows underneath. */
-.blk { transition: filter .12s ease; }
-.blk:hover { filter: brightness(1.25); z-index: 6; }
+   hover — or, with no hover to speak of, on tap (see Strip's openId state
+   in Display.jsx, the .open class below). Nothing here is load-bearing:
+   everything in the card is also in the rows underneath. */
+.blk { transition: filter .12s ease, box-shadow .12s ease; }
+.blk:hover, .blk.open { filter: brightness(1.25); z-index: 6; }
 .blk .card {
   position: absolute; bottom: calc(100% + 9px); left: 0;
   min-width: 190px; max-width: 300px; padding: 9px 11px;
@@ -531,7 +540,7 @@
   font-size: 12.5px; line-height: 1.35; color: var(--ink);
   white-space: normal; pointer-events: none; z-index: 20;
 }
-.blk:hover .card { display: flex; }
+.blk:hover .card, .blk.open .card { display: flex; }
 /* Past about two thirds across, anchor the card to the block's right edge so
    it opens back towards the middle instead of off the side of the page. */
 .blk.flip .card { left: auto; right: 0; }
@@ -658,9 +667,9 @@
   .tside { border-left: 0; padding-left: 0; }
   .acts { opacity: 1; }                    /* no hover on a touch screen */
   .act { width: 30px; height: 30px; }
-  .blk .card { display: none !important; } /* nothing to hover with */
   /* At this width 6% of the day is about 25px — every label is a clipped
-     fragment. Colour still separates them and the rows below name them. */
+     fragment. Colour still separates them; a tap (see Strip's openId in
+     Display.jsx) names them the same way hover does on a laptop. */
   .blk .bl { display: none; }
   .ptable .phead, .ptable .prow { grid-template-columns: 3.6rem 1fr 3.6rem 3.6rem; }
   .ptable .phead span:nth-child(3), .prow .w { display: none; }
