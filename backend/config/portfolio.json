@@ -1,0 +1,206 @@
+{
+  "_comment": "Real holdings extracted from Obsidian vault on 2026-08-18",
+  "lastRebalanced": "2026-05-15",
+  "holdings": [
+    {
+      "ticker": "AMD",
+      "shares": 3.0,
+      "sector": "Technology - Semiconductors"
+    },
+    {
+      "ticker": "ARKG",
+      "shares": 4.0,
+      "sector": "ETF - Genomics"
+    },
+    {
+      "ticker": "ARKK",
+      "shares": 4.0,
+      "sector": "ETF - Innovation"
+    },
+    {
+      "ticker": "ATZ.TO",
+      "shares": 7.0,
+      "sector": "Consumer - Retail"
+    },
+    {
+      "ticker": "BBD-B.TO",
+      "shares": 4.0,
+      "sector": "Industrials - Aerospace"
+    },
+    {
+      "ticker": "BN.TO",
+      "shares": 9.0,
+      "sector": "Financials - Asset Mgmt"
+    },
+    {
+      "ticker": "CCO.TO",
+      "shares": 29.5538,
+      "sector": "Materials - Uranium"
+    },
+    {
+      "ticker": "CEG",
+      "shares": 3.0,
+      "sector": "Utilities - Nuclear"
+    },
+    {
+      "ticker": "CEU.TO",
+      "shares": 33.5381,
+      "sector": "Energy - Services"
+    },
+    {
+      "ticker": "CLS.TO",
+      "shares": 8.35,
+      "sector": "Technology - Hardware"
+    },
+    {
+      "ticker": "CZZL.NE",
+      "shares": 620.0,
+      "sector": "Consumer - Beverages"
+    },
+    {
+      "ticker": "DIS",
+      "shares": 3.0,
+      "sector": "Consumer - Media"
+    },
+    {
+      "ticker": "DNA",
+      "shares": 20.0,
+      "sector": "Healthcare - Biotech"
+    },
+    {
+      "ticker": "ENB.TO",
+      "shares": 16.0,
+      "sector": "Energy - Midstream"
+    },
+    {
+      "ticker": "KOID",
+      "shares": 18.0,
+      "sector": "ETF - Robotics"
+    },
+    {
+      "ticker": "LAC.TO",
+      "shares": 25.0,
+      "sector": "Materials - Lithium"
+    },
+    {
+      "ticker": "LHX",
+      "shares": 1.0,
+      "sector": "Industrials - Defence"
+    },
+    {
+      "ticker": "LUNR",
+      "shares": 23.0,
+      "sector": "Technology - Space"
+    },
+    {
+      "ticker": "MDA.TO",
+      "shares": 33.0,
+      "sector": "Technology - Space"
+    },
+    {
+      "ticker": "NIO",
+      "shares": 6.0,
+      "sector": "Consumer - EVs"
+    },
+    {
+      "ticker": "PBW",
+      "shares": 3.0,
+      "sector": "ETF - Clean Energy"
+    },
+    {
+      "ticker": "PYPL",
+      "shares": 2.0,
+      "sector": "Technology - Fintech"
+    },
+    {
+      "ticker": "QTUM",
+      "shares": 5.0,
+      "sector": "ETF - Quantum/AI"
+    },
+    {
+      "ticker": "RTX.NE",
+      "shares": 15.0,
+      "sector": "Industrials - Defence"
+    },
+    {
+      "ticker": "RY.TO",
+      "shares": 5.0,
+      "sector": "Financials - Banks"
+    },
+    {
+      "ticker": "SHLD.TO",
+      "shares": 118.0,
+      "sector": "ETF - Defence"
+    },
+    {
+      "ticker": "SHOP.TO",
+      "shares": 13.0,
+      "sector": "Technology - E-commerce"
+    },
+    {
+      "ticker": "SMH",
+      "shares": 3.0,
+      "sector": "ETF - Semiconductors"
+    },
+    {
+      "ticker": "SOFI",
+      "shares": 15.0,
+      "sector": "Technology - Fintech"
+    },
+    {
+      "ticker": "VFV.TO",
+      "shares": 67.9168,
+      "sector": "ETF - US Equity"
+    },
+    {
+      "ticker": "VNP.TO",
+      "shares": 14.0,
+      "sector": "Materials - Specialty"
+    },
+    {
+      "ticker": "VRT.TO",
+      "shares": 44.0,
+      "sector": "Technology - Infrastructure"
+    },
+    {
+      "ticker": "XEG.TO",
+      "shares": 100.0,
+      "sector": "ETF - Energy"
+    },
+    {
+      "ticker": "XIC.TO",
+      "shares": 25.0,
+      "sector": "ETF - Canadian Equity"
+    },
+    {
+      "ticker": "XIU.TO",
+      "shares": 20.0,
+      "sector": "ETF - Canadian Equity"
+    },
+    {
+      "ticker": "XQQ.TO",
+      "shares": 123.8979,
+      "sector": "ETF - US Tech"
+    },
+    {
+      "ticker": "XYZ",
+      "shares": 2.0,
+      "sector": "Technology - Fintech"
+    },
+    {
+      "ticker": "ZEB.TO",
+      "shares": 20.0,
+      "sector": "ETF - Financials"
+    },
+    {
+      "ticker": "ZEQT.TO",
+      "shares": 60.0,
+      "sector": "ETF - Global Equity"
+    },
+    {
+      "ticker": "ZWB.TO",
+      "shares": 75.0,
+      "sector": "ETF - Financials"
+    }
+  ]
+}
