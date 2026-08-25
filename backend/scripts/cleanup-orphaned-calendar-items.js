@@ -23,6 +23,7 @@
 //
 // Run: node scripts/cleanup-orphaned-calendar-items.js [--dry-run]
 
+import "dotenv/config";
 import { init, allItems, patchItem } from "../lib/store.js";
 import { getCalendarList } from "../lib/google.js";
 import { isEmailLike } from "../lib/classify.js";
