@@ -142,7 +142,9 @@ function AnalogClock({ timeZone }) {
         <div className="aclock-hand sec" style={{ transform: `rotate(${secDeg}deg)` }} />
         <div className="aclock-hub" />
       </div>
-      <span className="aclock-digital">{liveClockLabel(now, timeZone)}</span>
+      {/* The digital readout used to sit here as its own line — Jon asked
+          for it gone; the exact time is still one hover away via this
+          div's own title attribute above, so nothing is actually lost. */}
     </div>
   );
 }

@@ -151,11 +151,15 @@
    hands rotated by inline transform (see AnalogClock in Display.jsx), a hub
    pinning them at centre. Sized with clamp() so it scales a little with the
    viewport without ever getting silly on a big desktop monitor. */
-.aclock { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+.aclock { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
 .aclock-face {
-  /* ~2x the original clamp(64px, 8vw, 92px) — Jon asked for the clock about
-     twice as big. Ticks/hands/hub below are scaled to match. */
-  position: relative; width: clamp(128px, 16vw, 184px); height: clamp(128px, 16vw, 184px);
+  /* Jon's original ask was ~2x clamp(64px, 8vw, 92px); this is that, pulled
+     back down a little on desktop/wide screens once it landed a bit large in
+     practice. Ticks/hands/hub below are sized to match. The digital readout
+     that used to sit under the face is gone (Jon asked for it removed) — the
+     exact time is still one hover away via this element's own title attr,
+     set in AnalogClock. */
+  position: relative; width: clamp(112px, 14vw, 158px); height: clamp(112px, 14vw, 158px);
   border-radius: 50%; background: var(--raise); border: 1px solid var(--rule);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
 }
@@ -166,24 +170,20 @@
    trying to hand-compute each tick's own offset transform-origin. */
 .aclock-tick { position: absolute; inset: 0; }
 .aclock-tick::before {
-  content: ""; position: absolute; top: 6px; left: 50%; width: 2px; height: 12px;
+  content: ""; position: absolute; top: 5px; left: 50%; width: 2px; height: 10px;
   background: var(--faint); transform: translateX(-50%);
 }
-.aclock-tick.major::before { background: var(--ink-2); height: 16px; width: 3px; }
+.aclock-tick.major::before { background: var(--ink-2); height: 14px; width: 2.5px; }
 .aclock-hand {
   position: absolute; left: 50%; bottom: 50%; border-radius: 2px;
   transform-origin: 50% 100%; background: var(--ink);
 }
-.aclock-hand.hour { width: 5px; height: 26%; margin-left: -2.5px; }
-.aclock-hand.min  { width: 4px; height: 37%; margin-left: -2px; background: var(--ink-2); }
+.aclock-hand.hour { width: 4px; height: 26%; margin-left: -2px; }
+.aclock-hand.min  { width: 3px; height: 37%; margin-left: -1.5px; background: var(--ink-2); }
 .aclock-hand.sec  { width: 2px; height: 40%; margin-left: -1px; background: var(--accent); }
 .aclock-hub {
-  position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
-  margin: -6px 0 0 -6px; border-radius: 50%; background: var(--accent);
-}
-.aclock-digital {
-  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+  margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent);
 }
 
 /* line-height was tight enough (1.08) that a descender — the g in "Nothing
@@ -788,7 +788,6 @@
      the short-kiosk-panel breakpoint, where a full-size doubled face would
      eat too much of the limited vertical room. */
   .aclock-face { width: 74px; height: 74px; }
-  .aclock-digital { display: none; }
   .hero .big { font-size: 25px; }
   .strip { height: 40px; }
   .nowline { top: -7px; height: 54px; }
@@ -951,7 +950,6 @@
      — phone width is tight enough that a full-size doubled face would crowd
      the date text next to it. */
   .aclock-face { width: 86px; height: 86px; }
-  .aclock-digital { font-size: 11px; }
   .daycar-arrow { width: 30px; height: 30px; }
   .hero { flex-wrap: wrap; gap: 6px; }
   .hero .big { font-size: 21px; white-space: normal; }
