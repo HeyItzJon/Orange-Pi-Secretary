@@ -222,7 +222,13 @@
    arrow ever goes earlier than Today, since there's nothing behind it to
    preview. */
 .daycar { flex-shrink: 0; }
-.daycar-head { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 10px; }
+/* Three columns, the outer two equal (1fr each) so .daycar-nav in the middle
+   stays visually centered in the row regardless of how wide .daycar-busy
+   ends up being — the alternative (flex + justify-content: space-between)
+   would drag the nav off-center toward the empty side. The first column is
+   just a spacer; nothing is ever rendered into it. */
+.daycar-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 10px; }
+.daycar-nav { grid-column: 2; display: flex; align-items: center; justify-content: center; gap: 18px; }
 /* Bigger and a touch bolder than before — Jon wanted the day-paging
    controls more obvious at a glance, not just functional. */
 .daycar-arrow {
@@ -237,6 +243,13 @@
 .daycar-label { display: flex; align-items: baseline; gap: 8px; min-width: 12em; justify-content: center; }
 .daycar-name { font-size: 14px; font-weight: 640; }
 .daycar-date { font-size: 12px; color: var(--faint); }
+/* Whichever day the carousel is showing right now — Today itself or one of
+   the Looking-ahead slides (see the comment in Display.jsx) — right-aligned
+   in the grid's third column, level with the nav above the timeline. Reuses
+   .fcscore as-is (see Display.css's own comment on that class) so this reads
+   as the same badge the Week page shows for the same day. */
+.daycar-busy { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.daycar-busy-label { font-size: 12px; color: var(--faint); white-space: nowrap; }
 
 .daycar-viewport { overflow: hidden; }
 /* "This whole thing moves to the side" — a fresh slide, keyed by offset so
@@ -677,14 +690,15 @@
 .fcdnamewrap { display: flex; flex-direction: column; min-width: 0; }
 .fcdname { font-size: 13.5px; font-weight: 620; color: var(--ink-2); }
 .fcddate { font-size: 11px; color: var(--faint); }
-.fcdhead-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-/* The 1-10 busyness read (see busynessScore() in brief/display.js) — sized
-   AND coloured by the score itself so a busy day reads bigger and redder
-   before you even get to the bar below. Five bands (see busynessBucket() in
-   Display.jsx), not a per-point gradient no one could eyeball precisely
-   anyway. --size is set inline per card. */
+/* The 1-10 busyness read (see busynessScore() in brief/display.js) — one
+   fixed size for every card (Jon's call: the colour and number already
+   carry the score, a size that also changed was one signal too many), five
+   bands of colour (see busynessBucket() in Display.jsx) rather than a
+   per-point gradient no one could eyeball precisely anyway. Shared as-is by
+   the Today page's carousel header (see .daycar-busy below) so the two
+   surfaces read as the same visual language. */
 .fcscore {
-  width: var(--size, 26px); height: var(--size, 26px); border-radius: 50%;
+  width: 22px; height: 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   font-size: 11px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18);
@@ -694,6 +708,11 @@
 .fcscore.b-moderate { background: #b8860b; }
 .fcscore.b-heavy    { background: #c2571f; }
 .fcscore.b-intense  { background: #b5322a; }
+/* Pinned to the bottom right of the card (.fcday is a flex column — see
+   above — so margin-top: auto pushes just this row down to fill whatever
+   room the rest of the card's content didn't use). */
+.fcbusy-row { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: auto; }
+.fcbusy-label { font-size: 10.5px; color: var(--faint); }
 /* A day's own all-day items don't touch the bar below at all (see
    weekForecast's comment on why it never guesses a duration for them) — this
    badge is what actually says a visually-free day still has one sitting on
@@ -1000,6 +1019,12 @@
      the date text next to it. */
   .aclock-face { width: 86px; height: 86px; }
   .daycar-arrow { width: 38px; height: 38px; font-size: 20px; }
+  /* The nav plus a text label plus a badge no longer fit on one line at this
+     width — stack the busy score under the nav instead of squeezing the grid,
+     still right-aligned to match the desktop layout's intent. */
+  .daycar-head { display: flex; flex-direction: column; gap: 6px; }
+  .daycar-nav { width: 100%; }
+  .daycar-busy { width: 100%; justify-content: flex-end; }
   .hero { flex-wrap: wrap; gap: 6px; }
   .hero .big { font-size: 21px; white-space: normal; }
   .hero .sub { white-space: normal; }

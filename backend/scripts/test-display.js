@@ -839,25 +839,35 @@ test("a heavier category scores higher than a casual one at the same busy hours"
   assert.ok(wHeavy.days[0].busyness > wCasual.days[0].busyness);
 });
 
-test("an all-day item nudges the score up even though it never touches busyHours", () => {
-  const withAllDay = [ev({ id: "a", dueAt: at(0), meta: { allDay: true } })];
-  const wEmpty = weekForecast([], [], { now: NOW, tz: TZ, days: 1 });
+test("an all-day item nudges the score up once there's already some real time booked", () => {
+  // The boost is deliberately capped low (see busynessScore()'s comment) so
+  // it can only ever nudge an already-nonzero day, not manufacture "busy"
+  // out of nothing — a lone reminder on an otherwise empty day stays at the
+  // same floor a truly empty day gets (both are, in practice, a free day).
+  // 4h booked is a fairer place to see the nudge than the floor itself.
+  const base = [ev({ id: "a", dueAt: at(9), meta: { end: at(13) } })];
+  const withAllDay = [...base, ev({ id: "b", dueAt: at(0), meta: { allDay: true } })];
+  const wBase = weekForecast(base, [], { now: NOW, tz: TZ, days: 1 });
   const wAllDay = weekForecast(withAllDay, [], { now: NOW, tz: TZ, days: 1 });
-  assert.equal(wAllDay.days[0].busyHours, 0, "still shouldn't count as busy time");
-  assert.ok(wAllDay.days[0].busyness > wEmpty.days[0].busyness);
+  assert.equal(wAllDay.days[0].busyHours, wBase.days[0].busyHours, "still shouldn't count as busy time");
+  assert.ok(wAllDay.days[0].busyness > wBase.days[0].busyness);
   assert.ok(wAllDay.days[0].busynessWhy.some((w) => w.includes("all-day")));
 });
 
-test("an unmissable event raises the score even when it's short", () => {
-  const casual = [ev({ id: "a", dueAt: at(9), meta: { end: at(9, 30) } })];
-  const critical = [ev({ id: "a", dueAt: at(9), unmissable: true, meta: { end: at(9, 30) } })];
+test("an unmissable event raises the score a little, on top of real booked time", () => {
+  const casual = [ev({ id: "a", dueAt: at(9), meta: { end: at(11) } })];
+  const critical = [ev({ id: "a", dueAt: at(9), unmissable: true, meta: { end: at(11) } })];
   const wCasual = weekForecast(casual, [], { now: NOW, tz: TZ, days: 1 });
   const wCritical = weekForecast(critical, [], { now: NOW, tz: TZ, days: 1 });
   assert.ok(wCritical.days[0].busyness > wCasual.days[0].busyness);
   assert.ok(wCritical.days[0].busynessWhy.some((w) => w.includes("can't miss")));
 });
 
-test("several short separate events score higher than one block of the same total length", () => {
+// Jon's own correction, verbatim: "anything with like 2-3 events unless they
+// last all day cannot possibly be that busy" — event COUNT is deliberately
+// not a signal at all (see busynessScore()'s closing comment), so splitting
+// the same total time into more pieces must never change the score.
+test("splitting the same total time into more separate events changes nothing", () => {
   const oneBlock = [ev({ id: "a", dueAt: at(9), meta: { end: at(12) } })];
   const fragmented = [
     ev({ id: "a", dueAt: at(9), meta: { end: at(10) } }),
@@ -867,7 +877,36 @@ test("several short separate events score higher than one block of the same tota
   const wBlock = weekForecast(oneBlock, [], { now: NOW, tz: TZ, days: 1 });
   const wFrag = weekForecast(fragmented, [], { now: NOW, tz: TZ, days: 1 });
   assert.equal(wBlock.days[0].busyHours, wFrag.days[0].busyHours, "same total hours either way");
-  assert.ok(wFrag.days[0].busyness > wBlock.days[0].busyness, "but fragmentation should cost something");
+  assert.equal(wFrag.days[0].busyness, wBlock.days[0].busyness, "event count alone must not move the score");
+});
+
+test("2-3 short events that don't add up to much time read as clearly NOT busy", () => {
+  const events = [
+    ev({ id: "a", dueAt: at(9), meta: { end: at(9, 30) } }),
+    ev({ id: "b", dueAt: at(13), meta: { end: at(13, 30) } }),
+    ev({ id: "c", dueAt: at(17), meta: { end: at(17, 30) } }),
+  ];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.ok(w.days[0].busyness <= 3, `expected a light day, got ${w.days[0].busyness}`);
+});
+
+test("Jon's own definition of a busy day — only 3-5h left free — scores high", () => {
+  const events = [ev({ id: "a", dueAt: at(7), meta: { end: at(19) } })]; // 12h booked, 4h free
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(w.days[0].freeHours, 4);
+  assert.ok(w.days[0].busyness >= 7, `expected a busy reading, got ${w.days[0].busyness}`);
+});
+
+test("the Today page's carousel reports the exact same busyness the Week page does, for both Today and Looking-ahead slides", () => {
+  const items = [
+    ev({ id: "a", dueAt: at(7), meta: { end: at(19) } }), // today: 12h booked
+    ev({ id: "b", dueAt: dayAt(1, 9), meta: { end: dayAt(1, 10) } }), // tomorrow: 1h booked
+  ];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.equal(d.strip.busyness, d.week.days[0].busyness);
+  assert.deepEqual(d.strip.busynessWhy, d.week.days[0].busynessWhy);
+  assert.equal(d.dayStrips[0].busyness, d.week.days[1].busyness, "dayStrips[0] is tomorrow, week.days[1] is tomorrow");
+  assert.ok(d.strip.busyness > d.dayStrips[0].busyness, "today (12h booked) should read busier than tomorrow (1h booked)");
 });
 
 // ====================================================================

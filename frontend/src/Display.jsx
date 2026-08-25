@@ -252,12 +252,34 @@ function DayCarousel({ slides, offset, onOffset }) {
   return (
     <div className="daycar">
       <div className="daycar-head">
-        <button className="daycar-arrow" disabled={offset === 0} onClick={() => goTo(offset - 1)} aria-label="Previous day">‹</button>
-        <span className="daycar-label">
-          <span className="daycar-name">{slide.label}</span>
-          <span className="daycar-date">{slide.dateLabel}</span>
-        </span>
-        <button className="daycar-arrow" disabled={offset === max} onClick={() => goTo(offset + 1)} aria-label="Next day">›</button>
+        <div className="daycar-nav">
+          <button className="daycar-arrow" disabled={offset === 0} onClick={() => goTo(offset - 1)} aria-label="Previous day">‹</button>
+          <span className="daycar-label">
+            <span className="daycar-name">{slide.label}</span>
+            <span className="daycar-date">{slide.dateLabel}</span>
+          </span>
+          <button className="daycar-arrow" disabled={offset === max} onClick={() => goTo(offset + 1)} aria-label="Next day">›</button>
+        </div>
+        {/* Whichever day the carousel is currently showing — Today itself or
+            one of the Looking-ahead slides — reusing the exact same number
+            brief/display.js already attached to this slide's own strip (see
+            `busyness`/`busynessWhy` on `d.strip`/`d.dayStrips`), the same
+            score the Week page's card for this same day shows. Right-aligned
+            in its own grid column (see Display.css) so the nav above stays
+            centered regardless of this column's width. */}
+        {typeof slide.busyness === "number" && (
+          <span
+            className="daycar-busy"
+            title={
+              slide.busynessWhy?.length
+                ? `Busy Score ${slide.busyness}/10 — ${slide.busynessWhy.join(", ")}`
+                : `Busy Score ${slide.busyness}/10 — nothing scheduled yet`
+            }
+          >
+            <span className="daycar-busy-label">Busy Score:</span>
+            <span className={`fcscore b-${busynessBucket(slide.busyness)}`}>{slide.busyness}</span>
+          </span>
+        )}
       </div>
       <div className="daycar-viewport" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div key={offset} className={`daycar-slide${dir > 0 ? " fwd" : " back"}`}>
@@ -1058,37 +1080,16 @@ function WeekPage({ d, onGoToDay }) {
                 <span className="fcdname">{day.label}</span>
                 <span className="fcddate">{day.dateLabel}</span>
               </span>
-              <span className="fcdhead-right">
-                {/* A 1-10 busyness read — see busynessScore() in
-                    brief/display.js for what actually feeds it and why.
-                    Sized AND coloured by the score (bigger and redder means
-                    busier) so it reads before you even look at the bar
-                    below; the "why" behind the number is the tooltip,
-                    same as the bar's own hover text. */}
-                {typeof day.busyness === "number" && (
-                  <span
-                    className={`fcscore b-${busynessBucket(day.busyness)}`}
-                    style={{ "--size": `${20 + day.busyness * 1.6}px` }}
-                    title={
-                      day.busynessWhy?.length
-                        ? `Busyness ${day.busyness}/10 — ${day.busynessWhy.join(", ")}`
-                        : `Busyness ${day.busyness}/10 — nothing scheduled yet`
-                    }
-                  >
-                    {day.busyness}
-                  </span>
-                )}
-                {/* A day with nothing timed on it can still carry a deadline —
-                    the busy/free bar below has no way to say that (see
-                    weekForecast's own comment on why it doesn't guess a
-                    duration for these), so this badge is what actually flags
-                    it. Hover/tap for which — see title below. */}
-                {day.allDay?.length > 0 && (
-                  <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
-                    {day.allDay.length}
-                  </span>
-                )}
-              </span>
+              {/* A day with nothing timed on it can still carry a deadline —
+                  the busy/free bar below has no way to say that (see
+                  weekForecast's own comment on why it doesn't guess a
+                  duration for these), so this badge is what actually flags
+                  it. Hover/tap for which — see title below. */}
+              {day.allDay?.length > 0 && (
+                <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
+                  {day.allDay.length}
+                </span>
+              )}
             </div>
             {/* Coloured by calendar swatch, same family the day strip itself
                 uses — roughly sized and positioned, nothing to hover, no
@@ -1110,6 +1111,27 @@ function WeekPage({ d, onGoToDay }) {
             <span className="fcfree">{day.freeHours}h free</span>
             {day.eventCount > 0 && (
               <span className="fccount">{day.eventCount} on the calendar</span>
+            )}
+            {/* Pinned to the bottom right (see .fcbusy-row's margin-top:auto)
+                rather than up in the header — Jon's call, so it reads as a
+                footnote to the card rather than competing with the day name
+                for attention. Standardised size (see .fcscore) — only the
+                colour and number carry the score now, not the badge's own
+                dimensions. */}
+            {typeof day.busyness === "number" && (
+              <div className="fcbusy-row">
+                <span className="fcbusy-label">Busyness:</span>
+                <span
+                  className={`fcscore b-${busynessBucket(day.busyness)}`}
+                  title={
+                    day.busynessWhy?.length
+                      ? `Busyness ${day.busyness}/10 — ${day.busynessWhy.join(", ")}`
+                      : `Busyness ${day.busyness}/10 — nothing scheduled yet`
+                  }
+                >
+                  {day.busyness}
+                </span>
+              </div>
             )}
           </div>
         ))}

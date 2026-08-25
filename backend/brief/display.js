@@ -573,65 +573,58 @@ const ORIGIN_LABELS = {
  */
 function busynessScore(dayEvents, dayAllDayRaw, { busyHours, wakeHours }) {
   const why = [];
-  let score = 0;
 
-  // Raw time pressure: how much of the waking day is actually spoken for.
-  // Capped at 6 of the 10 points on purpose — hours alone should never max
-  // the score out, leaving room below for how HEAVY those hours are, not
-  // just how many there are.
+  // A genuinely empty day — nothing timed, nothing all-day — is the floor,
+  // full stop, before any of the math below even runs.
+  if (!dayEvents.length && !dayAllDayRaw.length) return { score: 1, why };
+
+  // Time actually booked out of the waking window IS the score, first and
+  // foremost — Jon's own calibration: a "busy" day is one with maybe 3-5h
+  // free left in it, and a day with only 2-3 short things on it "cannot
+  // possibly be that busy" no matter how those hours are split up. Nine of
+  // the ten points come from this alone; everything below is a small nudge
+  // on top, never the main event, so a mostly-free day can't get talked
+  // into a high score by anything other than actual booked time.
   const load = wakeHours ? busyHours / wakeHours : 0;
-  if (load > 0) {
-    score += load * 6;
-    why.push(`${Math.round(load * 100)}% of the day booked`);
-  }
+  let score = load * 9;
+  if (load > 0) why.push(`${Math.round(load * 100)}% of the day booked`);
 
-  // Heavier categories cost more per hour than a casual personal one —
+  // Heavier categories cost a little more per hour than a casual one —
   // config.categories already ranks these (24 for personal, up to 50 for
-  // can't-miss); averaging that existing weight across the day's timed
-  // events turns it into up to 2 extra points instead of treating every
-  // booked hour the same regardless of what it actually is.
+  // can't-miss) — but capped at 1 point so this can only ever nudge the
+  // number, never manufacture "busy" out of a light day on its own.
   if (dayEvents.length) {
     const avgWeight = dayEvents.reduce((s, e) => s + (e.categoryWeight ?? 24), 0) / dayEvents.length;
-    const weightBoost = Math.max(0, Math.min(2, ((avgWeight - 24) / (50 - 24)) * 2));
+    const weightBoost = Math.max(0, Math.min(1, (avgWeight - 24) / (50 - 24)));
     score += weightBoost;
     if (weightBoost > 0.15) why.push("heavier commitments than usual");
   }
 
-  // Fragmentation: several short, separate events cost more attention than
-  // one long block of the same total length, even at identical busyHours —
-  // context-switching has a cost the raw hour count can't see. Sized to
-  // actually move the rounded number (not just the invisible decimal) once
-  // there's a third thing on the day — two events back to back reads as
-  // ordinary, three or more starts to read as "a lot going on".
-  if (dayEvents.length > 2) {
-    const density = Math.min(2.25, (dayEvents.length - 2) * 0.75);
-    score += density;
-    why.push(`${dayEvents.length} separate things on the calendar`);
-  }
-
-  // All-day items (a deadline, payday, a reminder) add mental load without
-  // ever touching the busy/free hour math above — weekForecast deliberately
-  // never guesses a duration for one (see its own comment) — so this is the
-  // only place they nudge the number at all. Sized (like the two boosts
-  // below) to clear a full rounded point on its own, so a day carrying
-  // nothing but a payday reminder still reads as busier than a truly empty
-  // one, not indistinguishable from it.
+  // All-day items (a deadline, payday, a reminder) add a little mental load
+  // without ever touching the busy/free hour math above — weekForecast
+  // deliberately never guesses a duration for one (see its own comment) —
+  // capped at 1 point for the same reason the weight boost is: a stack of
+  // reminders alone must never read as a busy day on its own.
   if (dayAllDayRaw.length) {
-    score += Math.min(3.2, dayAllDayRaw.length * 1.6);
+    const allDayBoost = Math.min(1, dayAllDayRaw.length * 0.5);
+    score += allDayBoost;
     why.push(`${dayAllDayRaw.length} all-day ${dayAllDayRaw.length === 1 ? "item" : "items"}`);
   }
 
-  // Can't-miss or self-flagged items raise the stakes of a day even when
-  // they're short — a single exam in an otherwise empty day still isn't a
-  // "barely anything going on" day.
+  // Can't-miss or self-flagged items raise the stakes of a day a little even
+  // when they're short — same 1-point cap as the two boosts above.
   const unmissableCount = dayEvents.filter((e) => e.unmissable || e.emphasised).length;
   if (unmissableCount) {
-    score += Math.min(3.2, unmissableCount * 1.6);
+    score += Math.min(1, unmissableCount * 0.5);
     why.push(unmissableCount === 1 ? "something you can't miss" : `${unmissableCount} things you can't miss`);
   }
 
-  // Floor of 1, not 0 — even a genuinely empty day is "the lightest it gets"
-  // on a 1-10 scale, not a zero that reads as an error state.
+  // Deliberately NOT a signal here: how many separate events there are.
+  // Jon's own call — "2-3 events... cannot possibly be that busy" — three
+  // short meetings that add up to barely any booked time must score low,
+  // exactly the same as one block of the same total length would. If a day
+  // genuinely has a lot going on, that already shows up as more busyHours
+  // above; counting events on top of that double-counts the same fact.
   return { score: Math.max(1, Math.min(10, Math.round(score))), why };
 }
 
@@ -882,6 +875,17 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
 
   const todays = events.filter((e) => eventOnDay(e, todayKey, tz));
 
+  // Computed here — earlier than it used to sit — rather than down near
+  // buildTasks(), so its per-day busyness score (week.days[n].busyness) can
+  // be attached to `strip` and `dayStrips` below. Same array index, same
+  // date arithmetic (`now + n * DAY`) as the loops that build both of
+  // those, so Today's carousel and the Week page report the identical
+  // number for the identical day — one calculation, not two that could
+  // quietly drift apart.
+  const week = weekForecast(events, live.filter(isTaskLike), {
+    now, tz, days: cfg.forecastDays ?? 7,
+  });
+
   // ---------------------------------------------------------------- strip
   // A day-shaped window: 7am to 11pm covers an ordinary day without wasting
   // space on hours nothing ever happens in, but it still opens wider for
@@ -913,6 +917,11 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       dateLabel: fmt(d, tz, { weekday: "long", month: "long", day: "numeric" }),
       summary: daySummary(dayEvents, tz),
       ...buildDayStrip(dayEvents, tz),
+      // week.days[n] is the exact same calendar day (see the comment on
+      // `week`'s own computation above) — reusing it rather than scoring
+      // twice, and so the Week page and this carousel slide never disagree.
+      busyness: week.days[n]?.busyness ?? null,
+      busynessWhy: week.days[n]?.busynessWhy ?? [],
     });
   }
 
@@ -1105,14 +1114,10 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
 
   const tasks = buildTasks(live, { now, tz, config, priorities });
 
-  // ------------------------------------------------------------- week
-  // New, first cut, per Jon: a busy-vs-free forecast plus the looming list
-  // it's meant to be read against — see weekForecast()'s own comment for
-  // why the two aren't matched to each other automatically. Its own page
-  // for now, to try out before folding into Today (if it earns a spot).
-  const week = weekForecast(events, live.filter(isTaskLike), {
-    now, tz, days: cfg.forecastDays ?? 7,
-  });
+  // `week` itself (the busy-vs-free forecast plus the looming list it's
+  // meant to be read against — see weekForecast()'s own comment for why the
+  // two aren't matched to each other automatically) is computed earlier now,
+  // above `dayStrips` — see the comment there for why.
 
   // moneyUpdatedLabel itself is computed early, above, alongside
   // lastUpdatedLabel — this is just where the Year page's copy of it lives.
@@ -1152,7 +1157,14 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
 
     // ---- page 1: Today
     hero,
-    strip: { startHour, endHour, nowPct, blocks, chunks, ticks, allDay: allDayToday },
+    strip: {
+      startHour, endHour, nowPct, blocks, chunks, ticks, allDay: allDayToday,
+      // Today's own slot in the same `week.days` array the line above
+      // reuses — see the comment on `week`'s computation for why this is
+      // one shared number, not a second one computed just for this page.
+      busyness: week.days[0]?.busyness ?? null,
+      busynessWhy: week.days[0]?.busynessWhy ?? [],
+    },
     dayStrips,
     today,
     days,
