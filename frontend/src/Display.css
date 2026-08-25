@@ -134,8 +134,11 @@
    regardless of which day DayCarousel below is currently showing (a future
    day has no "now" for a clock to show). */
 .tday-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 18px; padding: 4px 2px 22px; flex-shrink: 0;
+  /* Centered as a group (date + clock together), not spread to the edges —
+     Jon asked for the date to read more centrally and the clock to sit
+     "mostly centered" rather than pinned to the right. */
+  display: flex; align-items: center; justify-content: center;
+  gap: 28px; padding: 4px 2px 22px; flex-shrink: 0;
 }
 .tday-date { display: flex; flex-direction: column; min-width: 0; }
 .tday-weekday {
@@ -150,7 +153,9 @@
    viewport without ever getting silly on a big desktop monitor. */
 .aclock { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
 .aclock-face {
-  position: relative; width: clamp(64px, 8vw, 92px); height: clamp(64px, 8vw, 92px);
+  /* ~2x the original clamp(64px, 8vw, 92px) — Jon asked for the clock about
+     twice as big. Ticks/hands/hub below are scaled to match. */
+  position: relative; width: clamp(128px, 16vw, 184px); height: clamp(128px, 16vw, 184px);
   border-radius: 50%; background: var(--raise); border: 1px solid var(--rule);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
 }
@@ -161,20 +166,20 @@
    trying to hand-compute each tick's own offset transform-origin. */
 .aclock-tick { position: absolute; inset: 0; }
 .aclock-tick::before {
-  content: ""; position: absolute; top: 3px; left: 50%; width: 1px; height: 6px;
+  content: ""; position: absolute; top: 6px; left: 50%; width: 2px; height: 12px;
   background: var(--faint); transform: translateX(-50%);
 }
-.aclock-tick.major::before { background: var(--ink-2); height: 8px; width: 1.5px; }
+.aclock-tick.major::before { background: var(--ink-2); height: 16px; width: 3px; }
 .aclock-hand {
   position: absolute; left: 50%; bottom: 50%; border-radius: 2px;
   transform-origin: 50% 100%; background: var(--ink);
 }
-.aclock-hand.hour { width: 2.5px; height: 26%; margin-left: -1.25px; }
-.aclock-hand.min  { width: 2px; height: 37%; margin-left: -1px; background: var(--ink-2); }
-.aclock-hand.sec  { width: 1px; height: 40%; margin-left: -0.5px; background: var(--accent); }
+.aclock-hand.hour { width: 5px; height: 26%; margin-left: -2.5px; }
+.aclock-hand.min  { width: 4px; height: 37%; margin-left: -2px; background: var(--ink-2); }
+.aclock-hand.sec  { width: 2px; height: 40%; margin-left: -1px; background: var(--accent); }
 .aclock-hub {
-  position: absolute; top: 50%; left: 50%; width: 6px; height: 6px;
-  margin: -3px 0 0 -3px; border-radius: 50%; background: var(--accent);
+  position: absolute; top: 50%; left: 50%; width: 12px; height: 12px;
+  margin: -6px 0 0 -6px; border-radius: 50%; background: var(--accent);
 }
 .aclock-digital {
   font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
@@ -239,7 +244,13 @@
 /* All-day events never become blocks on .strip below — there's no hour to
    plot them at — so they get their own small row of chips above it instead.
    See AllDayRow in Display.jsx. */
-.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+/* min-height reserves this row's space even on a day with no all-day items
+   (see AllDayRow in Display.jsx, which now always renders the row itself) —
+   sized to match a single .aday-chip's own height (12.5px font + 3px
+   vertical padding) so a day WITH chips doesn't grow any taller than this.
+   Without it, paging the carousel between a day with an all-day chip and
+   one without visibly jumped the hour strip below up and down. */
+.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; min-height: 24px; }
 .aday-label {
   font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); flex-shrink: 0;
@@ -625,6 +636,19 @@
   background: var(--raise); border: 1px solid var(--rule); border-radius: 7px;
   padding: 10px 11px 11px; display: flex; flex-direction: column; gap: 6px;
 }
+/* Only today + the next 3 days have a matching Today-carousel slide (see
+   dayStrips in brief/display.js) — those cards get a hover/press treatment
+   to read as clickable; the rest of the week's cards stay plain, since
+   clicking them can't actually go anywhere (see .fcfar below). */
+.fcday.clickable { cursor: pointer; transition: border-color .12s, background .12s; }
+.fcday.clickable:hover { border-color: var(--muted); background: var(--fill); }
+.fcday.clickable:active { background: var(--raise); }
+/* Transient notice shown when a farther-out (non-clickable) day card is
+   clicked — self-clears after ~1.8s (see WeekPage in Display.jsx). */
+.fcfar {
+  flex-shrink: 0; margin-bottom: 4px; padding: 8px 12px; border-radius: 7px;
+  background: rgba(237,161,0,.14); color: var(--accent); font-size: 13px; font-weight: 560;
+}
 .fcdhead { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 6px; }
 .fcdnamewrap { display: flex; flex-direction: column; min-width: 0; }
 .fcdname { font-size: 13.5px; font-weight: 620; color: var(--ink-2); }
@@ -760,7 +784,10 @@
   .tday-head { padding: 2px 2px 12px; }
   .tday-weekday { font-size: 26px; }
   .tday-monthday { font-size: 14px; }
-  .aclock-face { width: 46px; height: 46px; }
+  /* Scaled up with the rest of the clock, but short of a full 2x — this is
+     the short-kiosk-panel breakpoint, where a full-size doubled face would
+     eat too much of the limited vertical room. */
+  .aclock-face { width: 74px; height: 74px; }
   .aclock-digital { display: none; }
   .hero .big { font-size: 25px; }
   .strip { height: 40px; }
@@ -920,7 +947,10 @@
   .tday-head { padding: 2px 2px 14px; gap: 10px; }
   .tday-weekday { font-size: 26px; }
   .tday-monthday { font-size: 13.5px; }
-  .aclock-face { width: 54px; height: 54px; }
+  /* Same proportional (not full-2x) bump as the short-panel breakpoint above
+     — phone width is tight enough that a full-size doubled face would crowd
+     the date text next to it. */
+  .aclock-face { width: 86px; height: 86px; }
   .aclock-digital { font-size: 11px; }
   .daycar-arrow { width: 30px; height: 30px; }
   .hero { flex-wrap: wrap; gap: 6px; }

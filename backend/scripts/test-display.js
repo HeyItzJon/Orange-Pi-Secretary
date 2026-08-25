@@ -310,6 +310,42 @@ test("an event on day 3 opens that day's own window early/late, independent of t
   assert.equal(dayStrips[0].startHour, 7, "an unrelated day must not inherit day 3's early window");
 });
 
+test("a dayStrips day's summary: nothing at all reads plainly, not as a guess", () => {
+  const { dayStrips } = buildDisplay({ items: [], config, now: NOW });
+  assert.equal(dayStrips[0].summary, "Nothing scheduled yet");
+});
+
+test("a dayStrips day's summary: one timed event names itself and its time of day", () => {
+  const items = [ev({ id: "a", title: "Shift", dueAt: dayAt(1, 18), meta: { end: dayAt(1, 22) } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[0].summary, "Shift in the evening");
+});
+
+test("a dayStrips day's summary: two timed events are both named", () => {
+  const items = [
+    ev({ id: "a", title: "Standup", dueAt: dayAt(1, 9), meta: { end: dayAt(1, 9, 30) } }),
+    ev({ id: "b", title: "Gym", dueAt: dayAt(1, 18), meta: { end: dayAt(1, 19) } }),
+  ];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[0].summary, "Standup and Gym");
+});
+
+test("a dayStrips day's summary: three or more leads with the one the existing priority rules favour", () => {
+  const items = [
+    ev({ id: "a", title: "Standup", dueAt: dayAt(1, 9), meta: { end: dayAt(1, 9, 30) } }),
+    ev({ id: "b", title: "Gym", dueAt: dayAt(1, 18), meta: { end: dayAt(1, 19) } }),
+    ev({ id: "c", title: "Exam", dueAt: dayAt(1, 13), meta: { end: dayAt(1, 15) }, unmissable: true }),
+  ];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[0].summary, "3 things on your schedule, including Exam");
+});
+
+test("a dayStrips day's summary: only an all-day item, no timed events, describes that instead", () => {
+  const items = [ev({ id: "a", title: "Payday", dueAt: "2026-08-20", meta: { allDay: true } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[0].summary, "Payday, all day");
+});
+
 // ====================================================================
 group("today, days, deadlines");
 

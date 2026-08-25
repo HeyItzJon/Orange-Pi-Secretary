@@ -288,6 +288,46 @@ function buildDayStrip(dayEvents, tz, { now = null } = {}) {
   return result;
 }
 
+/**
+ * A plain-language stand-in for the hero line on a day the carousel has
+ * paged to that ISN'T today — "NOW: Design review in 2h" only means
+ * anything for the day actually happening, so a future day gets a sentence
+ * describing its shape instead. Built entirely from real titles and real
+ * chunk labels, never a guess: an empty day says exactly that, a single
+ * event just names itself, and a busy day names whichever one the existing
+ * priority rules (unmissable, then flagged) already say matters most —
+ * same rule buildTasks()/weekForecast() use, not a new judgment invented
+ * here. All-day items are described only when there's nothing timed that
+ * day; otherwise they're left to their own chip row above the strip rather
+ * than repeated in this sentence too.
+ */
+function daySummary(dayEvents, tz) {
+  const timed = dayEvents.filter((e) => !e.meta?.allDay);
+  const allDay = dayEvents.filter((e) => e.meta?.allDay);
+
+  if (!timed.length && !allDay.length) return "Nothing scheduled yet";
+
+  if (!timed.length) {
+    const names = allDay.map((e) => e.title);
+    return names.length === 1
+      ? `${names[0]}, all day`
+      : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}, all day`;
+  }
+
+  if (timed.length === 1) {
+    const e = timed[0];
+    return `${e.title} in the ${chunkFor(hourOfDay(e.dueAt, tz)).toLowerCase()}`;
+  }
+
+  if (timed.length === 2) return `${timed[0].title} and ${timed[1].title}`;
+
+  const lead = [...timed].sort((a, b) => {
+    const rank = (x) => (x.unmissable ? 2 : x.emphasised ? 1 : 0);
+    return rank(b) - rank(a);
+  })[0];
+  return `${timed.length} things on your schedule, including ${lead.title}`;
+}
+
 const CUMULATIVE_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 
 /** Where the year is up to — day number, total, and how far through. */
@@ -760,6 +800,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       key,
       label: n === 1 ? "Tomorrow" : fmt(d, tz, { weekday: "long" }),
       dateLabel: fmt(d, tz, { weekday: "long", month: "long", day: "numeric" }),
+      summary: daySummary(dayEvents, tz),
       ...buildDayStrip(dayEvents, tz),
     });
   }

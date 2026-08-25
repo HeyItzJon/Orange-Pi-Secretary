@@ -161,17 +161,23 @@ function AnalogClock({ timeZone }) {
  * than mounting all four — so Strip's own hover/tap card state never has to
  * be reasoned about across four instances at once.
  */
-function DayCarousel({ slides }) {
-  const [offset, setOffset] = useState(0);
-  const [dir, setDir] = useState(1);
+function DayCarousel({ slides, offset, onOffset }) {
   const max = slides.length - 1;
   const touchX = useRef(null);
+  // `dir` (which way to animate) has to be derived, not stored: this is now
+  // a controlled component (offset lives in Display(), so WeekPage's day-card
+  // clicks can set it before TodayPage even mounts) — comparing against the
+  // previous render's offset via a ref gives the same "which way did we just
+  // move" signal a local setDir(...) used to, without a second piece of
+  // state that could drift out of sync with the offset prop.
+  const prevOffset = useRef(offset);
+  const dir = offset > prevOffset.current ? 1 : offset < prevOffset.current ? -1 : 1;
+  useEffect(() => { prevOffset.current = offset; }, [offset]);
 
   const goTo = (n) => {
     const clamped = Math.max(0, Math.min(max, n));
     if (clamped === offset) return;
-    setDir(clamped > offset ? 1 : -1);
-    setOffset(clamped);
+    onOffset(clamped);
   };
 
   const onTouchStart = (e) => { touchX.current = e.touches[0].clientX; };
@@ -226,22 +232,32 @@ function DayCarousel({ slides }) {
  * then flagged, then alphabetical — so nothing here has to re-decide it.
  */
 function AllDayRow({ items }) {
-  if (!items || !items.length) return null;
+  // Always renders the row itself — even with nothing in it — so its
+  // reserved height (see .aday-row's min-height in Display.css) holds the
+  // timeline strip below in the same place on every carousel slide. Letting
+  // this return null on an empty day (the old behaviour) meant paging from
+  // a day with an all-day chip to one without visibly yanked the strip up,
+  // and back down again paging the other way.
+  const has = items && items.length > 0;
   return (
     <div className="aday-row">
-      <span className="aday-label">All day</span>
-      <div className="aday-chips">
-        {items.map((c) => (
-          <span
-            key={c.id}
-            className={`aday-chip d-${c.swatch}`}
-            style={blockStyle(c.color) || {}}
-            title={[c.title, c.priority].filter(Boolean).join(" — ")}
-          >
-            {c.title}
-          </span>
-        ))}
-      </div>
+      {has && (
+        <>
+          <span className="aday-label">All day</span>
+          <div className="aday-chips">
+            {items.map((c) => (
+              <span
+                key={c.id}
+                className={`aday-chip d-${c.swatch}`}
+                style={blockStyle(c.color) || {}}
+                title={[c.title, c.priority].filter(Boolean).join(" — ")}
+              >
+                {c.title}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -430,7 +446,7 @@ function Strip({ strip }) {
 
 /* =================================================================== pages */
 
-function TodayPage({ d }) {
+function TodayPage({ d, dayOffset, onDayOffset }) {
   // Today's own strip already carries everything DayCarousel needs
   // (blocks/chunks/ticks/allDay, plus nowPct — the one field that marks it
   // as "today" rather than a future day); dayStrips (see brief/display.js)
@@ -439,18 +455,37 @@ function TodayPage({ d }) {
     { key: "today", label: "Today", dateLabel: d.dateLabel, ...d.strip },
     ...(d.dayStrips || []),
   ];
+  // dayOffset lives up in Display() (not local state here) so a WeekPage
+  // click on "Thursday" can land this page already turned to Thursday's
+  // slide, and so switching tabs away and back doesn't reset the carousel
+  // to Today every time TodayPage remounts. Clamp defensively in case a
+  // stale offset (e.g. from a previous, longer dayStrips array) arrives.
+  const offset = Math.max(0, Math.min(slides.length - 1, dayOffset ?? 0));
+  const onToday = offset === 0;
+  const slide = slides[offset];
 
   return (
     <>
       <TodayHeader dateLabel={d.dateLabel} timeZone={d.timezone} />
 
-      <div className={`hero${d.hero.urgent ? "" : " calm"}`}>
-        <span className="lbl">{d.hero.urgent ? "NOW" : "NEXT"}</span>
-        <span className="big">{d.hero.lead}</span>
-        {d.hero.sub && <span className="sub">{d.hero.sub}</span>}
-      </div>
+      {onToday ? (
+        <div className={`hero${d.hero.urgent ? "" : " calm"}`}>
+          <span className="lbl">{d.hero.urgent ? "NOW" : "NEXT"}</span>
+          <span className="big">{d.hero.lead}</span>
+          {d.hero.sub && <span className="sub">{d.hero.sub}</span>}
+        </div>
+      ) : (
+        // Paged off Today: there's no "NOW"/"NEXT" to show for a day that
+        // hasn't happened yet, so this swaps in a plain-language summary of
+        // that day instead (see daySummary() in brief/display.js) — reusing
+        // the same calm hero styling rather than introducing a new block.
+        <div className="hero calm">
+          <span className="lbl">{slide.label.toUpperCase()}</span>
+          <span className="big">{slide.summary}</span>
+        </div>
+      )}
 
-      <DayCarousel slides={slides} />
+      <DayCarousel slides={slides} offset={offset} onOffset={onDayOffset} />
 
       <div className="cols">
         <section className="zone">
@@ -900,9 +935,32 @@ function YearPage({ d }) {
  * actually takes, so the two lists are just laid out side by side and left
  * for a human to weigh against each other.
  */
-function WeekPage({ d }) {
+function WeekPage({ d, onGoToDay }) {
   const w = d.week;
+  const [farNotice, setFarNotice] = useState(false);
+  const farTimer = useRef(null);
+
+  useEffect(() => () => { if (farTimer.current) clearTimeout(farTimer.current); }, []);
+
   if (!w) return null;
+
+  // Only the first 4 days here (today + the next 3) have a matching Today
+  // carousel slide (see dayStrips in brief/display.js, which only ever
+  // looks 3 days ahead) — so only those are actually clickable. The rest of
+  // the week's days exist on this forecast but have no Today-page view to
+  // send you to yet.
+  const clickableCount = 4;
+
+  const onCardClick = (i) => {
+    if (!onGoToDay) return;
+    if (i < clickableCount) {
+      onGoToDay(i);
+    } else {
+      if (farTimer.current) clearTimeout(farTimer.current);
+      setFarNotice(true);
+      farTimer.current = setTimeout(() => setFarNotice(false), 1800);
+    }
+  };
 
   return (
     <div className="page-week">
@@ -913,9 +971,17 @@ function WeekPage({ d }) {
         </span>
       </div>
 
+      {farNotice && <div className="fcfar">Too far out to see a view — pick one of the next 3 days.</div>}
+
       <div className="fcgrid">
-        {w.days.map((day) => (
-          <div className="fcday" key={day.key}>
+        {w.days.map((day, i) => (
+          <div
+            className={`fcday${i < clickableCount ? " clickable" : ""}`}
+            key={day.key}
+            onClick={() => onCardClick(i)}
+            role={onGoToDay ? "button" : undefined}
+            tabIndex={onGoToDay ? 0 : undefined}
+          >
             <div className="fcdhead">
               <span className="fcdnamewrap">
                 <span className="fcdname">{day.label}</span>
@@ -1106,6 +1172,13 @@ export default function Display() {
   // whenever either is true, so a pinned-open panel never disappears just
   // because a hover elsewhere happened to end.
   const [hoverPanel, setHoverPanel] = useState(false);
+  // Which day the Today page's carousel is turned to — lifted up here
+  // (rather than living inside TodayPage) for two reasons: TodayPage itself
+  // unmounts every time you switch tabs (Today/Week/Tasks/...), which would
+  // reset a local offset back to 0 every time you came back; and WeekPage's
+  // day-card clicks (see goToDay below) need to set it before/while
+  // switching the top-level page to Today.
+  const [dayOffset, setDayOffset] = useState(0);
   const lastHeal = useRef(0);
   const lastInput = useRef(0);
 
@@ -1203,6 +1276,15 @@ export default function Display() {
   const count = d?.pages?.length || 4;
   const go = useCallback((n) => { lastInput.current = Date.now(); setPage(((n % count) + count) % count); }, [count]);
 
+  // Used by WeekPage's day-card clicks: turn the Today carousel to the given
+  // day, then switch the top-level view to the Today tab. Falls back to
+  // whatever page 0 is if this build has no "today" page for some reason.
+  const goToDay = useCallback((n) => {
+    setDayOffset(n);
+    const idx = d?.pages?.findIndex((p) => p.id === "today");
+    go(idx != null && idx >= 0 ? idx : 0);
+  }, [d, go]);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "ArrowRight") go(page + 1);
@@ -1288,7 +1370,7 @@ export default function Display() {
       </header>
 
       <main className="stage">
-        <Page d={d} onAct={act} />
+        <Page d={d} onAct={act} dayOffset={dayOffset} onDayOffset={setDayOffset} onGoToDay={goToDay} />
       </main>
 
       <footer className="foot">
