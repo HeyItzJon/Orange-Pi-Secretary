@@ -19,7 +19,25 @@
 // orphan sweep leaves it alone (the calendar it names does exist). This
 // prints exactly which case applies for each match, then dismisses them.
 //
-// Run: node scripts/force-dismiss.js "test" [--dry-run]
+// IMPORTANT — dismissal is sticky, on purpose: lib/store.js's upsertItem
+// always keeps `prev.status` once an item already exists (status: "done"/
+// "dismissed" surviving a refresh is exactly what makes checking something
+// off stay checked off) — a refresh does NOT revive a dismissed item just
+// because the real event is still on the calendar. Matching too loosely
+// here is a real footgun: "test" as a plain substring also matches "Test 2"
+// and "Test 3", real events, which then stay dismissed forever, not just
+// until the next refresh. Matching defaults to an EXACT title (trimmed,
+// case-insensitive) for that reason — pass --contains to opt into the old
+// substring behaviour when you actually want it.
+//
+// Dismissed something real by mistake? --revive undoes it, using the same
+// shape the app's own /api/items/:id/reopen action uses.
+//
+// Run:
+//   node scripts/force-dismiss.js "test"              exact title, dismiss
+//   node scripts/force-dismiss.js "test" --contains    substring match
+//   node scripts/force-dismiss.js "test" --dry-run     preview only
+//   node scripts/force-dismiss.js "Test 2" --revive    undo an accidental dismissal
 
 import "dotenv/config";
 import fs from "fs/promises";
@@ -31,13 +49,45 @@ import { isEmailLike } from "../lib/classify.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dryRun = process.argv.includes("--dry-run");
+const contains = process.argv.includes("--contains");
+const revive = process.argv.includes("--revive");
 const needle = process.argv[2];
 if (!needle || needle.startsWith("--")) {
-  console.error('Usage: node scripts/force-dismiss.js "title substring" [--dry-run]');
+  console.error('Usage: node scripts/force-dismiss.js "title" [--contains] [--revive] [--dry-run]');
   process.exit(1);
 }
 
 await init();
+
+const stored = await allItems();
+const target = needle.trim().toLowerCase();
+const titleMatches = (t) => {
+  const title = (t || "").trim().toLowerCase();
+  return contains ? title.includes(target) : title === target;
+};
+
+if (revive) {
+  // Reviving doesn't need any Google lookup — just find whatever's
+  // currently dismissed/done under this title and put it back exactly the
+  // way the app's own reopen action would.
+  const hits = stored.filter(
+    (i) => i.source === "calendar" && i.kind !== "system"
+      && (i.status === "dismissed" || i.status === "done")
+      && titleMatches(i.title)
+  );
+  if (!hits.length) {
+    console.log(`\nNo dismissed/done calendar item titled ${contains ? "like" : "exactly"} "${needle}" found.`);
+    process.exit(0);
+  }
+  console.log(`\n${hits.length} match(es) to revive for "${needle}":\n`);
+  for (const item of hits) {
+    console.log(`  - "${item.title}"  (id: ${item.id}, was: ${item.status})`);
+    if (!dryRun) await patchItem(item.id, { status: "open", snoozeUntil: null, surfaceCount: 0 });
+  }
+  console.log(dryRun ? "\nDry run — nothing changed." : `\nRevived ${hits.length} item(s) — back to open.`);
+  process.exit(0);
+}
+
 const config = JSON.parse(await fs.readFile(path.join(__dirname, "..", "config.json"), "utf-8"));
 
 const allCalendars = await getCalendarList({ force: true });
@@ -53,19 +103,18 @@ const matchedIds = new Set(matched.map((c) => c.id));
 const liveNames = new Set(allCalendars.map(key));
 const liveIds = new Set(allCalendars.map((c) => c.id));
 
-const stored = await allItems();
 const hits = stored.filter(
   (i) => i.source === "calendar" && i.kind !== "system"
     && i.status !== "done" && i.status !== "dismissed"
-    && i.title?.toLowerCase().includes(needle.toLowerCase())
+    && titleMatches(i.title)
 );
 
 if (!hits.length) {
-  console.log(`\nNo open calendar item titled like "${needle}" found.`);
+  console.log(`\nNo open calendar item titled ${contains ? "like" : "exactly"} "${needle}" found.`);
   process.exit(0);
 }
 
-console.log(`\n${hits.length} match(es) for "${needle}":\n`);
+console.log(`\n${hits.length} match(es) for "${needle}"${contains ? " (substring match — double check these are all really meant)" : ""}:\n`);
 for (const item of hits) {
   const calName = item.meta?.calendarName;
   const calId = item.meta?.calendarId;
@@ -95,4 +144,8 @@ for (const item of hits) {
   if (!dryRun) await patchItem(item.id, { status: "dismissed" });
 }
 
-console.log(dryRun ? "Dry run — nothing changed." : `Dismissed ${hits.length} item(s).`);
+console.log(
+  dryRun
+    ? "Dry run — nothing changed."
+    : `Dismissed ${hits.length} item(s). Remember: this is sticky — a refresh will NOT bring these back even if they're still real events on the calendar. Use --revive if that turns out to be wrong for any of them.`
+);
