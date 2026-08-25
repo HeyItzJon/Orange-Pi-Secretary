@@ -148,6 +148,14 @@ export async function collectCalendar(config, { force = false } = {}) {
       if (seenPair.has(pair)) continue;
       seenPair.add(pair);
 
+      // The strip draws this as its own highlighted block, sized to exactly
+      // where the two events collide — not to either event's own start, and
+      // not to a guessed duration. a.start/a.end and b.start/b.end are each
+      // real Date-ish values here (both events are already filtered to
+      // !allDay above), so the overlap window is just their intersection.
+      const overlapStart = new Date(Math.max(new Date(a.start), new Date(b.start)));
+      const overlapEnd = new Date(Math.min(new Date(a.end), new Date(b.end)));
+
       items.push({
         id: itemId("calendar", `conflict:${pair}`),
         source: "calendar",
@@ -155,7 +163,7 @@ export async function collectCalendar(config, { force = false } = {}) {
         title: `${a.summary} overlaps ${b.summary}`,
         detail: `${timeLabel(a.start, tz)} and ${timeLabel(b.start, tz)} · same day`,
         url: a.htmlLink,
-        dueAt: a.start,
+        dueAt: overlapStart,
         category: "conflict",
         categoryLabel: "Clash",
         categoryWeight: 46,
@@ -166,7 +174,7 @@ export async function collectCalendar(config, { force = false } = {}) {
         tier: "conflict",
         reasons: ["two events overlap"],
         contentHash: contentHash({ a: a.start, b: b.start, x: a.summary, y: b.summary }),
-        meta: { conflict: true },
+        meta: { conflict: true, start: overlapStart, end: overlapEnd },
       });
     }
   }

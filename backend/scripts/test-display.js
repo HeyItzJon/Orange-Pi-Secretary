@@ -188,6 +188,60 @@ test("a real calendar named literally 'Gym Schedule' still falls back to domain,
   assert.equal(strip.blocks[0].swatch, "personal");
 });
 
+test("a clash block sits at the actual overlap, not either event's own start", () => {
+  // "test" runs 9am-11am, "even more bra" runs 10am-noon — sources/calendar.js
+  // emits a synthetic conflict item for this pair with kind: "conflict";
+  // dueAt/meta.end on that item are the overlap window itself (10-11am), not
+  // the earlier event's own start/end. This is the exact scenario Jon built
+  // by hand to test the day strip: a long block ("test") with a second block
+  // ("even more bra") deliberately overlapping it.
+  const items = [
+    ev({ id: "a", title: "test", dueAt: at(9), meta: { end: at(11) } }),
+    ev({
+      id: "clash", kind: "conflict", title: "test overlaps even more bra",
+      dueAt: at(10), swatch: "conflict", meta: { conflict: true, end: at(11) },
+    }),
+    ev({ id: "b", title: "even more bra", dueAt: at(10), meta: { end: at(12) } }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  const clash = strip.blocks.find((b) => b.id === "clash");
+  // default window 7am-11pm (16h): 10am is (10-7)/16 = 18.75%, 1h wide = 6.25%
+  assert.equal(Math.round(clash.left), 19, "the highlight should start at 10am, where the overlap actually begins — not at 9am, 'test's own start");
+  assert.equal(Math.round(clash.width), 6, "the highlight should be exactly the 1h overlap — not a guessed or default duration");
+});
+
+test("a clash pseudo-item never becomes the NOW/NEXT hero line or a 'Rest of today' row", () => {
+  const items = [
+    ev({ id: "a", title: "test", dueAt: at(13), meta: { end: at(15) } }),
+    ev({
+      id: "clash", kind: "conflict", title: "test overlaps even more bra",
+      dueAt: at(14), swatch: "conflict", meta: { conflict: true, end: at(15) },
+    }),
+    ev({ id: "b", title: "even more bra", dueAt: at(14), meta: { end: at(16) } }),
+  ];
+  const d = buildDisplay({ items, config, now: NOW });
+  // still shows up as its own highlighted block on the strip...
+  assert.ok(d.strip.blocks.some((b) => b.id === "clash"), "the clash still highlights on the strip itself");
+  // ...but is not one of the two real, already-duplicated rows underneath it.
+  assert.ok(!d.today.some((t) => t.id === "clash"), "'test overlaps even more bra' would just be noise next to the two real rows already naming them");
+  assert.equal(d.today.length, 2);
+  assert.doesNotMatch(d.hero.lead, /overlaps/, "a synthetic clash line must never hijack the NOW/NEXT banner");
+});
+
+test("a clash card never reads the overlap's own detail string ('...· same day') as a location", () => {
+  const items = [
+    ev({
+      id: "clash", kind: "conflict", title: "test overlaps even more bra",
+      detail: "10:00 AM and 10:00 AM · same day",
+      dueAt: at(10), swatch: "conflict", meta: { conflict: true, end: at(11) },
+    }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  const clash = strip.blocks.find((b) => b.id === "clash");
+  assert.equal(clash.detail.where, null, "'same day' is not a place");
+  assert.equal(clash.detail.priority, "clash");
+});
+
 // ====================================================================
 group("today, days, deadlines");
 

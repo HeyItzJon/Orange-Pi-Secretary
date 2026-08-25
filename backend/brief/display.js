@@ -222,6 +222,11 @@ export function yearGrid(history = [], now = new Date(), timeZone) {
 
 /** Strip the noise the detail line already carries elsewhere. */
 function locationOf(item) {
+  // A conflict/"clash" pseudo-item's detail string is shaped completely
+  // differently — "8:00 AM and 8:15 AM · same day" — not
+  // "note · duration · location", so the generic tail-of-the-line guess
+  // below would read "same day" as if it were a place.
+  if (item.kind === "conflict") return null;
   const loc = item.meta?.location || null;
   if (loc) return String(loc).split(",")[0].trim().slice(0, 34);
   // fall back to the tail of the detail line, which calendar.js builds as
@@ -233,6 +238,7 @@ function locationOf(item) {
 }
 
 function prepOf(item) {
+  if (item.kind === "conflict") return null;
   const bits = String(item.detail || "").split(" · ").map((s) => s.trim());
   const first = bits[0];
   // The first segment is a human note only if it isn't a duration or a time.
@@ -527,6 +533,16 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
 
   const todays = events.filter((e) => dayKey(e.dueAt, tz) === todayKey);
+  // The overlap/"clash" pseudo-items from sources/calendar.js (kind:
+  // "conflict") are a highlight for the strip, not a real thing that
+  // happened at a time — they carry no location, prep, or attendees of
+  // their own. Left in `todays` unfiltered, "test overlaps even more bra"
+  // would be perfectly capable of becoming the NOW/NEXT hero line, or a
+  // second, redundant row in "Rest of today" sitting right next to the two
+  // real events it's describing. The strip block generation below keeps
+  // reading from `todays` (that's the one place this item belongs); the hero
+  // and the today-list read from this instead.
+  const todaysReal = todays.filter((e) => e.kind !== "conflict");
 
   // ---------------------------------------------------------------- strip
   // A day-shaped window: 7am to 11pm covers an ordinary day without wasting
@@ -629,10 +645,10 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   }));
 
   // ------------------------------------------------------------------ now
-  const running = todays.find(
+  const running = todaysReal.find(
     (e) => !e.meta?.allDay && e.meta?.end && new Date(e.dueAt) <= now && new Date(e.meta.end) > now
   );
-  const upcoming = todays.filter((e) => new Date(e.dueAt) > now);
+  const upcoming = todaysReal.filter((e) => new Date(e.dueAt) > now);
   const next = upcoming[0] || null;
 
   let hero;
