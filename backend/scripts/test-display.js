@@ -803,6 +803,74 @@ test("buildDisplay wires week in as a badge-less page", () => {
 });
 
 // ====================================================================
+group("busyness score — a 1-10 read of how loaded a day is, for the Week page");
+
+test("an empty day floors at 1, not 0 — a 1-10 scale has no zero", () => {
+  const w = weekForecast([], [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(w.days[0].busyness, 1);
+  assert.deepEqual(w.days[0].busynessWhy, []);
+});
+
+test("busyness never exceeds 10 even on a genuinely packed day", () => {
+  const events = [
+    ev({ id: "a", dueAt: at(7), categoryWeight: 50, unmissable: true, meta: { end: at(11) } }),
+    ev({ id: "b", dueAt: at(11), categoryWeight: 50, unmissable: true, meta: { end: at(15) } }),
+    ev({ id: "c", dueAt: at(15), categoryWeight: 50, unmissable: true, meta: { end: at(19) } }),
+    ev({ id: "d", dueAt: at(19), categoryWeight: 50, unmissable: true, meta: { end: at(23) } }),
+  ];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.ok(w.days[0].busyness <= 10);
+  assert.equal(w.days[0].busyness, 10);
+});
+
+test("more busy hours score at least as high as fewer, all else equal", () => {
+  const short = [ev({ id: "a", dueAt: at(9), meta: { end: at(10) } })];
+  const long = [ev({ id: "a", dueAt: at(9), meta: { end: at(15) } })];
+  const wShort = weekForecast(short, [], { now: NOW, tz: TZ, days: 1 });
+  const wLong = weekForecast(long, [], { now: NOW, tz: TZ, days: 1 });
+  assert.ok(wLong.days[0].busyness >= wShort.days[0].busyness);
+});
+
+test("a heavier category scores higher than a casual one at the same busy hours", () => {
+  const casual = [ev({ id: "a", dueAt: at(9), categoryWeight: 24, meta: { end: at(11) } })];
+  const heavy = [ev({ id: "a", dueAt: at(9), categoryWeight: 50, meta: { end: at(11) } })];
+  const wCasual = weekForecast(casual, [], { now: NOW, tz: TZ, days: 1 });
+  const wHeavy = weekForecast(heavy, [], { now: NOW, tz: TZ, days: 1 });
+  assert.ok(wHeavy.days[0].busyness > wCasual.days[0].busyness);
+});
+
+test("an all-day item nudges the score up even though it never touches busyHours", () => {
+  const withAllDay = [ev({ id: "a", dueAt: at(0), meta: { allDay: true } })];
+  const wEmpty = weekForecast([], [], { now: NOW, tz: TZ, days: 1 });
+  const wAllDay = weekForecast(withAllDay, [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(wAllDay.days[0].busyHours, 0, "still shouldn't count as busy time");
+  assert.ok(wAllDay.days[0].busyness > wEmpty.days[0].busyness);
+  assert.ok(wAllDay.days[0].busynessWhy.some((w) => w.includes("all-day")));
+});
+
+test("an unmissable event raises the score even when it's short", () => {
+  const casual = [ev({ id: "a", dueAt: at(9), meta: { end: at(9, 30) } })];
+  const critical = [ev({ id: "a", dueAt: at(9), unmissable: true, meta: { end: at(9, 30) } })];
+  const wCasual = weekForecast(casual, [], { now: NOW, tz: TZ, days: 1 });
+  const wCritical = weekForecast(critical, [], { now: NOW, tz: TZ, days: 1 });
+  assert.ok(wCritical.days[0].busyness > wCasual.days[0].busyness);
+  assert.ok(wCritical.days[0].busynessWhy.some((w) => w.includes("can't miss")));
+});
+
+test("several short separate events score higher than one block of the same total length", () => {
+  const oneBlock = [ev({ id: "a", dueAt: at(9), meta: { end: at(12) } })];
+  const fragmented = [
+    ev({ id: "a", dueAt: at(9), meta: { end: at(10) } }),
+    ev({ id: "b", dueAt: at(10), meta: { end: at(11) } }),
+    ev({ id: "c", dueAt: at(11), meta: { end: at(12) } }),
+  ];
+  const wBlock = weekForecast(oneBlock, [], { now: NOW, tz: TZ, days: 1 });
+  const wFrag = weekForecast(fragmented, [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(wBlock.days[0].busyHours, wFrag.days[0].busyHours, "same total hours either way");
+  assert.ok(wFrag.days[0].busyness > wBlock.days[0].busyness, "but fragmentation should cost something");
+});
+
+// ====================================================================
 // Google's actual all-day payload: a bare "YYYY-MM-DD" string, with no
 // dateTime, no time, no offset (see lib/google.js's getEvents(): `start:
 // e.start?.dateTime || e.start?.date`). at()/dayAt() above build full ISO

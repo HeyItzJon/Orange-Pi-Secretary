@@ -993,6 +993,17 @@ function YearPage({ d }) {
  * actually takes, so the two lists are just laid out side by side and left
  * for a human to weigh against each other.
  */
+/** Five bands, not ten — same call as the Year page's colorBucket(): a
+ * continuous number gets read faster off a handful of colours than off a
+ * gradient no one can eyeball precisely. */
+function busynessBucket(score) {
+  if (score >= 9) return "intense";
+  if (score >= 7) return "heavy";
+  if (score >= 5) return "moderate";
+  if (score >= 3) return "light";
+  return "calm";
+}
+
 function WeekPage({ d, onGoToDay }) {
   const w = d.week;
   const [farNotice, setFarNotice] = useState(false);
@@ -1047,16 +1058,37 @@ function WeekPage({ d, onGoToDay }) {
                 <span className="fcdname">{day.label}</span>
                 <span className="fcddate">{day.dateLabel}</span>
               </span>
-              {/* A day with nothing timed on it can still carry a deadline —
-                  the busy/free bar below has no way to say that (see
-                  weekForecast's own comment on why it doesn't guess a
-                  duration for these), so this badge is what actually flags
-                  it. Hover/tap for which — see title below. */}
-              {day.allDay?.length > 0 && (
-                <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
-                  {day.allDay.length}
-                </span>
-              )}
+              <span className="fcdhead-right">
+                {/* A 1-10 busyness read — see busynessScore() in
+                    brief/display.js for what actually feeds it and why.
+                    Sized AND coloured by the score (bigger and redder means
+                    busier) so it reads before you even look at the bar
+                    below; the "why" behind the number is the tooltip,
+                    same as the bar's own hover text. */}
+                {typeof day.busyness === "number" && (
+                  <span
+                    className={`fcscore b-${busynessBucket(day.busyness)}`}
+                    style={{ "--size": `${20 + day.busyness * 1.6}px` }}
+                    title={
+                      day.busynessWhy?.length
+                        ? `Busyness ${day.busyness}/10 — ${day.busynessWhy.join(", ")}`
+                        : `Busyness ${day.busyness}/10 — nothing scheduled yet`
+                    }
+                  >
+                    {day.busyness}
+                  </span>
+                )}
+                {/* A day with nothing timed on it can still carry a deadline —
+                    the busy/free bar below has no way to say that (see
+                    weekForecast's own comment on why it doesn't guess a
+                    duration for these), so this badge is what actually flags
+                    it. Hover/tap for which — see title below. */}
+                {day.allDay?.length > 0 && (
+                  <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
+                    {day.allDay.length}
+                  </span>
+                )}
+              </span>
             </div>
             {/* Coloured by calendar swatch, same family the day strip itself
                 uses — roughly sized and positioned, nothing to hover, no

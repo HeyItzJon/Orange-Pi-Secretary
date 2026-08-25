@@ -553,6 +553,89 @@ const ORIGIN_LABELS = {
 };
 
 /**
+ * A 1-10 "how loaded is this day" read for the Week page's per-day cards —
+ * the busy/free bar already says the same story in hours, this compresses
+ * it to one number a small fill/colour badge can show at a glance. Every
+ * contribution is named in the returned `why` list, the same transparency
+ * rule priorities.js's `_rankWhy` already follows elsewhere in this app, so
+ * a future signal (a heavy commute, a "school day" tag) can be added here as
+ * one more named term rather than turning the number into a black box —
+ * see Jon's own "in the future we'll tweak this" ask.
+ *
+ * Built entirely from numbers this file already computes for the day (busy
+ * hours, event count, each event's own category weight, all-day count,
+ * unmissable/flagged items) rather than inventing a new measure — same rule
+ * `weekForecast()` itself follows for not guessing a task's duration.
+ *
+ * `dayEvents` is the day's TIMED events (pre-clip, so still carrying
+ * categoryWeight/unmissable/emphasised); `dayAllDayRaw` is its all-day items
+ * before they're reduced to chips.
+ */
+function busynessScore(dayEvents, dayAllDayRaw, { busyHours, wakeHours }) {
+  const why = [];
+  let score = 0;
+
+  // Raw time pressure: how much of the waking day is actually spoken for.
+  // Capped at 6 of the 10 points on purpose — hours alone should never max
+  // the score out, leaving room below for how HEAVY those hours are, not
+  // just how many there are.
+  const load = wakeHours ? busyHours / wakeHours : 0;
+  if (load > 0) {
+    score += load * 6;
+    why.push(`${Math.round(load * 100)}% of the day booked`);
+  }
+
+  // Heavier categories cost more per hour than a casual personal one —
+  // config.categories already ranks these (24 for personal, up to 50 for
+  // can't-miss); averaging that existing weight across the day's timed
+  // events turns it into up to 2 extra points instead of treating every
+  // booked hour the same regardless of what it actually is.
+  if (dayEvents.length) {
+    const avgWeight = dayEvents.reduce((s, e) => s + (e.categoryWeight ?? 24), 0) / dayEvents.length;
+    const weightBoost = Math.max(0, Math.min(2, ((avgWeight - 24) / (50 - 24)) * 2));
+    score += weightBoost;
+    if (weightBoost > 0.15) why.push("heavier commitments than usual");
+  }
+
+  // Fragmentation: several short, separate events cost more attention than
+  // one long block of the same total length, even at identical busyHours —
+  // context-switching has a cost the raw hour count can't see. Sized to
+  // actually move the rounded number (not just the invisible decimal) once
+  // there's a third thing on the day — two events back to back reads as
+  // ordinary, three or more starts to read as "a lot going on".
+  if (dayEvents.length > 2) {
+    const density = Math.min(2.25, (dayEvents.length - 2) * 0.75);
+    score += density;
+    why.push(`${dayEvents.length} separate things on the calendar`);
+  }
+
+  // All-day items (a deadline, payday, a reminder) add mental load without
+  // ever touching the busy/free hour math above — weekForecast deliberately
+  // never guesses a duration for one (see its own comment) — so this is the
+  // only place they nudge the number at all. Sized (like the two boosts
+  // below) to clear a full rounded point on its own, so a day carrying
+  // nothing but a payday reminder still reads as busier than a truly empty
+  // one, not indistinguishable from it.
+  if (dayAllDayRaw.length) {
+    score += Math.min(3.2, dayAllDayRaw.length * 1.6);
+    why.push(`${dayAllDayRaw.length} all-day ${dayAllDayRaw.length === 1 ? "item" : "items"}`);
+  }
+
+  // Can't-miss or self-flagged items raise the stakes of a day even when
+  // they're short — a single exam in an otherwise empty day still isn't a
+  // "barely anything going on" day.
+  const unmissableCount = dayEvents.filter((e) => e.unmissable || e.emphasised).length;
+  if (unmissableCount) {
+    score += Math.min(3.2, unmissableCount * 1.6);
+    why.push(unmissableCount === 1 ? "something you can't miss" : `${unmissableCount} things you can't miss`);
+  }
+
+  // Floor of 1, not 0 — even a genuinely empty day is "the lightest it gets"
+  // on a 1-10 scale, not a zero that reads as an error state.
+  return { score: Math.max(1, Math.min(10, Math.round(score))), why };
+}
+
+/**
  * A week-ahead capacity check, not a scheduler. For each of the next `days`
  * days, how many of the assumed waking hours (`wakeStart`–`wakeEnd`, same
  * 7am/11pm default the day strip already uses) the calendar has already
@@ -589,9 +672,8 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
     // avoids for the looming list), but a day that reads "100% free" while
     // quietly carrying a deadline was the actual gap: this is what a small
     // per-day badge renders from, so that day at least SAYS it isn't empty.
-    const dayAllDay = sortAllDay(
-      events.filter((e) => e.meta?.allDay && eventOnDay(e, key, tz))
-    ).map(allDayChip);
+    const dayAllDayRaw = events.filter((e) => e.meta?.allDay && eventOnDay(e, key, tz));
+    const dayAllDay = sortAllDay(dayAllDayRaw).map(allDayChip);
 
     // Clip each event to the waking window — kept as its own {start, end,
     // swatch} below both to merge overlaps before summing busy hours (two
@@ -624,6 +706,7 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
     }
     busyHours = Math.round(busyHours * 10) / 10;
     const freeHours = Math.round((wakeHours - busyHours) * 10) / 10;
+    const { score: busyness, why: busynessWhy } = busynessScore(dayEvents, dayAllDayRaw, { busyHours, wakeHours });
 
     // Purely visual — no label, no metadata, just roughly-sized-and-coloured
     // fills so the bar itself gives a sense of the day's density and shape.
@@ -647,6 +730,8 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
       eventCount: dayEvents.length,
       segments,
       allDay: dayAllDay,
+      busyness,
+      busynessWhy,
     });
   }
 
