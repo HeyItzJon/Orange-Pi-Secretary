@@ -148,7 +148,6 @@ function Strip({ strip }) {
             )}
           </div>
         ))}
-        <div className="nowline" style={{ left: `${strip.nowPct}%` }} />
       </div>
       <div className="chunks">
         {(strip.ticks || []).filter((t) => t.label).map((t) => (
@@ -160,6 +159,13 @@ function Strip({ strip }) {
           </span>
         ))}
       </div>
+      {/* A sibling of .strip, not a child of it — .strip clips its own
+          overflow to keep blocks contained (see the metadata-card comment
+          above), and this is deliberately drawn taller than the strip
+          itself, so it has to live outside that clip to actually show the
+          part that pokes out. Same left% as everything above: .strip-wrap
+          is exactly as wide as .strip. */}
+      <div className="nowline" style={{ left: `${strip.nowPct}%` }} />
 
       {/* A twenty-minute gap is two pixels wide. Hover — or a tap, on a
           touch screen, see openId/hoverId above — is how it gets to say what
@@ -657,8 +663,14 @@ function WeekPage({ d }) {
               <span className="fcdname">{day.label}</span>
               <span className="fcddate">{day.dateLabel}</span>
             </div>
+            {/* Coloured by calendar swatch, same family the day strip itself
+                uses — roughly sized and positioned, nothing to hover, no
+                label of its own. Whatever's left grey (the bar's own
+                background) is free time; that's the whole point of it. */}
             <div className="fcbar" title={`${day.busyHours}h busy · ${day.freeHours}h free`}>
-              <i style={{ width: `${day.load}%` }} />
+              {(day.segments || []).map((s, i) => (
+                <i key={i} className={`d-${s.swatch}`} style={{ left: `${s.left}%`, width: `${s.width}%` }} />
+              ))}
             </div>
             <span className="fcfree">{day.freeHours}h free</span>
             {day.eventCount > 0 && (

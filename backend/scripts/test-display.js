@@ -617,6 +617,41 @@ test("an event outside the waking window is clipped to it, not counted in full",
   assert.equal(w.days[0].busyHours, 1, "only 7am-8am falls inside the window");
 });
 
+test("each day's bar carries a coloured segment per event, sized and positioned like the day strip", () => {
+  const events = [ev({ id: "e1", dueAt: at(9), swatch: "class", meta: { end: at(11) } })];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1, wakeStart: 7, wakeEnd: 23 });
+  const seg = w.days[0].segments[0];
+  // 16h window: 9am is (9-7)/16 = 12.5%, 2h wide = 12.5%
+  assert.equal(Math.round(seg.left), 13);
+  assert.equal(Math.round(seg.width), 13);
+  assert.equal(seg.swatch, "class");
+});
+
+test("overlapping events each keep their own segment on the bar, unmerged — busyHours still merges", () => {
+  const events = [
+    ev({ id: "e1", dueAt: at(9), swatch: "work", meta: { end: at(11) } }),
+    ev({ id: "e2", dueAt: at(10), swatch: "class", meta: { end: at(12) } }),
+  ];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(w.days[0].segments.length, 2, "the bar should still show both events, not one merged block");
+  assert.equal(w.days[0].busyHours, 3, "merging is still the right call for the busy-hours number itself");
+});
+
+test("a clash pseudo-item doesn't inflate eventCount or draw its own segment on the week bar", () => {
+  const events = [
+    ev({ id: "a", title: "test", dueAt: at(9), swatch: "class", meta: { end: at(11) } }),
+    ev({
+      id: "clash", kind: "conflict", title: "test overlaps even more bra",
+      dueAt: at(10), swatch: "conflict", meta: { conflict: true, end: at(11) },
+    }),
+    ev({ id: "b", title: "even more bra", dueAt: at(10), swatch: "class", meta: { end: at(12) } }),
+  ];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(w.days[0].eventCount, 2, "the clash item is not a third real event");
+  assert.equal(w.days[0].segments.length, 2);
+  assert.ok(!w.days[0].segments.some((s) => s.swatch === "conflict"), "the week bar has no room for per-event metadata, so the clash highlight itself has nothing to add there");
+});
+
 test("today/tomorrow read as words, later days as the weekday name", () => {
   const w = weekForecast([], [], { now: NOW, tz: TZ, days: 3 });
   assert.equal(w.days[0].label, "Today");

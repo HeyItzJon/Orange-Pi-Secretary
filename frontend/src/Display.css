@@ -133,7 +133,7 @@
 .hero.calm .lbl { color: var(--muted); }
 .hero.calm .big { color: var(--ink-2); font-weight: 560; }
 
-.strip-wrap { flex-shrink: 0; }
+.strip-wrap { position: relative; flex-shrink: 0; }
 .strip { position: relative; height: 34px; background: var(--rule); border-radius: 4px; overflow: hidden; }
 .chunk-sep { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--plane); opacity: .55; z-index: 2; }
 /* Hour ticks: enough to read exactly when something is, faint enough that the
@@ -191,7 +191,22 @@
 .blk.d-conflict     { background: #96222f; border-left-color: #f15c68; }
 .blk.d-personal     { background: #767322; border-left-color: #c7c14f; } /* fallback, and Gym Schedule */
 
-.nowline { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent); border-radius: 2px; }
+/* The now-cursor. It's a sibling of .strip (see the comment in Display.jsx),
+   positioned in .strip-wrap's own coordinate space — which starts at the
+   same top-left corner as .strip does, since .strip is its first child —
+   so top/height here are sized against .strip's own 34px height (26px in
+   the short-panel media query below) rather than against the whole wrap,
+   which also contains the hour labels underneath. Thicker than a plain
+   divider and deliberately taller than the bar it crosses, with a small
+   downward-pointing flag at the top, so it reads as a playhead sitting on
+   the timeline rather than just another tick mark. */
+.nowline { position: absolute; top: -9px; height: 52px; width: 3px; background: var(--accent); border-radius: 2px; z-index: 7; pointer-events: none; }
+.nowline::before {
+  content: ""; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid var(--accent);
+}
 .chunks { position: relative; height: 26px; margin-top: 3px; }
 .chunks .hr {
   position: absolute; top: 0; font-size: 9.5px; color: var(--faint);
@@ -430,8 +445,27 @@
 .fcdhead { display: flex; flex-direction: column; }
 .fcdname { font-size: 12.5px; font-weight: 620; color: var(--ink-2); }
 .fcddate { font-size: 10.5px; color: var(--faint); }
-.fcbar { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
-.fcbar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+/* A density strip, not a progress bar: one segment per event, roughly sized
+   and positioned across the waking window (see weekForecast's `segments` in
+   brief/display.js), coloured the same swatch family the day strip itself
+   uses — no label, no hover, nothing per-event to read. Whatever's left
+   showing the bar's own grey background between segments IS the free time;
+   that's the entire visual, on purpose. */
+.fcbar { position: relative; height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.fcbar i { position: absolute; top: 0; bottom: 0; display: block; }
+.fcbar i.d-critical     { background: #b5560d; }
+.fcbar i.d-important    { background: #7440ad; }
+.fcbar i.d-work         { background: #c22a1f; }
+.fcbar i.d-assessment   { background: #9c7a0a; }
+.fcbar i.d-class        { background: #1f7a3d; }
+.fcbar i.d-family       { background: #4a4fc0; }
+.fcbar i.d-gmail        { background: #1f6fa8; }
+.fcbar i.d-opportunity  { background: #12806c; }
+.fcbar i.d-deadline     { background: #a83c1c; }
+.fcbar i.d-admin        { background: #40566d; }
+.fcbar i.d-appointment  { background: #276f83; }
+.fcbar i.d-conflict     { background: #96222f; }
+.fcbar i.d-personal     { background: #767322; }
 .fcfree { font-size: 13px; font-weight: 620; color: var(--ink); font-variant-numeric: tabular-nums; }
 .fccount { font-size: 10.5px; color: var(--faint); }
 
@@ -512,6 +546,7 @@
   .top { padding: 8px 16px; }
   .hero .big { font-size: 25px; }
   .strip { height: 26px; }
+  .nowline { top: -7px; height: 40px; }
   .day:nth-child(3) { display: none; }
   .mtotal .val { font-size: 34px; }
   .ycell { border-radius: 2px; }

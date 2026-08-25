@@ -348,14 +348,24 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
   for (let n = 0; n < days; n++) {
     const d = new Date(now.getTime() + n * DAY);
     const key = dayKey(d, tz);
+    // The synthetic overlap/"clash" pseudo-item (kind: "conflict", see
+    // sources/calendar.js) now carries a real meta.end (the overlap window
+    // itself) so it can highlight correctly on the day strip — but it isn't
+    // a real event, so it has no business padding out eventCount here, the
+    // same reasoning buildDisplay() already applies before this reaches the
+    // NOW/NEXT hero and "Rest of today".
     const dayEvents = events.filter(
-      (e) => !e.meta?.allDay && e.meta?.end && dayKey(e.dueAt, tz) === key
+      (e) => !e.meta?.allDay && e.meta?.end && e.kind !== "conflict" && dayKey(e.dueAt, tz) === key
     );
 
-    // Clip each event to the waking window, then merge overlaps before
-    // summing — two meetings double-booked over the same hour is still
-    // one busy hour, not two.
-    const intervals = dayEvents
+    // Clip each event to the waking window — kept as its own {start, end,
+    // swatch} below both to merge overlaps before summing busy hours (two
+    // meetings double-booked over the same hour is still one busy hour, not
+    // two) and, unmerged, to draw each event's own coloured segment on the
+    // day's bar — same swatch the day strip itself colours blocks by,
+    // stacked in calendar order rather than merged, so two overlapping
+    // events still both show their own colour the way the day strip does.
+    const clipped = dayEvents
       .map((e) => {
         const start = Math.max(wakeStart, hourOfDay(e.dueAt, tz));
         // An event whose end lands on a different calendar day (crosses
@@ -363,20 +373,33 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
         // the window's own close.
         const sameDayEnd = dayKey(e.meta.end, tz) === key;
         const rawEnd = sameDayEnd ? hourOfDay(e.meta.end, tz) : wakeEnd;
-        return [start, Math.min(wakeEnd, Math.max(start, rawEnd))];
+        const end = Math.min(wakeEnd, Math.max(start, rawEnd));
+        const swatch = e.swatch || (e.meta?.calendarName === "Personal" ? "gmail" : null) || e.domain || "personal";
+        return { start, end, swatch };
       })
-      .filter(([s, e]) => e > s)
-      .sort((a, b) => a[0] - b[0]);
+      .filter((c) => c.end > c.start)
+      .sort((a, b) => a.start - b.start);
 
     let busyHours = 0;
     let mergedEnd = -Infinity;
-    for (const [s, e] of intervals) {
+    for (const { start: s, end: e } of clipped) {
       const start = Math.max(s, mergedEnd);
       if (e > start) busyHours += e - start;
       mergedEnd = Math.max(mergedEnd, e);
     }
     busyHours = Math.round(busyHours * 10) / 10;
     const freeHours = Math.round((wakeHours - busyHours) * 10) / 10;
+
+    // Purely visual — no label, no metadata, just roughly-sized-and-coloured
+    // fills so the bar itself gives a sense of the day's density and shape.
+    // Left untouched (grey, the bar's own background) wherever nothing was
+    // clipped in above: that's what actually reads as "free" here.
+    const pct = (h) => (wakeHours ? ((h - wakeStart) / wakeHours) * 100 : 0);
+    const segments = clipped.map((c) => ({
+      left: pct(c.start),
+      width: Math.max(0.6, pct(c.end) - pct(c.start)),
+      swatch: c.swatch,
+    }));
 
     forecast.push({
       key,
@@ -386,6 +409,7 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
       freeHours,
       load: wakeHours ? Math.round((busyHours / wakeHours) * 100) : 0,
       eventCount: dayEvents.length,
+      segments,
     });
   }
 
