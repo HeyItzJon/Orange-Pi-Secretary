@@ -148,13 +148,19 @@ export async function collectCalendar(config, { force = false } = {}) {
       if (seenPair.has(pair)) continue;
       seenPair.add(pair);
 
-      // The strip draws this as its own highlighted block, sized to exactly
-      // where the two events collide — not to either event's own start, and
-      // not to a guessed duration. a.start/a.end and b.start/b.end are each
-      // real Date-ish values here (both events are already filtered to
-      // !allDay above), so the overlap window is just their intersection.
-      const overlapStart = new Date(Math.max(new Date(a.start), new Date(b.start)));
-      const overlapEnd = new Date(Math.min(new Date(a.end), new Date(b.end)));
+      // The overlap window itself — where the two events actually collide,
+      // not either one's own start, and not a guessed duration. Every other
+      // item's dueAt/meta.start/meta.end in this file is the plain ISO
+      // string Google itself hands back (see lib/google.js's
+      // `start: e.start?.dateTime || e.start?.date`) — .toISOString() here
+      // keeps this item the same shape. Handing store.js a raw Date object
+      // instead breaks on the very next refresh: it's bound straight into a
+      // SQLite parameter (lib/store.js's `INSERT INTO items ... dueAt ...`),
+      // and node:sqlite accepts only string/number/bigint/buffer/null there
+      // — a Date object fails with exactly "cannot be bound to SQLite
+      // parameter 4", dueAt being the 4th column in that insert.
+      const overlapStart = new Date(Math.max(new Date(a.start), new Date(b.start))).toISOString();
+      const overlapEnd = new Date(Math.min(new Date(a.end), new Date(b.end))).toISOString();
 
       items.push({
         id: itemId("calendar", `conflict:${pair}`),
