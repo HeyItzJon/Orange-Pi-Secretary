@@ -9,6 +9,7 @@ import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { expandHome } from "../lib/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -84,13 +85,14 @@ try {
 // resolves, because money.js still reads it directly for holdings (share
 // counts, book value). No task/loose-thread scanning happens here anymore.
 console.log("\nVault");
-const vaultPath = config.vault?.path || config.notes?.vaultPath || config.vaultPath;
+const rawVaultPath = config.vault?.path || config.notes?.vaultPath || config.vaultPath;
+const vaultPath = expandHome(rawVaultPath);
 if (!vaultPath) {
   warn("no vaultPath set — holdings will fall back to config/portfolio.json");
 } else {
   try {
     await fs.access(vaultPath);
-    ok(`vault reachable: ${vaultPath}`);
+    ok(vaultPath === rawVaultPath ? `vault reachable: ${vaultPath}` : `vault reachable: ${vaultPath} (expanded from "${rawVaultPath}")`);
   } catch (err) {
     bad(`vault: ${err.message}`);
   }
