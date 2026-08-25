@@ -772,8 +772,15 @@ function ago(iso) {
  * one source, but that's a decision nobody actually wants to make — the
  * header refresh button already reruns everything, and that's always what
  * should happen.
+ *
+ * Two independent ways in: a click on the footer's status line pins it open
+ * (closed again by another click anywhere, the × button, or Escape), and
+ * hovering "Last updated" in the header shows it as a glance-and-go tooltip
+ * — see hoverPanel in Display() below. onMouseEnter/onMouseLeave here keep
+ * it open while the cursor crosses from the header text onto the panel
+ * itself, so reading it doesn't require holding perfectly still.
  */
-function SourcePanel({ onClose, report, refreshing }) {
+function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }) {
   const [rows, setRows] = useState(null);
 
   const load = useCallback(async () => {
@@ -794,7 +801,12 @@ function SourcePanel({ onClose, report, refreshing }) {
   useEffect(() => { load(); }, [load, refreshing]);
 
   return (
-    <div className="panel" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="panel"
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       <div className="phead">
         <h3>Sources</h3>
         <button className="x" onClick={onClose} title="close">×</button>
@@ -861,6 +873,14 @@ export default function Display() {
   const [refreshing, setRefreshing] = useState(false);
   const [report, setReport] = useState(null);
   const [panel, setPanel] = useState(false);
+  // Separate from `panel`: that one is a click-to-pin toggle (footer status
+  // line, or auto-opened by refresh — see refresh() below), closed by
+  // another click, ×, or Escape. This one is a plain hover-to-peek on "Last
+  // updated" in the header, gone the moment the cursor leaves it (or the
+  // panel it's showing) — no click needed either way. The panel renders
+  // whenever either is true, so a pinned-open panel never disappears just
+  // because a hover elsewhere happened to end.
+  const [hoverPanel, setHoverPanel] = useState(false);
   const lastHeal = useRef(0);
   const lastInput = useRef(0);
 
@@ -1024,7 +1044,14 @@ export default function Display() {
           ))}
         </nav>
         <span className="right">
-          <span className="updated">Last updated <b>{d.lastUpdatedLabel ?? "—"}</b></span>
+          <span
+            className="updated"
+            onMouseEnter={() => setHoverPanel(true)}
+            onMouseLeave={() => setHoverPanel(false)}
+            title="Hover for what each source last did"
+          >
+            Last updated <b>{d.lastUpdatedLabel ?? "—"}</b>
+          </span>
           <button
             className={`refresh${refreshing ? " spin" : ""}`}
             onClick={(e) => { e.stopPropagation(); lastInput.current = Date.now(); refresh(); }}
@@ -1066,7 +1093,15 @@ export default function Display() {
         </button>
       </footer>
 
-      {panel && <SourcePanel report={report} refreshing={refreshing} onClose={() => setPanel(false)} />}
+      {(panel || hoverPanel) && (
+        <SourcePanel
+          report={report}
+          refreshing={refreshing}
+          onClose={() => { setPanel(false); setHoverPanel(false); }}
+          onMouseEnter={() => setHoverPanel(true)}
+          onMouseLeave={() => setHoverPanel(false)}
+        />
+      )}
     </div>
   );
 }

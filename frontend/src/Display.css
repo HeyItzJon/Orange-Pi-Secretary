@@ -68,7 +68,12 @@
                          glued to the date, not a separate item */
 }
 .top .right { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
-.top .updated { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+/* Hovering this shows the same Sources panel the footer's status line
+   opens on click (see hoverPanel in Display.jsx) — cursor:help and the
+   colour lift on hover are the only cue that it's interactive, since a
+   header timestamp doesn't otherwise read as something you'd hover. */
+.top .updated { font-size: 12.5px; color: var(--muted); white-space: nowrap; cursor: help; }
+.top .updated:hover { color: var(--ink-2); }
 .top .updated b { color: var(--ink-2); font-weight: 620; font-variant-numeric: tabular-nums; }
 
 .tabs { display: flex; gap: 4px; margin: 0 auto; }
