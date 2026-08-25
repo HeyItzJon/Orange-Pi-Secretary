@@ -10,7 +10,8 @@
 // dashboard that can't tell you it stopped talking to Gmail is worse than no
 // dashboard, because you trust it.
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import "./Display.css";
 
 const SCHEMA = "display-v2";
@@ -43,12 +44,22 @@ function LiveClock({ timeZone }) {
 }
 
 function Strip({ strip }) {
-  // Which block's card is pinned open by a tap — :hover already does this on
-  // a mouse, but a touch screen has no hover, so a tap toggles the same card
-  // via this instead. A document-level listener closes it on the next tap
-  // anywhere else; each block's own handler stops that tap from immediately
+  // Which block's card is pinned open by a tap — mouse hover does this too,
+  // but a touch screen has no hover, so a tap toggles the same card via this
+  // instead. A document-level listener closes it on the next tap anywhere
+  // else; each block's own handler stops that tap from immediately
   // re-closing what it just opened.
   const [openId, setOpenId] = useState(null);
+  const [hoverId, setHoverId] = useState(null);
+  // Every block's own DOM node, keyed by id — the card is rendered through a
+  // portal (see below), so positioning it means asking the block directly
+  // where it actually is on screen rather than relying on CSS layout.
+  const blockRefs = useRef(new Map());
+  const cardRef = useRef(null);
+  const [cardPos, setCardPos] = useState(null);
+
+  const activeId = openId ?? hoverId;
+
   useEffect(() => {
     if (openId == null) return;
     const close = () => setOpenId(null);
@@ -56,7 +67,54 @@ function Strip({ strip }) {
     return () => document.removeEventListener("click", close);
   }, [openId]);
 
+  // The card used to live *inside* the block (position: absolute, anchored
+  // to it) — which reads fine until you notice .blk, .strip and .stage all
+  // clip their own overflow to keep the timeline's rounded corners and
+  // scroll region honest. A child can't escape an ancestor's overflow:hidden
+  // no matter what position scheme it uses, so the card was being silently
+  // clipped away every time, on both hover and tap. A React portal renders
+  // it into document.body instead — still driven by this component's state,
+  // but no longer a DOM descendant of anything that clips it — positioned
+  // with real viewport coordinates taken from the block's own
+  // getBoundingClientRect() plus the card's own measured size, so it always
+  // ends up fully on-screen regardless of where its block sits.
+  useLayoutEffect(() => {
+    if (activeId == null) { setCardPos(null); return; }
+    const anchor = blockRefs.current.get(activeId);
+    const card = cardRef.current;
+    if (!anchor || !card) { setCardPos(null); return; }
+    const ar = anchor.getBoundingClientRect();
+    const cw = card.offsetWidth;
+    const ch = card.offsetHeight;
+    const GAP = 9;
+    const PAD = 8;
+
+    let left = ar.left;
+    if (left + cw > window.innerWidth - PAD) left = Math.max(PAD, window.innerWidth - PAD - cw);
+    left = Math.max(PAD, left);
+
+    // Open upward by default (same as before), but flip to open downward
+    // when there isn't enough room above the block.
+    let top = ar.top - GAP - ch;
+    if (top < PAD) top = ar.bottom + GAP;
+    top = Math.min(top, window.innerHeight - PAD - ch);
+
+    setCardPos({ top, left });
+  }, [activeId, strip]);
+
+  // Orientation changes / resizes can leave a stale position behind — closing
+  // is simpler and safer than trying to re-derive it mid-gesture.
+  useEffect(() => {
+    if (activeId == null) return;
+    const closeAll = () => { setOpenId(null); setHoverId(null); };
+    window.addEventListener("resize", closeAll);
+    return () => window.removeEventListener("resize", closeAll);
+  }, [activeId]);
+
   if (!strip) return null;
+
+  const activeBlock = activeId != null ? strip.blocks.find((b) => b.id === activeId) : null;
+
   return (
     <div className="strip-wrap">
       <div className="strip">
@@ -69,8 +127,14 @@ function Strip({ strip }) {
         {strip.blocks.map((b) => (
           <div
             key={b.id}
-            className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${b.left > 62 ? " flip" : ""}${openId === b.id ? " open" : ""}`}
+            ref={(el) => {
+              if (el) blockRefs.current.set(b.id, el);
+              else blockRefs.current.delete(b.id);
+            }}
+            className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${openId === b.id ? " open" : ""}`}
             style={{ left: `${b.left}%`, width: `${b.width}%` }}
+            onMouseEnter={() => setHoverId(b.id)}
+            onMouseLeave={() => setHoverId((cur) => (cur === b.id ? null : cur))}
             onClick={(e) => {
               e.stopPropagation();
               setOpenId((cur) => (cur === b.id ? null : b.id));
@@ -80,22 +144,6 @@ function Strip({ strip }) {
               <span className="bl">
                 {b.label}
                 {b.time && <em>{b.time}</em>}
-              </span>
-            )}
-            {/* A twenty-minute gap is two pixels wide. Hover — or a tap, on a
-                touch screen, see openId above — is how it gets to say what it
-                is without stealing width from the events that fit their own
-                label. */}
-            {b.detail && (
-              <span className="card">
-                <b>{b.detail.title}</b>
-                <span className="crange">
-                  {b.detail.range}
-                  {b.detail.duration && <> · {b.detail.duration}</>}
-                </span>
-                {b.detail.where && <span className="cwhere">{b.detail.where}</span>}
-                {b.detail.prep && <span className="cprep">{b.detail.prep}</span>}
-                {b.detail.priority && <span className="cpri">{b.detail.priority}</span>}
               </span>
             )}
           </div>
@@ -112,6 +160,29 @@ function Strip({ strip }) {
           </span>
         ))}
       </div>
+
+      {/* A twenty-minute gap is two pixels wide. Hover — or a tap, on a
+          touch screen, see openId/hoverId above — is how it gets to say what
+          it is without stealing width from the events that fit their own
+          label. Portaled to document.body (see the useLayoutEffect above) so
+          the timeline's own overflow:hidden never clips it. */}
+      {activeBlock?.detail && createPortal(
+        <div
+          ref={cardRef}
+          className="strip-card"
+          style={cardPos ? { top: cardPos.top, left: cardPos.left } : { top: -9999, left: -9999, visibility: "hidden" }}
+        >
+          <b>{activeBlock.detail.title}</b>
+          <span className="crange">
+            {activeBlock.detail.range}
+            {activeBlock.detail.duration && <> · {activeBlock.detail.duration}</>}
+          </span>
+          {activeBlock.detail.where && <span className="cwhere">{activeBlock.detail.where}</span>}
+          {activeBlock.detail.prep && <span className="cprep">{activeBlock.detail.prep}</span>}
+          {activeBlock.detail.priority && <span className="cpri">{activeBlock.detail.priority}</span>}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

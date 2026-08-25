@@ -148,12 +148,14 @@
      and it's drawn in the strip's own background colour so two abutting
      or overlapping blocks read as separated by a seam rather than fused
      into one shape. Whichever block paints on top (later in the array)
-     still shows its own ring right up to wherever it covers the other. */
-  box-shadow: 0 0 0 1px var(--rule);
+     still shows its own ring right up to wherever it covers the other.
+     2px rather than 1px — at 1px the seam was too subtle to register at
+     a glance, especially between two similarly-dark swatches. */
+  box-shadow: 0 0 0 2px var(--rule);
   display: flex; align-items: center;
   cursor: pointer;
 }
-.blk.imp { box-shadow: 0 0 0 1px var(--rule), inset 0 0 0 1px rgba(255,255,255,.16); }
+.blk.imp { box-shadow: 0 0 0 2px var(--rule), inset 0 0 0 1px rgba(255,255,255,.16); }
 .blk.past { opacity: .4; }
 .blk .bl {
   padding: 0 7px; font-size: 11px; color: var(--ink);
@@ -526,29 +528,35 @@
    The strip is the one graphic on the site, and a twenty-minute gap between
    classes is two pixels of it. Rather than widen every sliver until the bar
    is a row of stubs, the narrow ones stay narrow and say what they are on
-   hover — or, with no hover to speak of, on tap (see Strip's openId state
-   in Display.jsx, the .open class below). Nothing here is load-bearing:
-   everything in the card is also in the rows underneath. */
+   hover — or, with no hover to speak of, on tap (see Strip's openId/hoverId
+   state in Display.jsx, the .open class below). Nothing here is
+   load-bearing: everything in the card is also in the rows underneath. */
 .blk { transition: filter .12s ease, box-shadow .12s ease; }
 .blk:hover, .blk.open { filter: brightness(1.25); z-index: 6; }
-.blk .card {
-  position: absolute; bottom: calc(100% + 9px); left: 0;
+
+/* The metadata card itself is NOT rendered here as a child of .blk — .blk,
+   .strip and .stage all clip their own overflow (rounded corners, the
+   timeline's own scroll region), and a card positioned inside any of them
+   was being silently clipped away regardless of hover or tap. It's rendered
+   through a React portal straight into document.body instead, positioned
+   with real viewport coordinates computed from the block's own
+   getBoundingClientRect() (see the useLayoutEffect in Display.jsx), so
+   position is inline (top/left) rather than living here. This class only
+   carries the card's look. */
+.strip-card {
+  position: fixed;
   min-width: 190px; max-width: 300px; padding: 9px 11px;
   background: #17171a; border: 1px solid #33333a; border-radius: 7px;
   box-shadow: 0 10px 26px rgba(0,0,0,.6);
-  display: none; flex-direction: column; gap: 3px;
+  display: flex; flex-direction: column; gap: 3px;
   font-size: 12.5px; line-height: 1.35; color: var(--ink);
-  white-space: normal; pointer-events: none; z-index: 20;
+  white-space: normal; pointer-events: none; z-index: 9999;
 }
-.blk:hover .card, .blk.open .card { display: flex; }
-/* Past about two thirds across, anchor the card to the block's right edge so
-   it opens back towards the middle instead of off the side of the page. */
-.blk.flip .card { left: auto; right: 0; }
-.blk .card b { font-size: 13.5px; font-weight: 640; }
-.blk .card .crange { color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.blk .card .cwhere { color: var(--muted); }
-.blk .card .cprep  { color: var(--ink-2); font-style: italic; }
-.blk .card .cpri   { color: var(--accent); font-size: 11.5px; letter-spacing: .02em; }
+.strip-card b { font-size: 13.5px; font-weight: 640; }
+.strip-card .crange { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.strip-card .cwhere { color: var(--muted); }
+.strip-card .cprep  { color: var(--ink-2); font-style: italic; }
+.strip-card .cpri   { color: var(--accent); font-size: 11.5px; letter-spacing: .02em; }
 
 /* ================================================================== tasks */
 .tgroup.focus h2 { color: var(--accent); }
