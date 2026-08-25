@@ -22,18 +22,34 @@ const money = (n) => `$${Math.round(n).toLocaleString("en-CA")}`;
 const signed = (n, dp = 2) => `${n >= 0 ? "+" : ""}${n.toFixed(dp)}`;
 
 // Every calendar block used to get two colours from one fixed CSS palette —
-// a background and a lighter left-edge accent — keyed off category (see
-// .blk.d-* in Display.css). Real per-calendar colours from Google arrive as
-// a single hex, so the accent is derived here instead: the same colour,
-// blended toward white. Falls back to the CSS class (no inline style at all)
-// when an item has no real colour on record yet.
-function lighten(hex, amt) {
+// a dark-ish background, white text, and a lightened left-edge accent —
+// because the whole category palette was deliberately kept mid-dark (see the
+// comment on .blk.d-* in Display.css). Real per-calendar colours from Google
+// run the full range, right down to pale custom pastels, where white text
+// and a lightened accent both stop being readable. blockStyle() checks one
+// brightness threshold and picks text/accent/overlap-marker colour to hold
+// contrast whichever way the real colour goes; null when there's no real
+// colour on record, so the .d-{swatch} CSS class stays in charge instead.
+function hexRGB(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
   if (!m) return null;
   const n = parseInt(m[1], 16);
-  const mix = (v) => Math.round(v + (255 - v) * amt);
-  const r = mix((n >> 16) & 255), g = mix((n >> 8) & 255), b = mix(n & 255);
-  return `rgb(${r}, ${g}, ${b})`;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+const brightness = ([r, g, b]) => (r * 299 + g * 587 + b * 114) / 1000;
+const mixToward = (rgb, target, amt) => rgb.map((v) => Math.round(v + (target - v) * amt));
+const rgbStr = (rgb) => `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+
+function blockStyle(hex) {
+  const rgb = hexRGB(hex);
+  if (!rgb) return null;
+  const light = brightness(rgb) >= 150;
+  return {
+    background: rgbStr(rgb),
+    borderLeftColor: rgbStr(mixToward(rgb, light ? 0 : 255, light ? 0.35 : 0.45)),
+    color: light ? "#0a0a0a" : "#ffffff",
+    "--stripe": light ? "rgba(10,10,10,.4)" : "rgba(255,255,255,.6)",
+  };
 }
 
 // Same shape as the backend's own clockLabel (brief/display.js) — h:mm AM/PM,
@@ -151,10 +167,11 @@ function Strip({ strip }) {
               left: `${b.left}%`,
               width: `${b.width}%`,
               // The real Google calendar colour, when this item has one —
-              // overrides the .d-{swatch} class's fixed palette entirely.
-              // The class stays in the className above as the fallback for
-              // an item with no colour on record.
-              ...(b.color ? { background: b.color, borderLeftColor: lighten(b.color, 0.45) } : {}),
+              // overrides the .d-{swatch} class's fixed palette entirely,
+              // text colour included (see blockStyle above). The class
+              // stays in the className above as the fallback for an item
+              // with no colour on record.
+              ...(blockStyle(b.color) || {}),
             }}
             onMouseEnter={() => setHoverId(b.id)}
             onMouseLeave={() => setHoverId((cur) => (cur === b.id ? null : cur))}
@@ -209,6 +226,10 @@ function Strip({ strip }) {
           {activeBlock.detail.where && <span className="cwhere">{activeBlock.detail.where}</span>}
           {activeBlock.detail.prep && <span className="cprep">{activeBlock.detail.prep}</span>}
           {activeBlock.detail.priority && <span className="cpri">{activeBlock.detail.priority}</span>}
+          {/* The overlap flag itself (see brief/display.js) said in words,
+              not just the corner mark on the block — a sliver too narrow
+              for that mark to read as anything still has this. */}
+          {activeBlock.overlap && <span className="cflag">Overlaps another event</span>}
         </div>,
         document.body
       )}

@@ -163,22 +163,42 @@
    change to its own colour. That colour is now the calendar's real Google
    colour (see the inline `background` Display.jsx sets from item.color) and
    has to stay exactly what it is — this sits on top via a pseudo-element
-   instead, clipped to .blk's own rounded corner by its overflow:hidden. */
+   instead, clipped to .blk's own rounded corner by its overflow:hidden.
+
+   Sized with min(13px, 35%) rather than a flat 13px: a block narrower than
+   ~37px would otherwise have the marker clipped to fill its ENTIRE visible
+   area (overflow:hidden crops it at the block's own edge, it doesn't shrink
+   the marker), which reads as a solid grey hashed box sitting on the
+   timeline rather than a small corner accent on a real coloured event — a
+   20-minute overlap made this show up constantly. Scaling with the block's
+   own size keeps it a corner flag at every width; the tap/hover card's
+   "Overlaps another event" line is the fallback on a sliver too narrow for
+   the mark to read as anything at all.
+
+   --stripe is set inline per block by blockStyle() in Display.jsx — dark
+   hash on a light real colour, light hash on a dark one — so the mark
+   itself never washes out the way a fixed white stripe does on a pale
+   pastel calendar colour. Falls back to the light stripe for an item on
+   the .d-{swatch} fallback palette, which is deliberately kept mid-dark. */
 .blk.overlap::after {
   content: "";
   position: absolute;
   top: 0; right: 0;
-  width: 13px; height: 13px;
+  width: min(13px, 35%); height: min(13px, 35%);
   background: repeating-linear-gradient(
     -45deg,
-    rgba(255,255,255,.6) 0 2px,
+    var(--stripe, rgba(255,255,255,.6)) 0 2px,
     transparent 2px 4px
   );
   clip-path: polygon(100% 0, 100% 100%, 0 0);
   pointer-events: none;
 }
 .blk .bl {
-  padding: 0 7px; font-size: 11px; color: var(--ink);
+  /* inherit, not var(--ink) directly: a real Google colour that's light
+     sets the block's own `color` to dark ink via blockStyle() in
+     Display.jsx so the label stays readable; with nothing to inherit
+     .blk falls through to .disp's var(--ink), the same white as before. */
+  padding: 0 7px; font-size: 11px; color: inherit;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; gap: 7px; align-items: baseline; min-width: 0;
 }
@@ -614,6 +634,7 @@
 .strip-card .cwhere { color: var(--muted); }
 .strip-card .cprep  { color: var(--ink-2); font-style: italic; }
 .strip-card .cpri   { color: var(--accent); font-size: 11.5px; letter-spacing: .02em; }
+.strip-card .cflag  { color: var(--ink-2); font-size: 11.5px; letter-spacing: .02em; }
 
 /* ================================================================== tasks */
 .tgroup.focus h2 { color: var(--accent); }
