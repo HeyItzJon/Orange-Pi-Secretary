@@ -362,7 +362,7 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
         const rawEnd = sameDayEnd ? hourOfDay(e.meta.end, tz) : wakeEnd;
         const end = Math.min(wakeEnd, Math.max(start, rawEnd));
         const swatch = e.swatch || (e.meta?.calendarName === "Personal" ? "gmail" : null) || e.domain || "personal";
-        return { start, end, swatch };
+        return { start, end, swatch, color: e.color || null };
       })
       .filter((c) => c.end > c.start)
       .sort((a, b) => a.start - b.start);
@@ -386,6 +386,7 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
       left: pct(c.start),
       width: Math.max(0.6, pct(c.end) - pct(c.start)),
       swatch: c.swatch,
+      color: c.color,
     }));
 
     forecast.push({
@@ -565,7 +566,10 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const span = endHour - startHour;
   const pct = (h) => Math.max(0, Math.min(100, ((h - startHour) / span) * 100));
 
-  const blocks = todays
+  // Start/end hours computed first, in their own pass, so overlap can be
+  // checked against every OTHER event on the day — the block below still
+  // needs its own s/en for width and the past/upcoming/collision math.
+  const timedToday = todays
     .filter((e) => !e.meta?.allDay)
     .map((e) => {
       const s = hourOfDay(e.dueAt, tz);
@@ -574,54 +578,68 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       // hour rather than drawing nothing.
       const rawEnd = e.meta?.end ? hourOfDay(e.meta.end, tz) : s + 1;
       const en = Math.max(s + 0.25, rawEnd || s + 1);
-      const width = Math.max(1.2, pct(en) - pct(s));
-      return {
-        id: e.id,
-        left: pct(s),
-        width,
-        // Colour carries the swatch here — it's the one place on this screen
-        // where a hue does work text can't. Swatch mirrors the real Apple
-        // Calendar colours (CANNOT MISS is orange there, so it's orange
-        // here too) rather than the coarser life-lane domain; see
-        // calendarSwatch() in lib/classify.js for the one deliberate
-        // override, the default email-named calendar.
-        //
-        // Two fallbacks, for items stored before this field existed (or
-        // collected by a server still running the old code). meta.calendarName
-        // gets rewritten to the literal string "Personal" at collection time
-        // ONLY for the default, email-named calendar (see sources/calendar.js)
-        // — the same signal calendarSwatch() itself keys on, recovered from
-        // what's already stored — so that's checked before falling all the
-        // way back to domain, which is the wrong lane for that calendar
-        // specifically (it's how an un-migrated Physio event ended up
-        // reading as plain "personal", the same colour as Gym Schedule,
-        // instead of the link-blue override).
-        swatch: e.swatch || (e.meta?.calendarName === "Personal" ? "gmail" : null) || e.domain || "personal",
-        // Below ~6% a label is a clipped fragment; colour still identifies it,
-        // and the rows underneath name it.
-        label: width >= 6 ? String(e.title).slice(0, 30) : "",
-        time: e.meta?.end && width >= 24 && String(e.title).length < 22
-          ? `${clockLabel(e.dueAt, tz)}–${clockLabel(e.meta.end, tz)}`
-          : "",
-        // What's behind you should read as done, not as pending.
-        past: new Date(e.meta?.end || new Date(e.dueAt).getTime() + 3600000) < now,
-        important: Boolean(e.unmissable || e.emphasised),
-        // Everything the block is too narrow to say. There's a pointer on this
-        // thing again, so a 20-minute sliver can still identify itself without
-        // stealing width from the events that do fit their label.
-        detail: {
-          title: e.title,
-          range: e.meta?.end
-            ? `${clockLabel(e.dueAt, tz)} – ${clockLabel(e.meta.end, tz)}`
-            : clockLabel(e.dueAt, tz),
-          duration: durationLabel(e.dueAt, e.meta?.end, false),
-          where: locationOf(e),
-          prep: prepOf(e),
-          priority: priorityWord(e),
-          domain: e.domain || "personal",
-        },
-      };
+      return { e, s, en };
     });
+
+  const blocks = timedToday.map(({ e, s, en }, i) => {
+    const width = Math.max(1.2, pct(en) - pct(s));
+    return {
+      id: e.id,
+      left: pct(s),
+      width,
+      // Colour carries the swatch here — it's the one place on this screen
+      // where a hue does work text can't. Swatch mirrors the real Apple
+      // Calendar colours (CANNOT MISS is orange there, so it's orange
+      // here too) rather than the coarser life-lane domain; see
+      // calendarSwatch() in lib/classify.js for the one deliberate
+      // override, the default email-named calendar.
+      //
+      // Two fallbacks, for items stored before this field existed (or
+      // collected by a server still running the old code). meta.calendarName
+      // gets rewritten to the literal string "Personal" at collection time
+      // ONLY for the default, email-named calendar (see sources/calendar.js)
+      // — the same signal calendarSwatch() itself keys on, recovered from
+      // what's already stored — so that's checked before falling all the
+      // way back to domain, which is the wrong lane for that calendar
+      // specifically (it's how an un-migrated Physio event ended up
+      // reading as plain "personal", the same colour as Gym Schedule,
+      // instead of the link-blue override).
+      swatch: e.swatch || (e.meta?.calendarName === "Personal" ? "gmail" : null) || e.domain || "personal",
+      // The calendar's real Google colour, when the item was collected with
+      // one on record. The frontend paints this straight over the swatch
+      // above when present — swatch stays only as the fallback.
+      color: e.color || null,
+      // True when this event's time range genuinely intersects another
+      // event's on the same day. Purely a render-time flag computed fresh
+      // from real start/end hours every time — nothing stored, no synthetic
+      // item, no separate id. Drives a small corner marker on the block;
+      // never changes its colour, which stays the calendar's own.
+      overlap: timedToday.some((o, j) => j !== i && s < o.en && en > o.s),
+      // Below ~6% a label is a clipped fragment; colour still identifies it,
+      // and the rows underneath name it.
+      label: width >= 6 ? String(e.title).slice(0, 30) : "",
+      time: e.meta?.end && width >= 24 && String(e.title).length < 22
+        ? `${clockLabel(e.dueAt, tz)}–${clockLabel(e.meta.end, tz)}`
+        : "",
+      // What's behind you should read as done, not as pending.
+      past: new Date(e.meta?.end || new Date(e.dueAt).getTime() + 3600000) < now,
+      important: Boolean(e.unmissable || e.emphasised),
+      // Everything the block is too narrow to say. There's a pointer on this
+      // thing again, so a 20-minute sliver can still identify itself without
+      // stealing width from the events that do fit their label.
+      detail: {
+        title: e.title,
+        range: e.meta?.end
+          ? `${clockLabel(e.dueAt, tz)} – ${clockLabel(e.meta.end, tz)}`
+          : clockLabel(e.dueAt, tz),
+        duration: durationLabel(e.dueAt, e.meta?.end, false),
+        where: locationOf(e),
+        prep: prepOf(e),
+        priority: priorityWord(e),
+        domain: e.domain || "personal",
+      },
+    };
+  });
 
   const nowHour = hourOfDay(now, tz);
 

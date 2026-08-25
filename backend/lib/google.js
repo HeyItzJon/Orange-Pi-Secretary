@@ -139,7 +139,7 @@ export async function getCalendarList({ ttlHours = 24, force = false } = {}) {
     { minAccessRole: "reader", maxResults: 250 },
     token
   );
-  const items = (data.items || []).map((c) => ({ id: c.id, summary: c.summary }));
+  const items = (data.items || []).map((c) => ({ id: c.id, summary: c.summary, color: c.backgroundColor || null }));
   await setMeta("calendarList", { at: new Date().toISOString(), items });
   log.info(`calendar list refreshed (${items.length} calendars)`);
   return items;
@@ -200,6 +200,7 @@ export async function getEvents(calendars, { timeMin, timeMax, maxResults = 50 }
         id: e.id,
         calendarId: cal.id,
         calendarName: cal.summary,
+        calendarColor: cal.color || null,
         summary: e.summary || "(no title)",
         description: e.description || "",
         location: e.location || "",

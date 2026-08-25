@@ -21,6 +21,21 @@ const SELF_HEAL_COOLDOWN = 30 * 60 * 1000;
 const money = (n) => `$${Math.round(n).toLocaleString("en-CA")}`;
 const signed = (n, dp = 2) => `${n >= 0 ? "+" : ""}${n.toFixed(dp)}`;
 
+// Every calendar block used to get two colours from one fixed CSS palette —
+// a background and a lighter left-edge accent — keyed off category (see
+// .blk.d-* in Display.css). Real per-calendar colours from Google arrive as
+// a single hex, so the accent is derived here instead: the same colour,
+// blended toward white. Falls back to the CSS class (no inline style at all)
+// when an item has no real colour on record yet.
+function lighten(hex, amt) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  const mix = (v) => Math.round(v + (255 - v) * amt);
+  const r = mix((n >> 16) & 255), g = mix((n >> 8) & 255), b = mix(n & 255);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 // Same shape as the backend's own clockLabel (brief/display.js) — h:mm AM/PM,
 // uppercase — with seconds added, since this is the one clock on the page
 // that's actually supposed to be seen ticking.
@@ -131,8 +146,16 @@ function Strip({ strip }) {
               if (el) blockRefs.current.set(b.id, el);
               else blockRefs.current.delete(b.id);
             }}
-            className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${openId === b.id ? " open" : ""}`}
-            style={{ left: `${b.left}%`, width: `${b.width}%` }}
+            className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${openId === b.id ? " open" : ""}${b.overlap ? " overlap" : ""}`}
+            style={{
+              left: `${b.left}%`,
+              width: `${b.width}%`,
+              // The real Google calendar colour, when this item has one —
+              // overrides the .d-{swatch} class's fixed palette entirely.
+              // The class stays in the className above as the fallback for
+              // an item with no colour on record.
+              ...(b.color ? { background: b.color, borderLeftColor: lighten(b.color, 0.45) } : {}),
+            }}
             onMouseEnter={() => setHoverId(b.id)}
             onMouseLeave={() => setHoverId((cur) => (cur === b.id ? null : cur))}
             onClick={(e) => {
@@ -669,7 +692,15 @@ function WeekPage({ d }) {
                 background) is free time; that's the whole point of it. */}
             <div className="fcbar" title={`${day.busyHours}h busy · ${day.freeHours}h free`}>
               {(day.segments || []).map((s, i) => (
-                <i key={i} className={`d-${s.swatch}`} style={{ left: `${s.left}%`, width: `${s.width}%` }} />
+                <i
+                  key={i}
+                  className={`d-${s.swatch}`}
+                  style={{
+                    left: `${s.left}%`,
+                    width: `${s.width}%`,
+                    ...(s.color ? { background: s.color } : {}),
+                  }}
+                />
               ))}
             </div>
             <span className="fcfree">{day.freeHours}h free</span>

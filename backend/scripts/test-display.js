@@ -187,6 +187,54 @@ test("a real calendar named literally 'Gym Schedule' still falls back to domain,
   assert.equal(strip.blocks[0].swatch, "personal");
 });
 
+test("a block carries the item's real Google calendar colour when it has one", () => {
+  const items = [ev({ id: "a", title: "Standup", dueAt: at(9), swatch: "work", color: "#7986cb" })];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.blocks[0].color, "#7986cb");
+});
+
+test("a block with no colour on record comes back null, not a guessed value", () => {
+  const items = [ev({ id: "a", title: "Old item", dueAt: at(9), swatch: "work" })];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.blocks[0].color, null);
+});
+
+test("two events that don't intersect in time are not flagged as overlapping", () => {
+  const items = [
+    ev({ id: "a", title: "First", dueAt: at(9), meta: { end: at(10) } }),
+    ev({ id: "b", title: "Second", dueAt: at(10), meta: { end: at(11) } }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.blocks[0].overlap, false);
+  assert.equal(strip.blocks[1].overlap, false);
+});
+
+test("two events that genuinely overlap are both flagged, independent of colour", () => {
+  const items = [
+    ev({ id: "a", title: "Long thing", dueAt: at(9), meta: { end: at(13) }, color: "#7986cb" }),
+    ev({ id: "b", title: "Even more thing", dueAt: at(12), meta: { end: at(14) }, color: "#e67c73" }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.blocks[0].overlap, true);
+  assert.equal(strip.blocks[1].overlap, true);
+  // the flag never touches colour — each keeps its own real calendar colour
+  assert.equal(strip.blocks[0].color, "#7986cb");
+  assert.equal(strip.blocks[1].color, "#e67c73");
+});
+
+test("a third event that overlaps neither of two overlapping ones is not flagged", () => {
+  const items = [
+    ev({ id: "a", title: "A", dueAt: at(9), meta: { end: at(11) } }),
+    ev({ id: "b", title: "B", dueAt: at(10), meta: { end: at(12) } }),
+    ev({ id: "c", title: "C", dueAt: at(14), meta: { end: at(15) } }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  const byId = Object.fromEntries(strip.blocks.map((b) => [b.id, b]));
+  assert.equal(byId.a.overlap, true);
+  assert.equal(byId.b.overlap, true);
+  assert.equal(byId.c.overlap, false);
+});
+
 // ====================================================================
 group("today, days, deadlines");
 
@@ -570,6 +618,18 @@ test("each day's bar carries a coloured segment per event, sized and positioned 
   assert.equal(Math.round(seg.left), 13);
   assert.equal(Math.round(seg.width), 13);
   assert.equal(seg.swatch, "class");
+});
+
+test("a week-bar segment carries the item's real Google calendar colour too, same as the day strip", () => {
+  const events = [ev({ id: "e1", dueAt: at(9), swatch: "class", color: "#33b679", meta: { end: at(11) } })];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(w.days[0].segments[0].color, "#33b679");
+});
+
+test("a week-bar segment with no colour on record comes back null", () => {
+  const events = [ev({ id: "e1", dueAt: at(9), swatch: "class", meta: { end: at(11) } })];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.equal(w.days[0].segments[0].color, null);
 });
 
 test("overlapping events each keep their own segment on the bar, unmerged — busyHours still merges", () => {

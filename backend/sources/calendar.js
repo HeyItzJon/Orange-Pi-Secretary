@@ -120,6 +120,12 @@ export async function collectCalendar(config, { force = false } = {}) {
       categoryWeight: category.weight,
       domain,
       swatch: calendarSwatch({ calendarName: e.calendarName, category: category.id }),
+      // The calendar's own real Google colour (its backgroundColor from
+      // calendarList), when Google has one on file — which is effectively
+      // always. This is what the day strip and week bars paint with now;
+      // swatch above stays only as the fallback for the rare item with no
+      // colour on record (an old row from before this field existed).
+      color: e.calendarColor || null,
       unmissable: Boolean(category.unmissable),
       emphasised,
       tier: category.id,

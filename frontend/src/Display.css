@@ -157,6 +157,26 @@
 }
 .blk.imp { box-shadow: 0 0 0 2px var(--rule), inset 0 0 0 1px rgba(255,255,255,.16); }
 .blk.past { opacity: .4; }
+/* A block whose time genuinely intersects another event's (see `overlap` in
+   brief/display.js — computed fresh from real start/end hours every render,
+   nothing stored) gets a small diagonal-hash corner flag rather than any
+   change to its own colour. That colour is now the calendar's real Google
+   colour (see the inline `background` Display.jsx sets from item.color) and
+   has to stay exactly what it is — this sits on top via a pseudo-element
+   instead, clipped to .blk's own rounded corner by its overflow:hidden. */
+.blk.overlap::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0;
+  width: 13px; height: 13px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255,255,255,.6) 0 2px,
+    transparent 2px 4px
+  );
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+  pointer-events: none;
+}
 .blk .bl {
   padding: 0 7px; font-size: 11px; color: var(--ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -164,19 +184,21 @@
 }
 .blk .bl em { font-style: normal; font-size: 10px; opacity: .62; flex-shrink: 0; }
 
-/* These key off swatch (see lib/classify.js's calendarSwatch), which mirrors
-   the actual colour of the Apple Calendar an event lives on rather than the
-   coarser life-lane domain: CANNOT MISS → orange, IMPORTANT EVENTS → purple,
-   WORK → red, Tests & Quizzes → gold, School & Classes → green, and Sydney's
-   Demands → periwinkle, matching the swatches in the calendar app itself.
-   The one deliberate exception is "gmail" — anything on the default,
-   email-named calendar (nothing to categorise it) always paints the same
-   light link-blue, regardless of what its category ends up being.
+/* FALLBACK ONLY as of the real-Google-colour work: Display.jsx sets an
+   inline `background`/`borderLeftColor` straight from item.color (the
+   calendar's actual backgroundColor from Google) whenever an item has one on
+   record, which overrides everything below via normal CSS cascade rules —
+   no !important needed. These class rules still fire underneath for the
+   rare item collected with no colour on file yet. They key off swatch (see
+   lib/classify.js's calendarSwatch), a category-based approximation: CANNOT
+   MISS → orange, IMPORTANT EVENTS → purple, WORK → red, Tests & Quizzes →
+   gold, School & Classes → green, Sydney's Demands → periwinkle. "gmail" is
+   the one deliberate exception — the default, email-named calendar (nothing
+   to categorise it) falls back to light link-blue regardless of category.
    Categories with no calendar of their own (opportunity, deadline, admin,
    appointment, personal) get a colour from the same family that isn't
-   already spoken for. All sit around 45% lightness — luminous enough
-   to separate at arm's length, still dark enough to carry white text at
-   ~5:1. */
+   already spoken for. All sit around 45% lightness — luminous enough to
+   separate at arm's length, still dark enough to carry white text at ~5:1. */
 .blk.d-critical     { background: #b5560d; border-left-color: #f2a35c; } /* Can't miss     — orange, like CANNOT MISS */
 .blk.d-important    { background: #7440ad; border-left-color: #b98ef0; } /* Important      — purple, like IMPORTANT EVENTS */
 .blk.d-work         { background: #c22a1f; border-left-color: #ff5c4d; } /* Work           — bright red, like WORK (not pink) */
@@ -446,8 +468,10 @@
 .fcddate { font-size: 10.5px; color: var(--faint); }
 /* A density strip, not a progress bar: one segment per event, roughly sized
    and positioned across the waking window (see weekForecast's `segments` in
-   brief/display.js), coloured the same swatch family the day strip itself
-   uses — no label, no hover, nothing per-event to read. Whatever's left
+   brief/display.js). Coloured the same way the day strip's blocks are: the
+   calendar's real Google colour via an inline `background` when the segment
+   has one (see Display.jsx), these d-* classes underneath as the fallback
+   only — no label, no hover, nothing per-event to read. Whatever's left
    showing the bar's own grey background between segments IS the free time;
    that's the entire visual, on purpose. */
 .fcbar { position: relative; height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
