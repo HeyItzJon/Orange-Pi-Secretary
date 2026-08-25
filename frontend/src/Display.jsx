@@ -91,33 +91,74 @@ function splitDateLabel(label) {
 /**
  * The big, prominent header Jon asked for: today's date, large, with a
  * clock face that actually rotates — the one clock on the page meant to be
- * watched rather than read once and forgotten. Always shows the REAL
- * current time regardless of which day's timeline the carousel below is
- * showing (see DayCarousel) — it's a wall clock, not a preview of a future
- * day, which doesn't have a "now" to show.
+ * watched rather than read once and forgotten. The clock itself always
+ * ticks REAL current time (a future day has no "now" of its own — see
+ * AnalogClock) — but the text beside it now tracks the carousel
+ * (`daysAhead`, threaded down from TodayPage): today's own slide shows the
+ * real date same as always, while Tomorrow/Thursday/Friday swap it for
+ * "Looking ahead" / "N days ahead", so the header stops silently claiming
+ * to describe a day it isn't actually showing.
  */
-function TodayHeader({ dateLabel, timeZone }) {
-  const [weekday, monthDay] = splitDateLabel(dateLabel);
+function TodayHeader({ dateLabel, timeZone, daysAhead = 0 }) {
+  const [realWeekday, realMonthDay] = splitDateLabel(dateLabel);
+  const weekday = daysAhead > 0 ? "Looking ahead" : realWeekday;
+  const monthDay = daysAhead > 0 ? `${daysAhead} day${daysAhead === 1 ? "" : "s"} ahead` : realMonthDay;
   return (
     <div className="tday-head">
       <div className="tday-date">
-        <span className="tday-weekday">{weekday}</span>
+        <span className={`tday-weekday${daysAhead > 0 ? " away" : ""}`}>{weekday}</span>
         <span className="tday-monthday">{monthDay}</span>
       </div>
-      <AnalogClock timeZone={timeZone} />
+      <AnalogClock timeZone={timeZone} daysAhead={daysAhead} />
     </div>
   );
 }
 
-/** A genuine rotating analog clock — hour/minute/second hands, ticking every
- *  second — plus a small digital readout underneath for anyone who'd rather
- *  just read it. Always real, local time; see TodayHeader above. */
-function AnalogClock({ timeZone }) {
+/**
+ * A genuine rotating analog clock — hour/minute/second hands, ticking every
+ * second. Always real, local time; see TodayHeader above.
+ *
+ * Bonus Jon asked for: when `daysAhead` changes (the carousel just paged to
+ * a different day), the hands do one quick extra spin — forward when
+ * paging further out, backward when paging back toward today — like a
+ * time-travel montage, before settling back on the real current time.
+ * `travelSpin` is a purely decorative extra degrees-offset added on top of
+ * the real hourDeg/minDeg/secDeg below: it's snapped to a starting position
+ * with NO transition, then eased back to 0 WITH one — the classic
+ * "flush a style, then animate" double-rAF trick, since setting a new
+ * transform and turning on a transition in the same tick just animates
+ * from whatever the hand's old position happened to be, not from the
+ * jumping-off point this needs.
+ */
+function AnalogClock({ timeZone, daysAhead = 0 }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  const [travelSpin, setTravelSpin] = useState(0);
+  const [traveling, setTraveling] = useState(false);
+  const prevDaysAhead = useRef(daysAhead);
+  const rafRef = useRef(null);
+
+  useEffect(() => {
+    const delta = daysAhead - prevDaysAhead.current;
+    prevDaysAhead.current = daysAhead;
+    if (!delta) return;
+
+    setTraveling(false);          // no transition for this jump...
+    setTravelSpin(-360 * delta);  // ...land the hands one full turn "behind" per day moved
+    const raf1 = requestAnimationFrame(() => {
+      rafRef.current = requestAnimationFrame(() => {
+        setTraveling(true);       // ...then ease back to 0 — the extra turn plays out as a spin
+        setTravelSpin(0);
+      });
+    });
+    rafRef.current = raf1;
+    const settle = setTimeout(() => setTraveling(false), 750);
+    return () => { cancelAnimationFrame(rafRef.current); clearTimeout(settle); };
+  }, [daysAhead]);
 
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-CA", {
@@ -127,9 +168,10 @@ function AnalogClock({ timeZone }) {
   const h = Number(parts.hour) % 12;
   const m = Number(parts.minute);
   const s = Number(parts.second);
-  const hourDeg = h * 30 + m * 0.5;
-  const minDeg = m * 6 + s * 0.1;
-  const secDeg = s * 6;
+  const hourDeg = h * 30 + m * 0.5 + travelSpin;
+  const minDeg = m * 6 + s * 0.1 + travelSpin;
+  const secDeg = s * 6 + travelSpin;
+  const handClass = traveling ? " traveling" : "";
 
   return (
     <div className="aclock" title={liveClockLabel(now, timeZone)}>
@@ -137,9 +179,9 @@ function AnalogClock({ timeZone }) {
         {Array.from({ length: 12 }).map((_, i) => (
           <span key={i} className={`aclock-tick${i % 3 === 0 ? " major" : ""}`} style={{ transform: `rotate(${i * 30}deg)` }} />
         ))}
-        <div className="aclock-hand hour" style={{ transform: `rotate(${hourDeg}deg)` }} />
-        <div className="aclock-hand min" style={{ transform: `rotate(${minDeg}deg)` }} />
-        <div className="aclock-hand sec" style={{ transform: `rotate(${secDeg}deg)` }} />
+        <div className={`aclock-hand hour${handClass}`} style={{ transform: `rotate(${hourDeg}deg)` }} />
+        <div className={`aclock-hand min${handClass}`} style={{ transform: `rotate(${minDeg}deg)` }} />
+        <div className={`aclock-hand sec${handClass}`} style={{ transform: `rotate(${secDeg}deg)` }} />
         <div className="aclock-hub" />
       </div>
       {/* The digital readout used to sit here as its own line — Jon asked
@@ -468,7 +510,7 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
 
   return (
     <>
-      <TodayHeader dateLabel={d.dateLabel} timeZone={d.timezone} />
+      <TodayHeader dateLabel={d.dateLabel} timeZone={d.timezone} daysAhead={onToday ? 0 : offset} />
 
       {onToday ? (
         <div className={`hero${d.hero.urgent ? "" : " calm"}`}>

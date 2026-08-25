@@ -145,6 +145,11 @@
   font-size: 40px; font-weight: 700; letter-spacing: -.015em; line-height: 1.08;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* "Looking ahead" (see TodayHeader in Display.jsx) — tinted so the header
+   itself signals it's not describing the real day anymore, on top of the
+   text change. Same accent used for the NOW marker and the clock's second
+   hand, so it reads as part of the same "this isn't quite real-time" family. */
+.tday-weekday.away { color: var(--accent); }
 .tday-monthday { font-size: 18px; color: var(--muted); margin-top: 2px; }
 
 /* A real analog face — 12 ticks (every 3rd one longer, for 12/3/6/9), three
@@ -181,6 +186,10 @@
 .aclock-hand.hour { width: 4px; height: 26%; margin-left: -2px; }
 .aclock-hand.min  { width: 3px; height: 37%; margin-left: -1.5px; background: var(--ink-2); }
 .aclock-hand.sec  { width: 2px; height: 40%; margin-left: -1px; background: var(--accent); }
+/* The "time travel" spin Jon asked for: only on while the carousel just
+   changed day (see AnalogClock's travelSpin/traveling in Display.jsx) — the
+   rest of the time hands snap instantly each second, same as a real clock. */
+.aclock-hand.traveling { transition: transform .7s cubic-bezier(.22, 1, .36, 1); }
 .aclock-hub {
   position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
   margin: -5px 0 0 -5px; border-radius: 50%; background: var(--accent);
