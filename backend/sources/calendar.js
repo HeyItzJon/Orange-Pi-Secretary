@@ -133,6 +133,13 @@ export async function collectCalendar(config, { force = false } = {}) {
       contentHash: contentHash({ s: e.summary, st: e.start, en: e.end, l: e.location, d: note }),
       meta: {
         calendarName: isEmailLike(e.calendarName) ? "Personal" : e.calendarName,
+        // The calendar's real Google id, stable across a rename — unlike
+        // calendarName above, which is a display string that changes the
+        // moment you rename a calendar. Reconciliation below prefers this
+        // when it's on record; see the comment there for why the name alone
+        // isn't reliable enough during exactly the kind of calendar
+        // reshuffling a migration involves.
+        calendarId: e.calendarId,
         allDay: e.allDay,
         start: e.start,
         end: e.end,
@@ -162,18 +169,30 @@ export async function collectCalendar(config, { force = false } = {}) {
   // reconcile against calendars that actually returned fresh data this round
   // (see failedCalendarIds above) — a calendar that failed to fetch must
   // never be read as "every one of its events just got deleted".
-  const okCalendarNames = new Set(
-    matched
-      .filter((c) => !failedCalendarIds.includes(c.id))
-      .map((c) => (isEmailLike(c.summary) ? "Personal" : c.summary))
-  );
-  if (okCalendarNames.size) {
+  //
+  // Matched by calendar ID, not name, when a stored item has one on record
+  // (see meta.calendarId above) — a calendar's Google id never changes, but
+  // its display name does the moment you rename it, and matching purely by
+  // name meant a renamed-or-recreated calendar (exactly what a migration
+  // like moving everything from Apple Calendar into Google involves) could
+  // silently fall out of every future round's reconciliation: an item
+  // stored under the calendar's old name would never match the new name in
+  // okCalendarNames again, so a real deletion on that calendar would never
+  // get noticed. ID-matching doesn't have that problem. Name is still the
+  // fallback for anything collected before this field existed.
+  const ok = matched.filter((c) => !failedCalendarIds.includes(c.id));
+  const okCalendarIds = new Set(ok.map((c) => c.id));
+  const okCalendarNames = new Set(ok.map((c) => (isEmailLike(c.summary) ? "Personal" : c.summary)));
+  if (okCalendarIds.size) {
     const liveIds = new Set(items.map((i) => i.id));
     const stored = await allItems();
     for (const prev of stored) {
       if (prev.source !== "calendar" || prev.kind === "system") continue;
       if (prev.status === "done" || prev.status === "dismissed") continue;
-      if (!prev.dueAt || !okCalendarNames.has(prev.meta?.calendarName)) continue;
+      const calendarOk = prev.meta?.calendarId
+        ? okCalendarIds.has(prev.meta.calendarId)
+        : okCalendarNames.has(prev.meta?.calendarName);
+      if (!prev.dueAt || !calendarOk) continue;
       const dueTime = new Date(prev.dueAt).getTime();
       if (dueTime < timeMin.getTime() || dueTime > timeMax.getTime()) continue;
       if (liveIds.has(prev.id)) continue;
