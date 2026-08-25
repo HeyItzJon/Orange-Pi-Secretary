@@ -124,6 +124,20 @@ export async function patchItem(id, fields) {
   return item;
 }
 
+/**
+ * Hard-remove a single item by id — an actual DELETE, not a status change.
+ * No ongoing pull path calls this; a normal refresh only ever soft-dismisses
+ * (see upsertItem's sticky status above). This exists for one-off manual
+ * cleanup — see scripts/purge-ghosts.js — where a dismissed row needs to be
+ * really gone rather than permanently hidden. Returns true if a row was
+ * actually removed.
+ */
+export async function deleteItem(id) {
+  const dbc = getDb();
+  const result = dbc.prepare("DELETE FROM items WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
 /** Record that these items went out in a brief — drives suppression. */
 export async function markSurfaced(ids) {
   const dbc = getDb();
