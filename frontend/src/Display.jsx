@@ -75,6 +75,148 @@ function LiveClock({ timeZone }) {
 }
 
 /**
+ * The date, split for two-tier sizing: the weekday reads biggest, the
+ * month/day underneath it a size down — same "Tuesday" / "August 25" split
+ * Jon asked for. `dateLabel` always comes from the backend as one
+ * comma-joined string (fmt(now, tz, { weekday: "long", month: "long", day:
+ * "numeric" }) in brief/display.js) — this just re-splits it rather than
+ * building a second date string client-side, so the two can never drift.
+ */
+function splitDateLabel(label) {
+  const i = String(label || "").indexOf(",");
+  if (i === -1) return [label || "", ""];
+  return [label.slice(0, i), label.slice(i + 1).trim()];
+}
+
+/**
+ * The big, prominent header Jon asked for: today's date, large, with a
+ * clock face that actually rotates — the one clock on the page meant to be
+ * watched rather than read once and forgotten. Always shows the REAL
+ * current time regardless of which day's timeline the carousel below is
+ * showing (see DayCarousel) — it's a wall clock, not a preview of a future
+ * day, which doesn't have a "now" to show.
+ */
+function TodayHeader({ dateLabel, timeZone }) {
+  const [weekday, monthDay] = splitDateLabel(dateLabel);
+  return (
+    <div className="tday-head">
+      <div className="tday-date">
+        <span className="tday-weekday">{weekday}</span>
+        <span className="tday-monthday">{monthDay}</span>
+      </div>
+      <AnalogClock timeZone={timeZone} />
+    </div>
+  );
+}
+
+/** A genuine rotating analog clock — hour/minute/second hands, ticking every
+ *  second — plus a small digital readout underneath for anyone who'd rather
+ *  just read it. Always real, local time; see TodayHeader above. */
+function AnalogClock({ timeZone }) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
+    }).formatToParts(now).map((p) => [p.type, p.value])
+  );
+  const h = Number(parts.hour) % 12;
+  const m = Number(parts.minute);
+  const s = Number(parts.second);
+  const hourDeg = h * 30 + m * 0.5;
+  const minDeg = m * 6 + s * 0.1;
+  const secDeg = s * 6;
+
+  return (
+    <div className="aclock" title={liveClockLabel(now, timeZone)}>
+      <div className="aclock-face">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <span key={i} className={`aclock-tick${i % 3 === 0 ? " major" : ""}`} style={{ transform: `rotate(${i * 30}deg)` }} />
+        ))}
+        <div className="aclock-hand hour" style={{ transform: `rotate(${hourDeg}deg)` }} />
+        <div className="aclock-hand min" style={{ transform: `rotate(${minDeg}deg)` }} />
+        <div className="aclock-hand sec" style={{ transform: `rotate(${secDeg}deg)` }} />
+        <div className="aclock-hub" />
+      </div>
+      <span className="aclock-digital">{liveClockLabel(now, timeZone)}</span>
+    </div>
+  );
+}
+
+/**
+ * The forward-only day pager Jon asked for: the same day-strip graphic
+ * (all-day chips + hour blocks), one page per day, sliding sideways between
+ * Today and the next 3 days (see `dayStrips` in brief/display.js). No back
+ * beyond today — there's nothing behind it to preview — and no progress
+ * marker on a future day, since nothing on it has happened yet.
+ *
+ * `slides[0]` is always today (built from `d.strip`, which is the only one
+ * carrying `nowPct`); `slides[1..]` come straight from `d.dayStrips`. Only
+ * one slide is ever mounted at a time — swapping the single Strip instance
+ * and re-triggering a directional CSS animation keyed by the offset, rather
+ * than mounting all four — so Strip's own hover/tap card state never has to
+ * be reasoned about across four instances at once.
+ */
+function DayCarousel({ slides }) {
+  const [offset, setOffset] = useState(0);
+  const [dir, setDir] = useState(1);
+  const max = slides.length - 1;
+  const touchX = useRef(null);
+
+  const goTo = (n) => {
+    const clamped = Math.max(0, Math.min(max, n));
+    if (clamped === offset) return;
+    setDir(clamped > offset ? 1 : -1);
+    setOffset(clamped);
+  };
+
+  const onTouchStart = (e) => { touchX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    if (touchX.current == null) return;
+    const dx = e.changedTouches[0].clientX - touchX.current;
+    touchX.current = null;
+    if (Math.abs(dx) < 40) return; // a tap or a scroll, not a swipe
+    goTo(dx < 0 ? offset + 1 : offset - 1);
+  };
+
+  const slide = slides[offset];
+
+  return (
+    <div className="daycar">
+      <div className="daycar-head">
+        <button className="daycar-arrow" disabled={offset === 0} onClick={() => goTo(offset - 1)} aria-label="Previous day">‹</button>
+        <span className="daycar-label">
+          <span className="daycar-name">{slide.label}</span>
+          <span className="daycar-date">{slide.dateLabel}</span>
+        </span>
+        <button className="daycar-arrow" disabled={offset === max} onClick={() => goTo(offset + 1)} aria-label="Next day">›</button>
+      </div>
+      <div className="daycar-viewport" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <div key={offset} className={`daycar-slide${dir > 0 ? " fwd" : " back"}`}>
+          <Strip strip={slide} />
+        </div>
+      </div>
+      {slides.length > 1 && (
+        <div className="daycar-dots">
+          {slides.map((s, i) => (
+            <button
+              key={s.key || i}
+              className={`daycar-dot${i === offset ? " on" : ""}`}
+              onClick={() => goTo(i)}
+              title={s.label}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * All-day events never become blocks on the hour-by-hour strip below (there's
  * no time to plot them at) — this is where they actually show, as a row of
  * small chips sitting above it. Same real calendar colour as a timed block
@@ -245,8 +387,15 @@ function Strip({ strip }) {
             above), and this is deliberately drawn taller than the strip
             itself, so it has to live outside that clip to actually show the
             part that pokes out. Same left% as everything above: .strip-wrap
-            is exactly as wide as .strip. */}
-        <div className="nowline" style={{ left: `${strip.nowPct}%` }} />
+            is exactly as wide as .strip.
+
+            Only Today's own strip carries nowPct (see buildDayStrip in
+            brief/display.js) — a future day in the carousel has no "now" to
+            mark, and rendering this with a missing/undefined left would
+            fall back to the browser's own default position (effectively
+            the left edge) rather than just not showing, which is what
+            actually happened before this check existed. */}
+        {strip.nowPct != null && <div className="nowline" style={{ left: `${strip.nowPct}%` }} />}
 
         {/* A twenty-minute gap is two pixels wide. Hover — or a tap, on a
             touch screen, see openId/hoverId above — is how it gets to say what
@@ -282,15 +431,26 @@ function Strip({ strip }) {
 /* =================================================================== pages */
 
 function TodayPage({ d }) {
+  // Today's own strip already carries everything DayCarousel needs
+  // (blocks/chunks/ticks/allDay, plus nowPct — the one field that marks it
+  // as "today" rather than a future day); dayStrips (see brief/display.js)
+  // supplies the next 3 days in the exact same shape, minus that marker.
+  const slides = [
+    { key: "today", label: "Today", dateLabel: d.dateLabel, ...d.strip },
+    ...(d.dayStrips || []),
+  ];
+
   return (
     <>
+      <TodayHeader dateLabel={d.dateLabel} timeZone={d.timezone} />
+
       <div className={`hero${d.hero.urgent ? "" : " calm"}`}>
         <span className="lbl">{d.hero.urgent ? "NOW" : "NEXT"}</span>
         <span className="big">{d.hero.lead}</span>
         {d.hero.sub && <span className="sub">{d.hero.sub}</span>}
       </div>
 
-      <Strip strip={d.strip} />
+      <DayCarousel slides={slides} />
 
       <div className="cols">
         <section className="zone">
@@ -687,23 +847,34 @@ function YearPage({ d }) {
         </div>
 
         <div className="ycard">
-          <div className="ygrid" style={gridVars}>
-            {y.months.map((m) => (
-              <span className="mlabel" key={`${m.label}-${m.week}`} style={{ gridColumn: m.week + 2, gridRow: 1 }}>
-                {m.label}
-              </span>
-            ))}
-            {WEEKDAY_LABELS.map((l, i) => (
-              l ? <span className="wlabel" key={i} style={{ gridColumn: 1, gridRow: i + 2 }}>{l}</span> : null
-            ))}
-            {y.cells.map((c) => (
-              <div
-                key={c.date}
-                className={`ycell b-${c.bucket}${c.today ? " today" : ""}`}
-                style={{ gridColumn: c.week + 2, gridRow: c.weekday + 2 }}
-                title={cellTitle(c)}
-              />
-            ))}
+          {/* Scrollable on its own — see .ygrid-scroll in the phone media
+              query. On a wide screen the grid already shrinks to fit (each
+              cell is a 1fr column), so this never needs to scroll there; on
+              a phone the grid instead renders at a fixed, legible cell size
+              and this is what makes the columns past the first screenful
+              reachable, rather than silently clipped by an ancestor's
+              overflow:hidden — the wall-display layout this page was
+              originally built for was never meant to be scrolled, but a
+              365-day grid on a phone has no other way to all fit. */}
+          <div className="ygrid-scroll">
+            <div className="ygrid" style={gridVars}>
+              {y.months.map((m) => (
+                <span className="mlabel" key={`${m.label}-${m.week}`} style={{ gridColumn: m.week + 2, gridRow: 1 }}>
+                  {m.label}
+                </span>
+              ))}
+              {WEEKDAY_LABELS.map((l, i) => (
+                l ? <span className="wlabel" key={i} style={{ gridColumn: 1, gridRow: i + 2 }}>{l}</span> : null
+              ))}
+              {y.cells.map((c) => (
+                <div
+                  key={c.date}
+                  className={`ycell b-${c.bucket}${c.today ? " today" : ""}`}
+                  style={{ gridColumn: c.week + 2, gridRow: c.weekday + 2 }}
+                  title={cellTitle(c)}
+                />
+              ))}
+            </div>
           </div>
 
           <div className="ylegend">

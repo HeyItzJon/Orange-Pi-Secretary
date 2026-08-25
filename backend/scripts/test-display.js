@@ -263,6 +263,54 @@ test("a third event that overlaps neither of two overlapping ones is not flagged
 });
 
 // ====================================================================
+group("dayStrips — the forward-day carousel, same graphic as the day strip");
+
+test("dayStrips carries exactly the next 3 days, forward only", () => {
+  const { dayStrips } = buildDisplay({ items: [], config, now: NOW });
+  assert.equal(dayStrips.length, 3);
+  assert.deepEqual(dayStrips.map((d) => d.key), ["2026-08-20", "2026-08-21", "2026-08-22"]);
+});
+
+test("dayStrips labels read the same way as the NEXT 3 DAYS list: Tomorrow, then weekday names", () => {
+  const { dayStrips } = buildDisplay({ items: [], config, now: NOW });
+  assert.equal(dayStrips[0].label, "Tomorrow");
+  assert.equal(dayStrips[1].label, "Friday", "Aug 21 2026 is a Friday");
+  assert.equal(dayStrips[1].dateLabel, "Friday, August 21");
+});
+
+test("a future day's blocks land at the same position the day strip itself would compute", () => {
+  const items = [ev({ id: "a", title: "Standup", dueAt: dayAt(1, 9), meta: { end: dayAt(1, 10) } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[0].blocks.length, 1);
+  // default 7am-11pm window: 9am is (9-7)/16 = 12.5%
+  assert.equal(Math.round(dayStrips[0].blocks[0].left), 13);
+  assert.equal(dayStrips[0].blocks[0].label, "Standup");
+});
+
+test("a future day's blocks never carry a now-marker or a past flag — nothing on it has happened yet", () => {
+  const items = [ev({ id: "a", title: "Standup", dueAt: dayAt(1, 9), meta: { end: dayAt(1, 10) } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[0].nowPct, undefined);
+  assert.equal(dayStrips[0].blocks[0].past, false);
+});
+
+test("an all-day item on a future day shows up in that day's own chip row, not today's or another day's", () => {
+  const items = [ev({ id: "pd", title: "Payday", dueAt: dayAt(2, 0), meta: { allDay: true } })];
+  const { strip, dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.allDay.length, 0);
+  assert.equal(dayStrips[0].allDay.length, 0);
+  assert.deepEqual(dayStrips[1].allDay.map((c) => c.title), ["Payday"]);
+  assert.equal(dayStrips[2].allDay.length, 0);
+});
+
+test("an event on day 3 opens that day's own window early/late, independent of today's or day 2's", () => {
+  const items = [ev({ id: "a", title: "Flight", dueAt: dayAt(3, 5), meta: { end: dayAt(3, 5, 30) } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[2].startHour, 5);
+  assert.equal(dayStrips[0].startHour, 7, "an unrelated day must not inherit day 3's early window");
+});
+
+// ====================================================================
 group("today, days, deadlines");
 
 test("today lists what's LEFT, with location, duration and prep", () => {
