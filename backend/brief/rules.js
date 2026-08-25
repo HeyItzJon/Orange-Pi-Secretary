@@ -1,32 +1,48 @@
 // brief/rules.js
 //
-// What gets said, and how loudly. Pure functions, no network, no AI —
-// which means this is the part you can actually test, tune and trust.
+// What gets said, where it goes, and how loudly. Pure functions, no network,
+// no AI — which means this is the part you can actually test, tune and trust.
 //
-// Four jobs:
-//   urgency()  — the clock. Same item, different volume as a date approaches.
-//   rank()     — ONE transparent score per item, with a receipt. v1 sorted by
-//                a flat "priority" that mixed importance and urgency together,
-//                so ties were everywhere and nothing explained itself.
-//   assign()   — every item lands in exactly ONE section, so nothing is said
-//                twice in the same brief.
-//   suppress() — once you've been told enough times, and nothing changed, and
-//                nothing is close, stop saying it.
+// LAYOUT MODEL
+//
+//   Today   — a chronological timeline of the whole day, every domain mixed,
+//             because that's what a schedule IS. Each row is tagged with its
+//             domain so "work 12–5" and "BBQ at 6" read as different kinds of
+//             thing without being separated.
+//
+//   Lanes   — everything that ISN'T today, grouped by area of life: School,
+//             Work, Career, Finance, Social, Projects, Personal. This is where
+//             you go to focus on one thing.
+//
+// An item appears in exactly one place. Today owns today; the lanes own the
+// rest. Time is expressed as chips and ordering, not as its own sections.
 
-import { rankItem } from "../lib/classify.js";
-
-export const SECTIONS = ["today", "needsYou", "newSince", "comingUp", "money", "looseThreads"];
-
-export const SECTION_LABELS = {
-  today: "Today",
-  needsYou: "Needs you",
-  newSince: "New since yesterday",
-  comingUp: "Coming up",
-  money: "Money",
-  looseThreads: "Loose threads",
-};
+import { rankItem, deriveDomain } from "../lib/classify.js";
 
 const DAY = 86400000;
+
+/**
+ * Shape version. The frontend checks this and shows a "rebuild me" banner if
+ * it doesn't recognise the value.
+ *
+ * This exists because a stale `frontend/dist` against a fresh backend fails
+ * silently and looks exactly like data loss: the old bundle asks for sections
+ * that no longer exist, renders almost nothing, and there's no error anywhere
+ * to tell you the build is old. Bump this whenever `sections` changes shape.
+ */
+export const SCHEMA = "lanes-v1";
+
+export const DEFAULT_DOMAIN_ORDER = [
+  "school", "work", "career", "finance", "social", "projects", "personal",
+];
+
+export function domainOrder(config = {}) {
+  return config.domains?.order || DEFAULT_DOMAIN_ORDER;
+}
+
+export function sectionKeys(config = {}) {
+  return ["today", ...domainOrder(config)];
+}
 
 /** null | "warning" | "serious" | "critical" */
 export function urgency(item, now = new Date()) {
@@ -54,94 +70,115 @@ export function isActive(item, now = new Date()) {
  * "New" means: appeared since the last brief went out.
  *
  * On the very first brief there is no "since" — so nothing is new, and the
- * whole backlog is treated as baseline. Without this, day one dumps every
- * item you own into "New since yesterday" and the section means nothing.
+ * whole backlog is treated as baseline. Without this, day one marks every
+ * item you own as new and the flag means nothing.
  */
 export function isNew(item, lastBriefAt) {
   if (!lastBriefAt) return false;
   return new Date(item.firstSeen) > new Date(lastBriefAt);
 }
 
-function needsAction(item, u) {
+export function needsAction(item, u = null) {
   if (item.source === "email" && item.meta?.needsReply) return true;
   if (item.kind === "conflict") return true;
   if (item.kind === "contribution") return true;
+  if (item.kind === "system") return true;
   if (u === "critical" || u === "serious") return true;
   return false;
 }
 
 /**
- * Have we said this enough? An item earns silence once it has been surfaced
- * repeatedly, hasn't changed, and isn't close to a deadline.
+ * Have we said this enough?
+ *
+ * IMPORTANT: this no longer removes anything. An item that has been repeated
+ * often, hasn't changed, and has no deadline gets marked QUIET — it still
+ * appears in its lane, collapsed behind a "show N quieter" toggle you can
+ * open. Nothing is ever silently withheld.
  */
-export function suppress(item, u, cfg) {
+export function isQuiet(item, u, cfg) {
   const max = cfg.maxRepeats ?? 6;
   if (item.changed) return false;
-  if (u) return false;                       // a clock running keeps its voice
+  if (u) return false;                                  // a running clock keeps its voice
   if (item.unmissable || item.emphasised) return false; // you flagged it yourself
   return (item.surfaceCount || 0) >= max;
 }
 
-function sectionFor(item, { u, fresh }) {
-  if (item.source === "money") return "money";
-  if (item.source === "note") return "looseThreads";
-  if (item.kind === "system") return "needsYou";
-  if (item.kind === "today") return "today";
-  if (fresh && u !== "critical") return "newSince";
-  if (needsAction(item, u)) return "needsYou";
-  if (item.dueAt) return "comingUp";
-  return null;
+/** @deprecated kept so older callers don't break; use isQuiet. */
+export const suppress = isQuiet;
+
+/** Fall back to deriving a domain for items stored before domains existed. */
+function domainOf(item, config) {
+  return item.domain || deriveDomain(
+    { title: item.title, body: item.detail, category: item.category, path: item.meta?.path },
+    config
+  );
 }
 
 /**
  * Select and arrange everything for one brief.
- * Returns { sections, surfacedIds, counts }.
+ * Returns { sections, surfacedIds, counts, order }.
  */
 export function selectForBrief(items, { now = new Date(), lastBriefAt = null, config = {} } = {}) {
   const cfg = config.brief || {};
-  const horizon = cfg.comingUpDays ?? 14;
-  const perSection = cfg.maxPerSection ?? 6;
+  const horizon = cfg.horizonDays ?? cfg.comingUpDays ?? 60;
+  const order = domainOrder(config);
 
-  const buckets = Object.fromEntries(SECTIONS.map((s) => [s, []]));
+  const buckets = { today: [] };
+  for (const d of order) buckets[d] = [];
+  const excluded = []; // everything NOT shown, with the reason — never silent
 
   for (const raw of items) {
-    if (!isActive(raw, now)) continue;
-
     const u = urgency(raw, now);
     const fresh = isNew(raw, lastBriefAt);
     const dLeft = daysUntil(raw, now);
 
-    // Beyond the horizon it stays quiet until it gets closer.
-    if (dLeft !== null && dLeft > horizon && raw.kind !== "today") continue;
+    // The only three things that remove an item from the brief entirely.
+    // Each is either your explicit instruction or genuinely stale.
+    if (raw.status === "done") { excluded.push({ id: raw.id, title: raw.title, why: "you marked it done" }); continue; }
+    if (raw.status === "dismissed") { excluded.push({ id: raw.id, title: raw.title, why: "you dismissed it" }); continue; }
+    if (raw.status === "snoozed" && raw.snoozeUntil && new Date(raw.snoozeUntil) > now) {
+      excluded.push({ id: raw.id, title: raw.title, why: `snoozed until ${String(raw.snoozeUntil).slice(0, 10)}` });
+      continue;
+    }
+    if (dLeft !== null && dLeft < -1 && raw.source === "calendar") {
+      excluded.push({ id: raw.id, title: raw.title, why: `already happened (${Math.abs(dLeft)}d ago)` });
+      continue;
+    }
+    if (dLeft !== null && dLeft > horizon && raw.kind !== "today") {
+      excluded.push({ id: raw.id, title: raw.title, why: `more than ${horizon} days out` });
+      continue;
+    }
 
-    // Past events are history, not news.
-    if (dLeft !== null && dLeft < -1 && raw.source === "calendar") continue;
-
-    if (!fresh && suppress(raw, u, cfg)) continue;
-
-    const section = sectionFor(raw, { u, fresh });
-    if (!section) continue;
+    const domain = domainOf(raw, config);
+    const target = raw.kind === "today" ? "today" : domain;
+    if (!buckets[target]) {
+      excluded.push({ id: raw.id, title: raw.title, why: `unknown domain "${domain}" — check config` });
+      continue;
+    }
 
     const { score, why } = rankItem({ ...raw, changed: raw.changed || fresh }, { now, config });
 
-    buckets[section].push({
+    buckets[target].push({
       ...raw,
+      domain,
       _urgency: u,
       _new: fresh,
       _changed: Boolean(raw.changed),
+      _needsAction: needsAction(raw, u),
+      // Quiet items still ship — the UI collapses them behind a toggle.
+      _quiet: !fresh && isQuiet(raw, u, cfg),
       _daysUntil: dLeft,
       _rank: score,
       _rankWhy: why,
     });
   }
 
-  // Today reads chronologically — it's a schedule, not a ranking.
+  // Today is a schedule, so it reads by the clock.
   buckets.today.sort((a, b) => new Date(a.dueAt || 0) - new Date(b.dueAt || 0));
 
-  // Everything else reads by rank, with the deadline breaking ties.
-  for (const s of SECTIONS) {
-    if (s === "today") continue;
-    buckets[s].sort((a, b) => {
+  // Lanes read by rank, with the nearer deadline breaking ties.
+  for (const d of order) {
+    buckets[d].sort((a, b) => {
       if (b._rank !== a._rank) return b._rank - a._rank;
       if (a.dueAt && b.dueAt) return new Date(a.dueAt) - new Date(b.dueAt);
       if (a.dueAt) return -1;
@@ -150,23 +187,36 @@ export function selectForBrief(items, { now = new Date(), lastBriefAt = null, co
     });
   }
 
+  // No truncation. Every item that survived the three exclusion rules above
+  // ships to the client; the UI decides how much to show at once.
   const sections = {};
   const surfacedIds = [];
-  for (const s of SECTIONS) {
-    const capped = s === "today" ? buckets[s] : buckets[s].slice(0, perSection);
-    if (capped.length) {
-      sections[s] = capped;
-      surfacedIds.push(...capped.map((i) => i.id));
+  for (const key of ["today", ...order]) {
+    if (buckets[key].length) {
+      sections[key] = buckets[key];
+      surfacedIds.push(...buckets[key].map((i) => i.id));
     }
   }
 
+  // Counts describe the LANES only. Today is never filtered — it's the
+  // schedule — so counting it here would make the masthead disagree with
+  // the filter chips, and a number that doesn't match its own button is
+  // worse than no number.
+  const laneItems = order.flatMap((d) => sections[d] || []);
   return {
+    schema: SCHEMA,
     sections,
+    order,
     surfacedIds,
+    excluded,
     counts: {
       total: surfacedIds.length,
-      new: Object.values(sections).flat().filter((i) => i._new).length,
-      hidden: items.filter((i) => isActive(i, now)).length - surfacedIds.length,
+      today: (sections.today || []).length,
+      lanes: laneItems.length,
+      new: laneItems.filter((i) => i._new || i._changed).length,
+      needsAction: laneItems.filter((i) => i._needsAction).length,
+      quiet: laneItems.filter((i) => i._quiet).length,
+      excluded: excluded.length,
     },
   };
 }

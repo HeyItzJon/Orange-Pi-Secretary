@@ -11,9 +11,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import { logger } from "./lib/log.js";
-import { init as initStore, getMeta, patchItem, allItems } from "./lib/store.js";
+import { init as initStore, getMeta, patchItem, allItems, portfolioHistory } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
-import { runSources, buildBrief } from "./brief/compose.js";
+import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
+import { buildDisplay } from "./brief/display.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -63,6 +64,58 @@ app.post("/api/brief/rebuild", async (req, res) => {
   }
 });
 
+/**
+ * The always-on screen. Same data as /api/brief, arranged for a small display
+ * with no input: fixed zones, a day strip, plain-language priorities.
+ */
+app.get("/api/display", async (_req, res) => {
+  try {
+    const names = SOURCE_NAMES;
+    const [items, money, history, brief, runs, errs] = await Promise.all([
+      allItems(),
+      getMeta("moneySummary", null),
+      portfolioHistory(),
+      getMeta("lastBrief", null),
+      Promise.all(names.map((s) => getMeta(`lastRun_${s}`, null))),
+      Promise.all(names.map((s) => getMeta(`lastError_${s}`, null))),
+    ]);
+    const sources = Object.fromEntries(names.map((s, i) => [s, runs[i]]));
+    const errors = Object.fromEntries(names.map((s, i) => [s, errs[i]]));
+    // Priorities are computed during compose (cached on a hash of the open
+    // work) rather than here, so hitting this endpoint every minute is free.
+    const priorities = brief?.priorities || [];
+    res.json(buildDisplay({ items, money, priorities, sources, errors, history, config, now: new Date() }));
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * What each source last did, for the status panel behind the refresh button.
+ * The point of this endpoint is that a broken Gmail token should be one click
+ * away from visible instead of something you discover a week later.
+ */
+app.get("/api/sources", async (_req, res) => {
+  const out = await Promise.all(
+    SOURCE_NAMES.map(async (s) => ({
+      name: s,
+      lastRun: await getMeta(`lastRun_${s}`, null),
+      lastAttempt: await getMeta(`lastAttempt_${s}`, null),
+      lastError: await getMeta(`lastError_${s}`, null),
+    }))
+  );
+  res.json({
+    sources: out,
+    // Everything the pipeline pulls is on one clock now.
+    everyMinutes: config.schedule?.pullEveryMinutes ?? 15,
+    money: await getMeta("moneySummary", null).then((m) => m && {
+      at: m.at, holdingsFrom: m.holdingsFrom, marketState: m.marketState,
+      holdingCount: m.holdingCount, stale: m.stale, unavailable: m.unavailable, fx: m.fx,
+    }),
+  });
+});
+
 app.get("/api/items", async (req, res) => {
   const items = await allItems();
   const status = req.query.status;
@@ -89,7 +142,9 @@ app.get("/api/config", async (_req, res) => {
 app.post("/api/refresh", async (req, res) => {
   try {
     const report = await runSources(config, { force: Boolean(req.body?.force) });
-    const brief = await buildBrief(config, { narrate: true });
+    // Narration costs a token call, and the refresh button gets pressed to
+    // check plumbing far more often than to get a new sentence. Opt in.
+    const brief = await buildBrief(config, { narrate: req.body?.narrate === true });
     res.json({ ok: true, report, brief });
   } catch (err) {
     log.error(err.message);
@@ -99,7 +154,7 @@ app.post("/api/refresh", async (req, res) => {
 
 app.post("/api/refresh/:source", async (req, res) => {
   const { source } = req.params;
-  if (!["email", "calendar", "money", "notes"].includes(source)) {
+  if (!SOURCE_NAMES.includes(source)) {
     return res.status(400).json({ error: `unknown source "${source}"` });
   }
   try {

@@ -1,7 +1,13 @@
 /* App.css — the brief.
-   Typographic, not decorative: a briefing is text, and the design's job is
-   to make it scannable in ninety seconds. Palette is validated for contrast
-   in both modes; status colours always ship with a text label, never alone. */
+   Typographic, not decorative: a briefing is text, and the design's job is to
+   make it scannable in ninety seconds.
+
+   Colour rules, deliberately strict:
+   - Domain hues appear ONLY as small dots. Text always wears ink tokens.
+     (The 7-hue set is validated for colourblind separation in both modes, but
+     three of the light hues sit below 3:1 on the surface — so the written
+     label beside every dot is what carries the meaning, not the colour.)
+   - Urgency owns the loud colours, and always ships a WORD, never a hue alone. */
 
 :root {
   color-scheme: dark;
@@ -12,12 +18,19 @@
   --muted:    #898781;
   --rule:     #2c2c2a;
   --border:   rgba(255, 255, 255, 0.10);
-  --good:     #0ca30c;
   --warning:  #fab219;
   --serious:  #ec835a;
   --critical: #d03b3b;
   --up:       #0ca30c;
   --down:     #e66767;
+
+  --d-school:   #3987e5;
+  --d-work:     #d95926;
+  --d-career:   #199e70;
+  --d-finance:  #9085e9;
+  --d-social:   #d55181;
+  --d-projects: #c98500;
+  --d-personal: #008300;
 }
 
 :root[data-theme="light"] {
@@ -31,6 +44,14 @@
   --border:   rgba(11, 11, 11, 0.10);
   --up:       #006300;
   --down:     #c0392b;
+
+  --d-school:   #2a78d6;
+  --d-work:     #eb6834;
+  --d-career:   #1baf7a;
+  --d-finance:  #4a3aa7;
+  --d-social:   #e87ba4;
+  --d-projects: #eda100;
+  --d-personal: #008300;
 }
 
 * { box-sizing: border-box; }
@@ -43,19 +64,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-.wrap { max-width: 640px; margin: 0 auto; padding: 26px 20px 90px; }
+.wrap { max-width: 660px; margin: 0 auto; padding: 26px 20px 90px; }
 
 /* ---------------------------------------------------------- top bar */
 .topbar {
   display: flex; align-items: center; gap: 8px;
-  flex-wrap: wrap; justify-content: flex-end;
-  margin-bottom: 18px;
+  flex-wrap: wrap; justify-content: flex-end; margin-bottom: 18px;
 }
 .topbar .grow { flex: 1 1 80px; min-width: 0; }
-.status {
-  font-size: 12px; color: var(--muted);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+.status { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .status.err { color: var(--critical); }
 
 .ctl {
@@ -78,17 +95,77 @@ body {
   border-left: 2px solid var(--border); padding-left: 12px;
 }
 
+/* --------------------------------------------------------- filters */
+.filters {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  padding: 14px 0 2px; border-bottom: 1px solid var(--rule);
+}
+.chipbtn { font-size: 12px; padding: 4px 11px; }
+.chipbtn[aria-pressed="true"] {
+  color: var(--ink); border-color: var(--muted); font-weight: 640;
+}
+
 /* --------------------------------------------------------- section */
 .section { padding: 22px 0 4px; border-bottom: 1px solid var(--rule); }
-.section:last-child { border-bottom: none; }
+.section:last-of-type { border-bottom: none; }
 .section h2 {
   font-size: 11.5px; font-weight: 680; letter-spacing: 0.07em;
   text-transform: uppercase; color: var(--muted);
-  margin: 0 0 14px; display: flex; align-items: baseline; gap: 8px;
+  margin: 0 0 14px; display: flex; align-items: center; gap: 8px;
 }
 .section h2 .count {
   font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11.5px;
 }
+
+/* Domain dot — the only place a domain hue is allowed to appear. */
+.ldot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); flex-shrink: 0;
+}
+.d-school   { background: var(--d-school); }
+.d-work     { background: var(--d-work); }
+.d-career   { background: var(--d-career); }
+.d-finance  { background: var(--d-finance); }
+.d-social   { background: var(--d-social); }
+.d-projects { background: var(--d-projects); }
+.d-personal { background: var(--d-personal); }
+
+/* --------------------------------------------------- today timeline */
+.trow {
+  display: flex; gap: 12px; align-items: baseline;
+  padding: 8px 0;
+}
+.trow + .trow { border-top: 1px solid var(--rule); }
+.ttime {
+  font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted);
+  min-width: 68px; flex-shrink: 0;
+}
+.tbody { flex: 1; min-width: 0; }
+.ttitle { font-size: 14.5px; color: var(--ink); }
+.ttitle a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); }
+.ttitle a:hover { border-bottom-color: var(--muted); }
+.tdetail { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+/* The domain label is TEXT in ink, with a coloured dot as reinforcement —
+   never colour alone, and never coloured text at sub-3:1 contrast. */
+.tdomain {
+  font-size: 10.5px; font-weight: 650; letter-spacing: 0.05em;
+  text-transform: uppercase; color: var(--muted);
+  flex-shrink: 0; display: flex; align-items: center; gap: 5px;
+}
+.tdomain::before {
+  content: ""; width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.tdomain.d-school::before   { background: var(--d-school); }
+.tdomain.d-work::before     { background: var(--d-work); }
+.tdomain.d-career::before   { background: var(--d-career); }
+.tdomain.d-finance::before  { background: var(--d-finance); }
+.tdomain.d-social::before   { background: var(--d-social); }
+.tdomain.d-projects::before { background: var(--d-projects); }
+.tdomain.d-personal::before { background: var(--d-personal); }
+.tdomain.d-school, .tdomain.d-work, .tdomain.d-career, .tdomain.d-finance,
+.tdomain.d-social, .tdomain.d-projects, .tdomain.d-personal { background: none; }
 
 /* ------------------------------------------------------------ item */
 .item { display: flex; gap: 11px; padding: 9px 0; align-items: flex-start; }
@@ -104,20 +181,7 @@ body {
 .item .title a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); }
 .item .title a:hover { border-bottom-color: var(--muted); }
 .item .meta { font-size: 12.5px; color: var(--muted); margin-top: 3px; line-height: 1.5; }
-.item .meta .src { color: var(--ink-2); }
 .item .meta .lead { color: var(--ink-2); }
-
-/* Category tag — deliberately quiet. It answers "what kind of thing is this",
-   which is orientation, not alarm. Urgency owns the loud colours. */
-.tag {
-  display: inline-block;
-  font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--ink-2); background: var(--border);
-  padding: 1.5px 6px 2px; border-radius: 4px;
-  margin-right: 2px; vertical-align: 1px;
-}
-.tag.prep { margin-left: 7px; margin-right: 0; color: var(--warning); background: transparent; border: 1px solid currentColor; }
 
 .actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity 0.12s; }
 .item:hover .actions, .item:focus-within .actions { opacity: 1; }
@@ -127,7 +191,20 @@ body {
 }
 .actions button:hover { color: var(--ink); background: var(--border); }
 
-/* ------------------------------------------------------------ chip */
+/* ------------------------------------------------------------ tags */
+.tag {
+  display: inline-block;
+  font-size: 10.5px; font-weight: 650; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-2); background: var(--border);
+  padding: 1.5px 6px 2px; border-radius: 4px;
+  margin-right: 2px; vertical-align: 1px;
+}
+.tag.prep {
+  margin-left: 7px; margin-right: 0; color: var(--warning);
+  background: transparent; border: 1px solid currentColor;
+}
+
 .chip {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 10.5px; font-weight: 640; letter-spacing: 0.03em;
@@ -141,15 +218,87 @@ body {
 .chip.neutral  { color: var(--ink-2); }
 
 /* ----------------------------------------------------------- money */
-.money-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 14.5px; }
+.money-line {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-size: 14.5px; padding-bottom: 4px;
+}
 .money-val { font-variant-numeric: tabular-nums; font-weight: 600; }
 .up { color: var(--up); }
 .down { color: var(--down); }
 .quiet { font-size: 13.5px; color: var(--muted); font-style: italic; }
 .note { font-size: 12.5px; color: var(--muted); padding: 8px 0 2px; }
 
-/* --------------------------------------------------------- states */
-.empty { padding: 44px 0; text-align: center; color: var(--muted); font-size: 14px; }
+/* --------------------------------------------------- stale-build banner */
+.banner {
+  border: 1px solid var(--serious); border-radius: 8px;
+  padding: 14px 16px; margin-bottom: 20px;
+  font-size: 13.5px; line-height: 1.6; color: var(--ink);
+}
+.banner b { color: var(--serious); }
+.banner code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px; background: var(--border); padding: 1px 5px; border-radius: 3px;
+}
+.banner code.cmd { display: block; margin: 10px 0; padding: 8px 10px; }
+
+/* ------------------------------------------------------ quiet / excluded */
+.quiet-toggle {
+  font: inherit; font-size: 12.5px; color: var(--ink-2);
+  background: none; border: none; cursor: pointer;
+  padding: 9px 0 4px; text-align: left; width: 100%;
+}
+.quiet-toggle:hover { color: var(--ink); }
+.quiet-why { color: var(--muted); font-size: 12px; }
+
+.lsource {
+  margin-left: auto; font-size: 10px; font-weight: 500;
+  letter-spacing: 0.02em; text-transform: none; color: var(--muted);
+}
+
+.excluded { padding: 4px 0 0; }
+.excluded-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.excluded-list li {
+  display: flex; gap: 12px; justify-content: space-between;
+  font-size: 12.5px; padding: 5px 0; border-top: 1px solid var(--rule);
+}
+.ex-title { color: var(--ink-2); flex: 1; min-width: 0; }
+.ex-why { color: var(--muted); flex-shrink: 0; }
+
+/* ---------------------------------------------------------------- legend */
+.legend { padding: 18px 0 0; border-top: 1px solid var(--rule); margin-top: 22px; }
+.legend-toggle {
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink-2);
+  background: none; border: none; cursor: pointer; padding: 0;
+}
+.legend-toggle:hover { color: var(--ink); }
+.legend-body { font-size: 13px; line-height: 1.6; color: var(--ink-2); padding-top: 10px; }
+.legend-body h3 {
+  font-size: 11px; font-weight: 680; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--muted); margin: 18px 0 6px;
+}
+.legend-body h3:first-child { margin-top: 4px; }
+.legend-body p { margin: 0 0 6px; }
+.legend-body b { color: var(--ink); font-weight: 600; }
+.legend-body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; background: var(--border); padding: 1px 4px; border-radius: 3px;
+}
+.legend-body dl { margin: 0; }
+.legend-body dl > div { display: flex; gap: 10px; padding: 4px 0; align-items: baseline; }
+.legend-body dt { color: var(--ink); font-weight: 600; min-width: 132px; flex-shrink: 0; }
+.legend-body dd { margin: 0; }
+.legend-chips { list-style: none; margin: 6px 0 0; padding: 0; }
+.legend-chips li { display: flex; gap: 10px; align-items: baseline; padding: 3px 0; }
+.legend-chips .chip { margin-left: 0; flex-shrink: 0; min-width: 88px; justify-content: center; }
+
+@media (max-width: 540px) {
+  .legend-body dl > div { flex-direction: column; gap: 0; }
+  .legend-body dt { min-width: 0; }
+  .excluded-list li { flex-direction: column; gap: 2px; }
+}
+
+/* ---------------------------------------------------------- states */
+.empty { padding: 40px 0; text-align: center; color: var(--muted); font-size: 14px; }
 .empty p { margin: 0 0 14px; }
 
 .foot {
@@ -158,7 +307,8 @@ body {
   display: flex; gap: 14px; flex-wrap: wrap;
 }
 
-@media (max-width: 520px) {
-  .item .when { min-width: 52px; font-size: 12px; }
+@media (max-width: 540px) {
+  .item .when, .ttime { min-width: 52px; font-size: 12px; }
   .actions { opacity: 1; }
+  .tdomain { font-size: 9.5px; }
 }

@@ -6,19 +6,19 @@
 //   node scripts/test-rules.js
 
 import assert from "node:assert/strict";
-import { selectForBrief, urgency, suppress, isNew } from "../brief/rules.js";
+import { selectForBrief, urgency, isQuiet, isNew, SCHEMA } from "../brief/rules.js";
 import { triage, isDistinctive, buildBoostQueries } from "../sources/email.js";
 import { usefulNote } from "../sources/calendar.js";
 import {
-  categorise, isEmphasised, looksLikeCourseCode, isEmailLike,
-  urgencyBoost, rankItem, durationLabel,
+  categorise, deriveDomain, isEmphasised, looksLikeCourseCode, isEmailLike,
+  calendarSwatch, urgencyBoost, rankItem, durationLabel,
 } from "../lib/classify.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const config = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config.json"), "utf-8"));
+const config = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config.example.json"), "utf-8"));
 
 const NOW = new Date("2026-08-19T07:00:00-04:00");
 const inDays = (n) => new Date(NOW.getTime() + n * 86400000).toISOString();
@@ -74,7 +74,7 @@ test("course codes are recognised by shape, not by a list", () => {
 });
 
 test("an email address used as a calendar name is detected", () => {
-  assert.equal(isEmailLike("jon.m.bourget@gmail.com"), true);
+  assert.equal(isEmailLike("you@example.com"), true);
   assert.equal(isEmailLike("CANNOT MISS"), false);
 });
 
@@ -98,7 +98,7 @@ test("an ordinary lecture on that calendar is a Class", () => {
 });
 
 test("a course code alone is enough to mean Class", () => {
-  const c = categorise({ title: "MSE 3401", calendarName: "jon.m.bourget@gmail.com" }, config);
+  const c = categorise({ title: "MSE 3401", calendarName: "you@example.com" }, config);
   assert.equal(c.id, "class");
 });
 
@@ -107,7 +107,7 @@ test("the work calendar means Work", () => {
 });
 
 test("Physio on the personal calendar is an Appointment, not 'your email address'", () => {
-  const c = categorise({ title: "Physio", calendarName: "jon.m.bourget@gmail.com" }, config);
+  const c = categorise({ title: "Physio", calendarName: "you@example.com" }, config);
   assert.equal(c.id, "appointment");
   assert.equal(c.label, "Appointment");
 });
@@ -118,8 +118,98 @@ test("an email's rule tier carries into its category", () => {
 });
 
 test("anything unmatched falls back to Personal, never to nothing", () => {
-  const c = categorise({ title: "Sam's birthday", calendarName: "jon.m.bourget@gmail.com" }, config);
+  const c = categorise({ title: "Sam's birthday", calendarName: "you@example.com" }, config);
   assert.equal(c.id, "personal");
+});
+
+// ====================================================================
+group("domains — which lane of your life");
+
+const dom = (o) => deriveDomain(o, config);
+
+test("the school calendar routes to School", () => {
+  assert.equal(dom({ title: "MSE 3401 lecture", calendarName: "School & Classes" }), "school");
+  assert.equal(dom({ title: "Midterm", calendarName: "Tests & Quizzes" }), "school");
+});
+
+test("the work calendar routes to Work", () => {
+  assert.equal(dom({ title: "Shift", calendarName: "WORK" }), "work");
+});
+
+test("a barbecue is Social even with no social calendar", () => {
+  assert.equal(dom({ title: "End of summer BBQ", calendarName: "you@example.com" }), "social");
+  assert.equal(dom({ title: "Sam's birthday dinner", calendarName: "you@example.com" }), "social");
+});
+
+test("Physio is Personal", () => {
+  assert.equal(dom({ title: "PHYSIO", calendarName: "you@example.com", category: "appointment" }), "personal");
+});
+
+test("an interview is Career, not Work", () => {
+  assert.equal(dom({ title: "Interview with Nokia", category: "opportunity" }), "career");
+});
+
+test("IMPORTANCE never decides a lane — a can't-miss wedding is Social", () => {
+  assert.equal(dom({ title: "Sarah's wedding", calendarName: "CANNOT MISS", category: "critical" }), "social");
+});
+
+test("...and a can't-miss exam is School", () => {
+  assert.equal(dom({ title: "MSE 3401 final exam", calendarName: "CANNOT MISS", category: "critical" }), "school");
+});
+
+test("a vault note is filed by the folder you put it in", () => {
+  assert.equal(dom({ title: "Look into CCO", path: "Areas/Finances/Investments/Uranium.md", category: "note" }), "finance");
+  assert.equal(dom({ title: "Fix the airframe", path: "Areas/Projects/UAV.md", category: "note" }), "projects");
+});
+
+test("a course code alone routes to School", () => {
+  assert.equal(dom({ title: "CEG 4136A", calendarName: "you@example.com" }), "school");
+});
+
+test("anything unrecognised lands in Personal, never nowhere", () => {
+  assert.equal(dom({ title: "Pick up parcel", calendarName: "you@example.com" }), "personal");
+});
+
+test("patterns match whole words, not substrings", () => {
+  // The bug this guards: "exam" matched "example.com", so a calendar named
+  // with your own email address classified everything on it as a Test.
+  assert.equal(dom({ title: "Coffee", calendarName: "you@example.com" }), "personal");
+  assert.equal(categorise({ title: "Coffee", calendarName: "you@example.com" }, config).id, "personal");
+  // "lab" must not fire on "collaborate", "due" must not fire on "overdue"
+  assert.equal(categorise({ title: "Collaborate on the report" }, config).id, "personal");
+});
+
+test("...but a trailing plural still matches", () => {
+  // config reads better singular; calendars are usually named plural
+  assert.equal(categorise({ title: "Anything", calendarName: "Tests & Quizzes" }, config).id, "assessment");
+  assert.equal(categorise({ title: "Anything", calendarName: "School & Classes" }, config).id, "class");
+});
+
+// ====================================================================
+group("calendarSwatch — the day-strip colour mirrors Apple Calendar");
+
+test("a category with its own real calendar paints as that category", () => {
+  assert.equal(calendarSwatch({ calendarName: "CANNOT MISS", category: "critical" }), "critical");
+  assert.equal(calendarSwatch({ calendarName: "WORK", category: "work" }), "work");
+  assert.equal(calendarSwatch({ calendarName: "School & Classes", category: "class" }), "class");
+});
+
+test("the default, email-named calendar always paints gmail-blue — whatever its category", () => {
+  assert.equal(calendarSwatch({ calendarName: "you@example.com", category: "personal" }), "gmail");
+  // Even something that would otherwise read as a real category, like a
+  // course code on the default calendar, still gets the override — the
+  // calendar it's actually sitting on matters more than what it's about.
+  assert.equal(calendarSwatch({ calendarName: "jon.m.bourget@gmail.com", category: "class" }), "gmail");
+});
+
+test("a real (non-email) calendar name is never mistaken for the default", () => {
+  assert.equal(calendarSwatch({ calendarName: "Sydney's Demands", category: "family" }), "family");
+  assert.equal(calendarSwatch({ calendarName: "Gym Schedule", category: "personal" }), "personal");
+});
+
+test("no calendar name at all still falls back to the category, not gmail", () => {
+  assert.equal(calendarSwatch({ category: "opportunity" }), "opportunity");
+  assert.equal(calendarSwatch({}), "personal");
 });
 
 // ====================================================================
@@ -216,20 +306,20 @@ test("urgency escalates as the date approaches", () => {
   assert.equal(urgency(item({ dueAt: inDays(-1) }), NOW), "critical");
 });
 
-test("an unchanged, undated item goes quiet after maxRepeats", () => {
-  assert.equal(suppress(item({ surfaceCount: 6 }), null, { maxRepeats: 6 }), true);
+test("an unchanged, undated item is marked quiet after maxRepeats", () => {
+  assert.equal(isQuiet(item({ surfaceCount: 6 }), null, { maxRepeats: 6 }), true);
 });
 
 test("a deadline keeps its voice however often it has been said", () => {
-  assert.equal(suppress(item({ surfaceCount: 99, dueAt: inDays(2) }), "serious", { maxRepeats: 6 }), false);
+  assert.equal(isQuiet(item({ surfaceCount: 99, dueAt: inDays(2) }), "serious", { maxRepeats: 6 }), false);
 });
 
 test("something you capitalised is never silenced", () => {
-  assert.equal(suppress(item({ surfaceCount: 99, emphasised: true }), null, { maxRepeats: 6 }), false);
+  assert.equal(isQuiet(item({ surfaceCount: 99, emphasised: true }), null, { maxRepeats: 6 }), false);
 });
 
 test("a changed item is never suppressed", () => {
-  assert.equal(suppress(item({ surfaceCount: 99, changed: true }), null, {}), false);
+  assert.equal(isQuiet(item({ surfaceCount: 99, changed: true }), null, {}), false);
 });
 
 test("on the very first brief nothing is 'new' — the backlog is baseline", () => {
@@ -240,35 +330,47 @@ test("an item first seen after the last brief is new", () => {
   assert.equal(isNew(item({ firstSeen: "2026-08-19T06:00:00Z" }), "2026-08-18T06:40:00Z"), true);
 });
 
-test("every item lands in exactly one section", () => {
+test("today owns today; the lanes own everything else", () => {
   const old = "2026-08-01T00:00:00Z";
   const items = [
-    item({ id: "a", kind: "today", source: "calendar", dueAt: inDays(0.2) }),
-    item({ id: "b", meta: { needsReply: true }, surfaceCount: 3, firstSeen: old }),
-    item({ id: "c", dueAt: inDays(9), surfaceCount: 3, firstSeen: old }),
-    item({ id: "d", source: "note", kind: "loose-thread", surfaceCount: 3, firstSeen: old }),
+    item({ id: "a", kind: "today", source: "calendar", domain: "school", dueAt: inDays(0.2) }),
+    item({ id: "b", domain: "work", meta: { needsReply: true }, surfaceCount: 3, firstSeen: old }),
+    item({ id: "c", domain: "school", dueAt: inDays(9), surfaceCount: 3, firstSeen: old }),
+    item({ id: "d", source: "note", domain: "projects", kind: "loose-thread", surfaceCount: 3, firstSeen: old }),
+    item({ id: "e", domain: "social", dueAt: inDays(4), surfaceCount: 3, firstSeen: old }),
   ];
   const { sections, surfacedIds } = selectForBrief(items, {
     now: NOW, lastBriefAt: "2026-08-18T06:40:00Z", config,
   });
   assert.equal(new Set(surfacedIds).size, surfacedIds.length, "an item was shown twice");
   assert.equal(sections.today?.[0].id, "a");
-  assert.equal(sections.needsYou?.[0].id, "b");
-  assert.equal(sections.comingUp?.[0].id, "c");
-  assert.equal(sections.looseThreads?.[0].id, "d");
+  assert.equal(sections.work?.[0].id, "b");
+  assert.equal(sections.school?.[0].id, "c");
+  assert.equal(sections.projects?.[0].id, "d");
+  assert.equal(sections.social?.[0].id, "e");
 });
 
-test("brand-new items go to 'new since yesterday', not 'needs you'", () => {
-  const items = [item({ id: "n", meta: { needsReply: true }, firstSeen: NOW.toISOString() })];
-  const { sections } = selectForBrief(items, { now: NOW, lastBriefAt: "2026-08-18T06:40:00Z", config });
-  assert.equal(sections.newSince?.[0].id, "n");
-  assert.ok(!sections.needsYou);
+test("a work shift and a barbecue on the same day sit in different lanes", () => {
+  const old = "2026-08-01T00:00:00Z";
+  const items = [
+    item({ id: "shift", domain: "work", title: "Shift", dueAt: inDays(3), surfaceCount: 3, firstSeen: old }),
+    item({ id: "bbq", domain: "social", title: "End of summer BBQ", dueAt: inDays(3), surfaceCount: 3, firstSeen: old }),
+  ];
+  const { sections } = selectForBrief(items, { now: NOW, lastBriefAt: "2026-08-18T00:00:00Z", config });
+  assert.equal(sections.work?.[0].id, "shift");
+  assert.equal(sections.social?.[0].id, "bbq");
 });
 
-test("but a brand-new CRITICAL item jumps straight to 'needs you'", () => {
-  const items = [item({ id: "u", dueAt: inDays(0.5), firstSeen: NOW.toISOString() })];
-  const { sections } = selectForBrief(items, { now: NOW, lastBriefAt: "2026-08-18T06:40:00Z", config });
-  assert.equal(sections.needsYou?.[0].id, "u");
+test("newness and action are flags, not lanes", () => {
+  const items = [item({ id: "n", domain: "career", meta: { needsReply: true }, firstSeen: NOW.toISOString() })];
+  const { sections, counts } = selectForBrief(items, {
+    now: NOW, lastBriefAt: "2026-08-18T06:40:00Z", config,
+  });
+  assert.equal(sections.career?.[0].id, "n", "still lives in its own lane");
+  assert.equal(sections.career[0]._new, true);
+  assert.equal(sections.career[0]._needsAction, true);
+  assert.equal(counts.new, 1);
+  assert.equal(counts.needsAction, 1);
 });
 
 test("dismissed and snoozed items never appear", () => {
@@ -285,9 +387,43 @@ test("an expired snooze brings the item back", () => {
   assert.deepEqual(selectForBrief(items, { now: NOW, config }).surfacedIds, ["z"]);
 });
 
-test("items past the horizon stay quiet", () => {
-  const items = [item({ id: "far", dueAt: inDays(40) })];
-  assert.deepEqual(selectForBrief(items, { now: NOW, config }).surfacedIds, []);
+test("items past the horizon are excluded WITH A STATED REASON, never silently", () => {
+  const items = [item({ id: "far", title: "Far off thing", dueAt: inDays(400) })];
+  const r = selectForBrief(items, { now: NOW, config });
+  assert.deepEqual(r.surfacedIds, []);
+  assert.equal(r.excluded.length, 1);
+  assert.match(r.excluded[0].why, /days out/);
+});
+
+test("NOTHING is truncated — a lane with 40 items shows all 40", () => {
+  // The regression this guards: lanes were capped at 6, so 10 of 16 work
+  // items vanished with no indication they existed.
+  const old = "2026-08-01T00:00:00Z";
+  const items = Array.from({ length: 40 }, (_, i) =>
+    item({ id: `w${i}`, domain: "work", title: `Work item ${i}`, surfaceCount: 1, firstSeen: old })
+  );
+  const r = selectForBrief(items, { now: NOW, lastBriefAt: "2026-08-18T00:00:00Z", config });
+  assert.equal(r.sections.work.length, 40, "every item must ship to the client");
+  assert.equal(r.counts.lanes, 40);
+  assert.equal(r.counts.excluded, 0);
+});
+
+test("over-repeated items are marked quiet but still present", () => {
+  const old = "2026-08-01T00:00:00Z";
+  const items = [
+    item({ id: "loud", domain: "work", surfaceCount: 0, firstSeen: old }),
+    item({ id: "worn", domain: "work", surfaceCount: 99, firstSeen: old }),
+  ];
+  const r = selectForBrief(items, { now: NOW, lastBriefAt: "2026-08-18T00:00:00Z", config });
+  assert.equal(r.sections.work.length, 2, "quiet items still ship");
+  assert.equal(r.sections.work.find((i) => i.id === "worn")._quiet, true);
+  assert.equal(r.sections.work.find((i) => i.id === "loud")._quiet, false);
+  assert.equal(r.counts.quiet, 1);
+});
+
+test("the response is stamped with a schema so a stale frontend is detectable", () => {
+  assert.equal(selectForBrief([], { now: NOW, config }).schema, SCHEMA);
+  assert.equal(SCHEMA, "lanes-v1");
 });
 
 test("today reads chronologically, not by rank", () => {
@@ -299,14 +435,14 @@ test("today reads chronologically, not by rank", () => {
   assert.deepEqual(sections.today.map((i) => i.id), ["early", "late"]);
 });
 
-test("other sections read by rank", () => {
+test("lanes read by rank", () => {
   const old = "2026-08-01T00:00:00Z";
   const items = [
-    item({ id: "minor", dueAt: inDays(6), categoryWeight: 24, surfaceCount: 3, firstSeen: old }),
-    item({ id: "exam", dueAt: inDays(6), categoryWeight: 44, unmissable: true, surfaceCount: 3, firstSeen: old }),
+    item({ id: "minor", domain: "school", dueAt: inDays(6), categoryWeight: 24, surfaceCount: 3, firstSeen: old }),
+    item({ id: "exam", domain: "school", dueAt: inDays(6), categoryWeight: 44, unmissable: true, surfaceCount: 3, firstSeen: old }),
   ];
   const { sections } = selectForBrief(items, { now: NOW, lastBriefAt: "2026-08-18T00:00:00Z", config });
-  assert.equal(sections.comingUp[0].id, "exam");
+  assert.equal(sections.school[0].id, "exam");
 });
 
 test("a quiet day produces an empty brief, not filler", () => {
@@ -336,7 +472,8 @@ test("'mom' does not fire on 'moment'", () => {
 });
 
 test("the work domain is recognised", () => {
-  assert.equal(triage(msg({ from: "S <s.person@ottawa.ca>", subject: "rota" }), rules).tier, "work");
+  const domain = rules.domains[0].match;
+  assert.equal(triage(msg({ from: `S <s.person@${domain}>`, subject: "rota" }), rules).tier, "work");
 });
 
 test("newsletters are dropped", () => {
@@ -345,7 +482,7 @@ test("newsletters are dropped", () => {
 });
 
 test("but a newsletter from a VIP still gets through", () => {
-  const r = triage(msg({ from: "Dave Leal <d@ottawa.ca>", subject: "team update", isNewsletter: true }), rules);
+  const r = triage(msg({ from: "Alex Fournier <a.fournier@city.example.ca>", subject: "team update", isNewsletter: true }), rules);
   assert.equal(r.tier, "work");
 });
 
@@ -385,8 +522,10 @@ test("boost queries are derived from the rules you already maintain", () => {
   assert.deepEqual(tiers, ["opportunity", "work"], "school is opted out, family is too generic");
 
   const work = qs.find((q) => q.tier === "work").query;
-  assert.ok(work.includes("richcraft"), "workplace name should be searched");
-  assert.ok(work.includes('"dave leal"'), "colleague names should be searched");
+  const workplace = config.rules.topics.work.bodyKeywords[0];
+  const colleague = config.rules.people.find((p) => p.searchBody).match[0];
+  assert.ok(work.includes(workplace), "workplace name should be searched");
+  assert.ok(work.includes(`"${colleague}"`), "colleague names should be searched");
   assert.ok(work.includes("in:inbox"), "scoped to the inbox");
   assert.ok(!work.includes("mom"), "generic terms must never reach a body search");
 });

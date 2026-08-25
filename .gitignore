@@ -1,7 +1,42 @@
-node_modules/
+# --- secrets: never commit these ------------------------------------------
 .env
+*.env
+!.env.example
 client_secret.json
+*credentials*.json
+*token*.json
+
+# --- your personal configuration ------------------------------------------
+# config.json holds real names, calendars and your vault path. The tracked
+# file is config.example.json — copy it to config.json and edit that.
+backend/config.json
+
+# --- your data -------------------------------------------------------------
+# NOTE: gitignore does not treat "pattern  # comment" as pattern-plus-comment
+# — everything after the pattern is part of it. The two lines below used to
+# have trailing comments, which meant they matched nothing and neither folder
+# was actually ignored. Fixed: comment moved above the pattern.
+# The item store: emails, events, prices.
 backend/data/
+# portfolio.json — your holdings and share counts.
 backend/config/
+
+# --- retired / unused code, staged for deletion -----------------------------
+# Everything here is confirmed unreferenced by the running app. Delete the
+# whole folder whenever you like.
+_v1_removed/
+_to_delete/
+
+# --- build output and dependencies ----------------------------------------
+node_modules/
 frontend/dist/
+dist/
+build/
+
+# --- noise -----------------------------------------------------------------
 *.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.tmp

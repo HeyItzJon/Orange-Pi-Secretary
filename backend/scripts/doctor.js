@@ -26,7 +26,14 @@ try {
   config = JSON.parse(await fs.readFile(path.join(root, "config.json"), "utf-8"));
   ok("config.json parses");
 } catch (err) {
-  bad(`config.json: ${err.message}`);
+  if (err.code === "ENOENT") {
+    bad("config.json not found — this is the first thing to fix");
+    console.log("\n        Run:  cp config.example.json config.json");
+    console.log("        Then edit it: calendars, people who matter, vault path.");
+    console.log("        config.json is gitignored, so your real names stay local.\n");
+  } else {
+    bad(`config.json: ${err.message}`);
+  }
   process.exit(1);
 }
 
@@ -72,17 +79,20 @@ try {
   bad(`Gmail query: ${err.message}`);
 }
 
-// ---- vault --------------------------------------------------------------
+// ---- vault ----------------------------------------------------------------
+// The vault is no longer a task/event source — this just confirms the path
+// resolves, because money.js still reads it directly for holdings (share
+// counts, book value). No task/loose-thread scanning happens here anymore.
 console.log("\nVault");
-const vaultPath = config.notes?.vaultPath;
+const vaultPath = config.vault?.path || config.notes?.vaultPath || config.vaultPath;
 if (!vaultPath) {
-  warn("no vaultPath set — loose threads disabled");
+  warn("no vaultPath set — holdings will fall back to config/portfolio.json");
 } else {
   try {
     await fs.access(vaultPath);
     ok(`vault reachable: ${vaultPath}`);
-  } catch {
-    bad(`vault not reachable: ${vaultPath}`);
+  } catch (err) {
+    bad(`vault: ${err.message}`);
   }
 }
 
@@ -91,11 +101,11 @@ console.log("\nPortfolio");
 try {
   const p = JSON.parse(await fs.readFile(path.join(root, "config", "portfolio.json"), "utf-8"));
   const n = (p.holdings || []).length;
-  n ? ok(`${n} holdings`) : warn("portfolio.json has no holdings");
+  n ? ok(`${n} holdings`) : warn("portfolio.json has no holdings (fine if your holdings live in the vault instead)");
   const withTargets = (p.holdings || []).filter((h) => h.targetPct != null).length;
   if (!withTargets) warn("no targetPct on any holding — drift alerts disabled");
 } catch (err) {
-  warn(`portfolio.json: ${err.message} (money section will be skipped)`);
+  warn(`portfolio.json: ${err.message} (fine if your holdings live in the vault instead)`);
 }
 
 // ---- frontend -----------------------------------------------------------

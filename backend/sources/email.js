@@ -24,7 +24,7 @@ import { listMessageIds, getMessagesMetadata } from "../lib/google.js";
 import { knownMessageIds, rememberMessageIds } from "../lib/store.js";
 import { ask } from "../lib/ai.js";
 import { itemId, contentHash, cacheKey } from "../lib/ids.js";
-import { categorise, isEmphasised } from "../lib/classify.js";
+import { categorise, deriveDomain, isEmphasised } from "../lib/classify.js";
 
 const log = logger("email");
 
@@ -47,7 +47,7 @@ function senderName(from) {
 
 /**
  * Only distinctive terms are worth a full-text search. Searching bodies for
- * "mom" or "job" returns half the inbox; searching for "Samantha Cowley" or
+ * "mom" or "job" returns half the inbox; searching for "Priya Raman" or
  * "richcraft" returns exactly what you want. The bar: a multi-word phrase, or
  * a single word long enough to be specific.
  */
@@ -146,7 +146,7 @@ export function triage(msg, rules, boosts = new Map()) {
   }
 
   // Matched deep in the message body or a signature — this is the one that
-  // catches "regards, Dave Leal" at the bottom of an otherwise plain email.
+  // catches "regards, Alex Fournier" at the bottom of an otherwise plain email.
   const boost = boosts.get(msg.id);
   if (boost) {
     bump(rules.tierScores?.[boost] ?? 80, boost, "body or signature match");
@@ -171,8 +171,9 @@ Return json with this exact shape:
 
 Rules:
 - "needsReply": true only if a human specifically needs THIS person to respond or act. Notifications, receipts, confirmations and FYI mail are false.
-- "dueAt": an ISO date (YYYY-MM-DD) ONLY if the email states or clearly implies a deadline. Otherwise null. Never invent one.
-- "oneLine": under 90 characters. State what it is and what it wants, in that order. Do NOT restate the subject line verbatim — add the information the subject leaves out. Never begin with "This email", "You have", or the sender's name.
+- A routine reminder that merely STATES a standing policy — a cancellation window, a late fee, a refund window, terms of service — is informational, not a request. Reading that policy is not an action the reader needs to take. Only set "needsReply" true, or invent a "dueAt", if the email is actually asking this specific reader to confirm, cancel, reschedule, or pay something — not because a policy or a date is merely mentioned somewhere in the text.
+- "dueAt": an ISO date (YYYY-MM-DD) ONLY if the email states or clearly implies a deadline THIS reader must act by. Otherwise null. Never invent one, and never derive one from a policy window (e.g. "cancel 24h prior") unless the email is actually asking for a cancellation decision right now.
+- "oneLine": under 90 characters. State what it is and what it wants, in that order — and if it wants nothing beyond "for your information", say that plainly rather than manufacturing a task. Do NOT restate the subject line verbatim — add the information the subject leaves out. Never begin with "This email", "You have", or the sender's name.
 - Return exactly one result per email, in order, using the given "n".`;
 
 function buildClassifyPrompt(candidates, todayISO) {
@@ -286,6 +287,10 @@ export async function collectEmail(config, { force = false } = {}) {
       category: category.id,
       categoryLabel: category.label,
       categoryWeight: Math.max(category.weight, c.score >= 95 ? 48 : 0),
+      domain: deriveDomain(
+        { title: `${c.msg.subject} ${title}`, body: c.msg.snippet, category: category.id },
+        config
+      ),
       unmissable: Boolean(category.unmissable),
       emphasised: isEmphasised(c.msg.subject),
       tier: c.tier || "personal",

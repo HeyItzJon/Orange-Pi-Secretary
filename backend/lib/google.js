@@ -148,7 +148,7 @@ export async function getCalendarList({ ttlHours = 24, force = false } = {}) {
 /**
  * Match configured names against what Google actually returns.
  *
- * v1 compared exact lowercased strings, which is why "Sydney's Demands"
+ * v1 compared exact lowercased strings, which is why "Family Events"
  * never matched — Google returns a curly apostrophe (U+2019) and the config
  * had a straight one. Normalising quotes and whitespace fixes that class of
  * bug permanently.

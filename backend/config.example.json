@@ -1,0 +1,680 @@
+{
+  "_comment": "Secretary config. Everything you'd want to tune lives here \u2014 no code changes needed. Restart the server, or POST /api/config/reload, after editing.",
+  "timezone": "America/Toronto",
+  "ai": {
+    "_comment": "The model is used for exactly two things: classifying emails that already passed your rules, and writing one summary line. Set provider to 'off' to run the whole system with zero AI calls \u2014 the brief still works.",
+    "provider": "deepseek",
+    "_provider_options": [
+      "deepseek",
+      "claude",
+      "off"
+    ],
+    "model": {
+      "deepseek": "deepseek-chat",
+      "claude": "claude-sonnet-5"
+    }
+  },
+  "schedule": {
+    "_comment": "Every source is pulled on one clock. The model is not on this clock: priorities are cached against a hash of the open work, so a 15-minute cycle costs nothing extra when nothing changed.",
+    "briefTime": "06:40",
+    "pullEveryMinutes": 15
+  },
+  "brief": {
+    "maxRepeats": 6,
+    "_maxRepeats_note": "After this many briefs an unchanged, undated item goes QUIET: it still appears in its lane, collapsed behind a \"show N quieter\" toggle. Anything with a deadline, or written in CAPS, is never quieted.",
+    "retainDays": 90,
+    "horizonDays": 60,
+    "_horizonDays_note": "Anything dated further out than this waits its turn. Nothing else is ever removed \u2014 repeated items are marked quiet and collapsed, not dropped."
+  },
+  "categories": {
+    "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",
+    "_matching": "calendarPatterns match the calendar's name, titlePatterns match the event title or email subject, tiers match an email's rule tier. All are case-insensitive substring matches.",
+    "definitions": [
+      {
+        "id": "critical",
+        "label": "Can't miss",
+        "weight": 50,
+        "unmissable": true,
+        "calendarPatterns": [
+          "cannot miss",
+          "can't miss",
+          "must attend"
+        ],
+        "titlePatterns": []
+      },
+      {
+        "id": "opportunity",
+        "label": "Opportunity",
+        "weight": 48,
+        "tiers": [
+          "opportunity"
+        ],
+        "calendarPatterns": [],
+        "titlePatterns": [
+          "interview",
+          "co-op",
+          "internship",
+          "job offer",
+          "application",
+          "recruiter"
+        ]
+      },
+      {
+        "id": "assessment",
+        "label": "Test",
+        "weight": 44,
+        "unmissable": true,
+        "calendarPatterns": [
+          "test",
+          "quiz",
+          "exam"
+        ],
+        "titlePatterns": [
+          "midterm",
+          "final exam",
+          "exam",
+          "quiz",
+          "test",
+          "presentation",
+          "defence",
+          "defense"
+        ]
+      },
+      {
+        "id": "important",
+        "label": "Important",
+        "weight": 42,
+        "unmissable": true,
+        "calendarPatterns": [
+          "important"
+        ],
+        "titlePatterns": []
+      },
+      {
+        "id": "work",
+        "label": "Work",
+        "weight": 40,
+        "tiers": [
+          "work"
+        ],
+        "calendarPatterns": [
+          "work",
+          "shift",
+          "job"
+        ],
+        "titlePatterns": [
+          "shift",
+          "opening",
+          "closing",
+          "training",
+          "timesheet",
+          "payroll"
+        ]
+      },
+      {
+        "id": "family",
+        "label": "Family",
+        "weight": 38,
+        "tiers": [
+          "family"
+        ],
+        "calendarPatterns": [
+          "family",
+          "home"
+        ],
+        "titlePatterns": []
+      },
+      {
+        "id": "deadline",
+        "label": "Deadline",
+        "weight": 36,
+        "calendarPatterns": [
+          "deadline",
+          "due"
+        ],
+        "titlePatterns": [
+          "due",
+          "deadline",
+          "submit",
+          "closes",
+          "expires",
+          "last day"
+        ]
+      },
+      {
+        "id": "class",
+        "label": "Class",
+        "weight": 34,
+        "calendarPatterns": [
+          "class",
+          "school",
+          "lecture",
+          "course"
+        ],
+        "titlePatterns": [
+          "lecture",
+          "lab",
+          "tutorial",
+          "seminar",
+          "studio",
+          "office hours"
+        ]
+      },
+      {
+        "id": "admin",
+        "label": "Admin",
+        "weight": 28,
+        "tiers": [
+          "school"
+        ],
+        "calendarPatterns": [],
+        "titlePatterns": [
+          "registration",
+          "tuition",
+          "transcript",
+          "enrolment",
+          "enrollment",
+          "invoice",
+          "renewal",
+          "form"
+        ]
+      },
+      {
+        "id": "appointment",
+        "label": "Appointment",
+        "weight": 26,
+        "calendarPatterns": [
+          "appointment"
+        ],
+        "titlePatterns": [
+          "appointment",
+          "physio",
+          "dentist",
+          "doctor",
+          "clinic",
+          "optometrist",
+          "haircut",
+          "checkup"
+        ]
+      },
+      {
+        "id": "personal",
+        "label": "Personal",
+        "weight": 24,
+        "calendarPatterns": [],
+        "titlePatterns": []
+      }
+    ]
+  },
+  "domains": {
+    "_comment": "Which lane of your life something belongs to. This is what the brief is GROUPED by, and it is deliberately separate from category: 'CANNOT MISS' tells you how much something matters, not whether it's an exam or a friend's wedding.",
+    "_matching": "calendarPatterns are checked first across all domains, then titlePatterns, then pathPatterns (for vault notes). If nothing matches, fromCategory supplies a hint, then fallback.",
+    "order": [
+      "school",
+      "work",
+      "career",
+      "finance",
+      "social",
+      "projects",
+      "personal"
+    ],
+    "fallback": "personal",
+    "definitions": [
+      {
+        "id": "school",
+        "label": "School",
+        "calendarPatterns": [
+          "school",
+          "class",
+          "course",
+          "test",
+          "quiz",
+          "exam",
+          "lecture",
+          "tutorial"
+        ],
+        "titlePatterns": [
+          "assignment",
+          "midterm",
+          "lecture",
+          "lab",
+          "tutorial",
+          "seminar",
+          "syllabus",
+          "professor",
+          "registration",
+          "tuition",
+          "transcript",
+          "exam",
+          "quiz",
+          "textbook"
+        ],
+        "pathPatterns": [
+          "school",
+          "courses"
+        ]
+      },
+      {
+        "id": "work",
+        "label": "Work",
+        "calendarPatterns": [
+          "work",
+          "shift",
+          "job"
+        ],
+        "titlePatterns": [
+          "shift",
+          "timesheet",
+          "payroll",
+          "your workplace",
+          "rec complex",
+          "supervisor",
+          "staff meeting",
+          "in-service",
+          "shift cover"
+        ],
+        "pathPatterns": [
+          "work"
+        ]
+      },
+      {
+        "id": "career",
+        "label": "Career",
+        "calendarPatterns": [
+          "career",
+          "interview"
+        ],
+        "titlePatterns": [
+          "interview",
+          "co-op",
+          "coop",
+          "internship",
+          "resume",
+          "cover letter",
+          "recruiter",
+          "hiring",
+          "posting",
+          "candidate",
+          "shortlisted",
+          "onboarding",
+          "career fair",
+          "job",
+          "jobs",
+          "careers",
+          "posted",
+          "opening",
+          "openings",
+          "apply"
+        ],
+        "pathPatterns": [
+          "career",
+          "applications"
+        ]
+      },
+      {
+        "id": "finance",
+        "label": "Finance",
+        "calendarPatterns": [
+          "finance",
+          "invest",
+          "money"
+        ],
+        "titlePatterns": [
+          "portfolio",
+          "dividend",
+          "contribution",
+          "tfsa",
+          "rrsp",
+          "rebalance",
+          "earnings",
+          "brokerage"
+        ],
+        "pathPatterns": [
+          "finance",
+          "invest"
+        ]
+      },
+      {
+        "id": "social",
+        "label": "Social",
+        "calendarPatterns": [
+          "social",
+          "friends",
+          "birthdays"
+        ],
+        "titlePatterns": [
+          "birthday",
+          "party",
+          "bbq",
+          "barbecue",
+          "dinner",
+          "drinks",
+          "wedding",
+          "concert",
+          "game night",
+          "hangout",
+          "brunch",
+          "reunion",
+          "visit"
+        ],
+        "pathPatterns": []
+      },
+      {
+        "id": "projects",
+        "label": "Projects",
+        "calendarPatterns": [
+          "project"
+        ],
+        "titlePatterns": [
+          "design team",
+          "uav",
+          "club",
+          "hackathon",
+          "side project"
+        ],
+        "pathPatterns": [
+          "project"
+        ]
+      },
+      {
+        "id": "personal",
+        "label": "Personal",
+        "calendarPatterns": [
+          "personal",
+          "health"
+        ],
+        "titlePatterns": [
+          "physio",
+          "dentist",
+          "doctor",
+          "clinic",
+          "optometrist",
+          "haircut",
+          "appointment",
+          "gym",
+          "renewal",
+          "insurance"
+        ],
+        "pathPatterns": []
+      }
+    ],
+    "fromCategory": {
+      "assessment": "school",
+      "class": "school",
+      "admin": "school",
+      "work": "work",
+      "opportunity": "career",
+      "money": "finance",
+      "note": "projects",
+      "appointment": "personal",
+      "family": "personal",
+      "personal": "personal",
+      "system": "personal"
+    },
+    "_fromCategory_note": "Categories that are about IMPORTANCE rather than subject (critical, important, deadline, conflict) are deliberately absent \u2014 they should never decide a lane, so those items fall through to pattern matching."
+  },
+  "ranking": {
+    "_comment": "Added on top of the category weight to produce one score per item. Every contribution is recorded on the item as _rankWhy, so you can always see why something ranked where it did.",
+    "needsReplyBoost": 12,
+    "conflictBoost": 14,
+    "emphasisBoost": 15,
+    "_emphasisBoost_note": "You write things in CAPS when they matter. A title that is \u226570% uppercase (and longer than 3 letters) gets this, so your own convention is respected without listing any specific event.",
+    "unmissableBoost": 10,
+    "changedBoost": 6,
+    "maxFatiguePenalty": 8
+  },
+  "email": {
+    "query": "in:inbox -in:trash -in:spam -category:promotions -category:social newer_than:14d",
+    "maxResults": 40,
+    "minScore": 60,
+    "_minScore_note": "Emails scoring below this never reach the model. Lower it to widen the net, raise it to spend less.",
+    "boostScope": "in:inbox newer_than:14d",
+    "maxBoostResults": 20,
+    "maxBoostTerms": 20,
+    "_boost_note": "Terms marked searchBody below are sent to Gmail as a full-text query, so mail that mentions your workplace deep in the body, or is signed by a colleague at the bottom, is caught without downloading a single message. Costs one extra id-list call per tier."
+  },
+  "rules": {
+    "_comment": "Priority order you set: opportunities first, then work and family, then school.",
+    "tierScores": {
+      "opportunity": 100,
+      "work": 92,
+      "family": 90,
+      "school": 78,
+      "personal": 60
+    },
+    "_people_placeholder_note": "The names below are placeholders (Alex Fournier / Priya Raman / Jordan Whitfield), not the maintainer's real contacts \u2014 replace them with your own in config.json. Mom/Dad are left as the generic relationship terms they actually are.",
+    "people": [
+      {
+        "match": [
+          "mom",
+          "mum",
+          "mother"
+        ],
+        "label": "Mom",
+        "tier": "family",
+        "searchBody": false
+      },
+      {
+        "match": [
+          "dad",
+          "father"
+        ],
+        "label": "Dad",
+        "tier": "family",
+        "searchBody": false
+      },
+      {
+        "match": [
+          "alex fournier",
+          "fournier"
+        ],
+        "label": "Alex Fournier",
+        "tier": "work",
+        "searchBody": true
+      },
+      {
+        "match": [
+          "priya raman",
+          "raman"
+        ],
+        "label": "Priya Raman",
+        "tier": "work",
+        "searchBody": true
+      },
+      {
+        "match": [
+          "jordan whitfield",
+          "whitfield"
+        ],
+        "label": "Jordan Whitfield",
+        "tier": "work",
+        "searchBody": true
+      }
+    ],
+    "_people_note": "searchBody also finds them in signatures. Only distinctive terms (7+ characters, or a multi-word phrase) are ever body-searched \u2014 'mom' and 'dad' would match half the inbox, so they stay header-only.",
+    "domains": [
+      {
+        "match": "riverside.ca",
+        "label": "City of Riverside",
+        "tier": "work"
+      }
+    ],
+    "topics": {
+      "opportunity": {
+        "score": 100,
+        "searchBody": true,
+        "keywords": [
+          "interview",
+          "interviews",
+          "position",
+          "job",
+          "hiring",
+          "hire",
+          "application",
+          "applied",
+          "co-op",
+          "coop",
+          "internship",
+          "intern",
+          "offer",
+          "recruiter",
+          "recruitment",
+          "posting",
+          "candidate",
+          "resume",
+          "cv",
+          "cover letter",
+          "prospectus",
+          "opportunity",
+          "shortlisted",
+          "onboarding",
+          "reference check",
+          "jobs",
+          "careers",
+          "posted",
+          "opening",
+          "openings"
+        ],
+        "bodyKeywords": [
+          "interview",
+          "internship",
+          "shortlisted",
+          "cover letter",
+          "recruiter",
+          "onboarding",
+          "reference check",
+          "co-op position"
+        ]
+      },
+      "work": {
+        "score": 92,
+        "searchBody": true,
+        "keywords": [
+          "hillcrest",
+          "hill",
+          "rrcc",
+          "riverside",
+          "recreation complex",
+          "rec complex",
+          "shift",
+          "shifts",
+          "shift cover",
+          "schedule change",
+          "timesheet",
+          "payroll",
+          "availability",
+          "lifeguard",
+          "aquatics",
+          "in-service",
+          "public swim",
+          "supervisor"
+        ],
+        "bodyKeywords": [
+          "hillcrest",
+          "riverside",
+          "recreation complex",
+          "timesheet",
+          "in-service",
+          "shift cover",
+          "lifeguard"
+        ]
+      },
+      "school": {
+        "score": 78,
+        "searchBody": false,
+        "keywords": [
+          "assignment",
+          "midterm",
+          "final exam",
+          "quiz",
+          "deadline",
+          "due date",
+          "lab report",
+          "tutorial",
+          "syllabus",
+          "grade",
+          "professor",
+          "registration",
+          "enrolment",
+          "enrollment",
+          "tuition",
+          "transcript"
+        ]
+      }
+    },
+    "mute": [
+      "noreply@",
+      "no-reply@",
+      "donotreply@",
+      "notifications@",
+      "mailer-daemon"
+    ]
+  },
+  "calendar": {
+    "targets": [
+      "you@example.com",
+      "IMPORTANT EVENTS",
+      "Tests & Quizzes",
+      "School & Classes",
+      "WORK",
+      "Jamie's Demands",
+      "CANNOT MISS"
+    ],
+    "horizonDays": 14,
+    "_note": "The calendar's own name is never printed in the brief \u2014 for the default calendar that name is your email address, which tells you nothing. It's used to derive the category chip instead."
+  },
+  "money": {
+    "_comment": "Money speaks only when one of these fires. Most days it says nothing.",
+    "driftBandPct": 5,
+    "contributionDayOfMonth": null,
+    "_contributionDayOfMonth_note": "Set to a day (e.g. 1) to get a reminder. Leave null to disable.",
+    "contributionLabel": "Contribution day",
+    "contributionLeadDays": 1,
+    "baseCurrency": "CAD",
+    "_baseCurrency_note": "Everything is converted to this at the live rate before any total or weight is computed. USD and CAD positions used to be summed raw, which made every number on the money page wrong.",
+    "holdingsFolder": "Areas/Finances/Investments",
+    "_holdings_note": "Shares come from the vault's `type: holding` notes, so the book follows what you actually maintain. config/portfolio.json is only a fallback.",
+    "holdingsRefreshDays": 1,
+    "_holdingsRefreshDays_note": "The vault is only re-read the first time a pull is checked after local midnight (config.timezone), not on a rolling N-hours-since-last-time clock \u2014 a sync at 11:58 PM won't push the next one to nearly midnight the following day. Raise this to check less often than daily. Run `npm run sync-holdings` for an immediate forced refresh after editing a holding note.",
+    "stockIdeaCount": 1,
+    "_stockIdeaCount_note": "How many candidates show on the money page's 'worth a look' spot. Ranked by lib/stockIdeas.js \u2014 real Yahoo similarity data plus your real sector weights, never an AI pitch.",
+    "stockIdeaShortlist": 8,
+    "_stockIdeaShortlist_note": "How many candidates get the (more expensive) sector+price lookup before ranking. Raise it to consider more candidates per refresh; lower it to spend fewer Yahoo calls.",
+    "stockIdeaRefreshDays": 1,
+    "_stockIdeaRefreshDays_note": "Same calendar-day cadence as holdingsRefreshDays, same lib/time.js math: a new candidate shows up the first time this is checked after local midnight, not on a rolling 24-hours-since-last-time clock. Raise this for less-than-daily (e.g. 3 = every third day). `npm run refresh-stock-idea` forces an immediate refresh regardless of this setting.",
+    "stockIdeaConcentrationPenalty": 0.6,
+    "_stockIdeaConcentrationPenalty_note": "0 = ignore sector weight entirely, rank purely on Yahoo similarity. 1 = a candidate in a sector you're already heavily weighted in is discounted almost to zero. This is the main tuning knob for 'smart, not random' vs. 'actually helps rebalance.'",
+    "stockIdeaSummarySentences": 2,
+    "_stockIdeaSummarySentences_note": "How many sentences of Yahoo's own business-summary blurb show under a candidate \u2014 the plain-English 'what does this company actually do' line. Straight from Yahoo's text, nothing rewritten or generated.",
+    "stockIdeaSummaryMaxChars": 220,
+    "_stockIdeaSummaryMaxChars_note": "Hard length cap on that summary regardless of sentence count, so one run-on sentence can't blow out the layout."
+  },
+  "display": {
+    "_comment": "The three-page screen at /display. Small, mostly looked-at rather than operated \u2014 but there IS a cursor and a refresh button, because the same URL is how you debug the pipeline on a laptop.",
+    "days": 3,
+    "_days_note": "How many days after today to show. 3 fits a 1024x600 panel; an 800x480 panel drops the third automatically.",
+    "maxDeadlines": 8,
+    "movers": 6,
+    "_movers_note": "Top N risers and fallers in the portfolio snapshot.",
+    "staleAfterHours": 1,
+    "_staleAfterHours_note": "Pulls run every 15 min, so anything older than an hour means something is broken, not merely quiet.",
+    "_pages_note": "Three pages: Today (timeline), Tasks, Money. Arrow keys or the dots move between them; the deck also rotates on its own.",
+    "rotateSeconds": 25,
+    "_rotateSeconds_note": "Auto-advance interval for the always-on screen. Any mouse move or key press pauses rotation for a while, so it never yanks the page out from under you on a laptop. Set 0 to disable.",
+    "pauseAfterInputSeconds": 120,
+    "maxTasksPerGroup": 8,
+    "undatedMaxAgeDays": 2,
+    "_undatedMaxAgeDays_note": "How many days an undated Start-here candidate stays eligible before it ages out on its own, provided it has not been marked done or dismissed. Dated items are unaffected \u2014 their own due date decides that.",
+    "topWeights": 5,
+    "maxMoneyAlerts": 5
+  },
+  "vault": {
+    "path": "C:\\Users\\you\\Documents\\Obsidian\\Your Vault",
+    "watchFolders": [
+      "Areas",
+      "Inbox"
+    ],
+    "_watchFolders_note": "Case-insensitive path prefixes. Archive, Journal and anything with `sensitive: true` are never read, per the vault's own AGENTS.md rules.",
+    "maxItems": 40
+  }
+}

@@ -15,7 +15,7 @@
 import { logger } from "../lib/log.js";
 import { resolveCalendars, getEvents } from "../lib/google.js";
 import { itemId, contentHash } from "../lib/ids.js";
-import { categorise, isEmphasised, isEmailLike, durationLabel } from "../lib/classify.js";
+import { categorise, deriveDomain, isEmphasised, isEmailLike, calendarSwatch, durationLabel } from "../lib/classify.js";
 
 const log = logger("calendar");
 
@@ -91,6 +91,10 @@ export async function collectCalendar(config, { force = false } = {}) {
       config
     );
     const emphasised = isEmphasised(e.summary);
+    const domain = deriveDomain(
+      { title: e.summary, calendarName: e.calendarName, body: e.description, category: category.id },
+      config
+    );
 
     // Only facts the rest of the row doesn't already show.
     const note = usefulNote(e.description);
@@ -113,6 +117,8 @@ export async function collectCalendar(config, { force = false } = {}) {
       category: category.id,
       categoryLabel: category.label,
       categoryWeight: category.weight,
+      domain,
+      swatch: calendarSwatch({ calendarName: e.calendarName, category: category.id }),
       unmissable: Boolean(category.unmissable),
       emphasised,
       tier: category.id,
@@ -153,6 +159,8 @@ export async function collectCalendar(config, { force = false } = {}) {
         category: "conflict",
         categoryLabel: "Clash",
         categoryWeight: 46,
+        domain: deriveDomain({ title: `${a.summary} ${b.summary}`, category: null }, config),
+        swatch: "conflict",
         unmissable: true,
         emphasised: false,
         tier: "conflict",
@@ -175,6 +183,7 @@ export async function collectCalendar(config, { force = false } = {}) {
       category: "system",
       categoryLabel: "Setup",
       categoryWeight: 30,
+      domain: "personal",
       unmissable: false,
       emphasised: false,
       tier: "system",

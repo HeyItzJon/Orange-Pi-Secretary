@@ -13,7 +13,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { init } from "../lib/store.js";
 import { runSources, buildBrief } from "../brief/compose.js";
-import { SECTION_LABELS } from "../brief/rules.js";
+import { domainLabel } from "../lib/classify.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dry = process.argv.includes("--dry");
@@ -36,7 +36,7 @@ console.log(`  ${brief.counts.total} items · ${brief.counts.new} new · ${brief
 console.log(`${"=".repeat(58)}\n`);
 
 for (const [key, list] of Object.entries(brief.sections)) {
-  console.log(`${SECTION_LABELS[key].toUpperCase()}`);
+  console.log((key === "today" ? "TODAY" : domainLabel(key, config).toUpperCase()));
   for (const it of list) {
     const flags = [
       it._urgency ? it._urgency.toUpperCase() : null,

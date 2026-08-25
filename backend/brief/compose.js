@@ -12,20 +12,26 @@ import { logger } from "../lib/log.js";
 import { upsertMany, allItems, markSurfaced, getMeta, setMeta, prune } from "../lib/store.js";
 import { ask } from "../lib/ai.js";
 import { cacheKey } from "../lib/ids.js";
-import { selectForBrief, SECTION_LABELS, daysUntil } from "./rules.js";
+import { selectForBrief } from "./rules.js";
+import { domainLabel } from "../lib/classify.js";
 import { collectEmail } from "../sources/email.js";
 import { collectCalendar } from "../sources/calendar.js";
 import { collectMoney } from "../sources/money.js";
-import { collectNotes } from "../sources/notes.js";
+import { buildPriorities } from "./priorities.js";
+import { SOURCES } from "../lib/sources.js";
 
 const log = logger("brief");
 
+// The vault is no longer a task/event source (see lib/sources.js) — money.js
+// still reads it directly for holdings, which is unrelated to this list.
 const COLLECTORS = {
   email: collectEmail,
   calendar: collectCalendar,
   money: collectMoney,
-  notes: collectNotes,
 };
+
+/** The canonical source list. Everything that iterates sources reads this. */
+export const SOURCE_NAMES = Object.keys(COLLECTORS);
 
 /**
  * Refresh one or more sources. Each is isolated: a failure in email never
@@ -43,15 +49,26 @@ export async function runSources(config, { only = null, force = false } = {}) {
     }
     const started = Date.now();
     try {
-      const items = await fn(config, { force });
+      // A collector returns an array, or {items, detail} when the count of
+      // items is a bad summary of what it did — news fetches nine feeds and
+      // produces zero items, and "found 0" would read as a failure.
+      const raw = await fn(config, { force });
+      const items = Array.isArray(raw) ? raw : raw?.items || [];
+      const detail = Array.isArray(raw) ? null : raw?.detail || null;
       await upsertMany(items);
-      report[name] = { ok: true, found: items.length, ms: Date.now() - started };
-      log.info(`${name}: ${items.length} items in ${Date.now() - started}ms`);
+      report[name] = { ok: true, found: items.length, detail, ms: Date.now() - started };
+      log.info(`${name}: ${detail || `${items.length} items`} in ${Date.now() - started}ms`);
+      // Only a SUCCESSFUL fetch counts as "last run". Stamping this on failure
+      // too meant a dead Gmail token still read as "just checked" — the always-on
+      // screen would look healthy forever while showing yesterday.
+      await setMeta(`lastRun_${name}`, new Date().toISOString());
+      await setMeta(`lastError_${name}`, null);
     } catch (err) {
       report[name] = { ok: false, error: err.message, ms: Date.now() - started };
       log.error(`${name} failed: ${err.message}`);
+      await setMeta(`lastError_${name}`, { at: new Date().toISOString(), message: err.message });
     }
-    await setMeta(`lastRun_${name}`, new Date().toISOString());
+    await setMeta(`lastAttempt_${name}`, new Date().toISOString());
   }
 
   return report;
@@ -68,11 +85,11 @@ Rules:
 - If the day is genuinely quiet, say so plainly.
 - Only use facts from the items given. Never invent a detail.`;
 
-function itemsForNarration(sections) {
+function itemsForNarration(sections, config) {
   const lines = [];
   for (const [key, list] of Object.entries(sections)) {
     if (!list?.length) continue;
-    lines.push(`${SECTION_LABELS[key]}:`);
+    lines.push(`${key === "today" ? "Today" : domainLabel(key, config)}:`);
     for (const it of list.slice(0, 5)) {
       const d = it._daysUntil;
       const when = d === null || d === undefined ? "" : d <= 0 ? " (today)" : ` (in ${d}d)`;
@@ -87,7 +104,7 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
   const lastBriefAt = await getMeta("lastBriefAt", null);
   const items = await allItems();
 
-  const { sections, surfacedIds, counts } = selectForBrief(items, {
+  const { schema, sections, surfacedIds, counts, order, excluded } = selectForBrief(items, {
     now,
     lastBriefAt,
     config,
@@ -98,7 +115,7 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
     const key = cacheKey("narrate", { d: now.toISOString().slice(0, 13), ids: surfacedIds });
     const res = await ask({
       system: NARRATE_SYSTEM,
-      user: `Today is ${now.toDateString()}. Return json.\n\n${itemsForNarration(sections)}`,
+      user: `Today is ${now.toDateString()}. Return json.\n\n${itemsForNarration(sections, config)}`,
       config,
       maxTokens: 120,
       json: true,
@@ -109,17 +126,27 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
 
   const moneySummary = await getMeta("moneySummary", null);
 
+  // Cached against a hash of the open work, so the 15-minute pull cycle does
+  // not mean 96 model calls a day — it only re-runs when the work changes.
+  const priorities = await buildPriorities(items, { config, now });
+
   const brief = {
+    schema,
     generatedAt: now.toISOString(),
     previousBriefAt: lastBriefAt,
     timezone: config.timezone || "America/Toronto",
     summary,
     counts,
+    order,
+    excluded,
+    domainLabels: Object.fromEntries((config.domains?.definitions || []).map((d) => [d.id, d.label])),
     sections,
     money: moneySummary,
+    priorities: priorities.list,
+    prioritiesFrom: priorities.source,
     sources: Object.fromEntries(
       await Promise.all(
-        ["email", "calendar", "money", "notes"].map(async (s) => [s, await getMeta(`lastRun_${s}`, null)])
+        SOURCES.map(async (s) => [s, await getMeta(`lastRun_${s}`, null)])
       )
     ),
   };
@@ -130,7 +157,7 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
   }
   await setMeta("lastBrief", brief);
 
-  log.info(`brief: ${counts.total} items (${counts.new} new, ${counts.hidden} held back)`);
+  log.info(`brief: ${counts.total} shown (${counts.new} new, ${counts.quiet} quiet, ${counts.excluded} excluded)`);
   return brief;
 }
 

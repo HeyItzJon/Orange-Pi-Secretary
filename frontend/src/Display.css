@@ -1,0 +1,685 @@
+/* Display.css — the four-page screen.
+   Built for ~1280×720 on a laptop and ~1024×600 on a panel.
+
+   Colour budget, still deliberately small:
+     amber   the now-marker, an imminent deadline, the active tab
+     green   up, and "good" news
+     red     down, and "bad" news
+     domain  seven hues, used ONLY as 4px dots on the tasks page — never as
+             coloured text
+     swatch  the day-strip block fills — mirrors the real colours in Apple
+             Calendar (see .blk.d-* below) rather than domain, so the strip
+             looks like the calendar app it's summarising
+   Everything else is ink on a dark surface. Hierarchy and position do the
+   rest of the work. */
+
+.disp {
+  --plane:  #0a0a0a;
+  --raise:  #131312;
+  --ink:    #ffffff;
+  --ink-2:  #c3c2b7;
+  --muted:  #7d7b76;
+  --faint:  #4a4945;
+  --rule:   #262625;
+  --fill:   #2f2f2c;
+  --accent: #eda100;
+  --up:     #0ca30c;
+  --down:   #e66767;
+
+  min-height: 100vh;
+  background: var(--plane); color: var(--ink);
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  /* There IS a cursor now. The same URL is how the pipeline gets debugged on
+     a laptop, and a screen you can click but can't aim at is worse than one
+     you can't click at all. */
+  cursor: default;
+}
+
+.disp h2 {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); margin: 0 0 7px;
+  display: flex; align-items: baseline; gap: 8px;
+}
+.disp h2.spaced { margin-top: 16px; }
+.disp h2 em { font-style: normal; color: var(--faint); letter-spacing: 0; }
+.disp h2 em.age { text-transform: none; letter-spacing: 0; }
+.disp .empty { color: var(--faint); font-size: 13.5px; margin: 2px 0; }
+.disp .big-empty { font-size: 15px; margin: 40px auto; max-width: 34em; text-align: center; }
+.disp .err { color: var(--muted); font-size: 15px; margin: auto; text-align: center; line-height: 1.9; }
+.disp code { background: var(--rule); padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+
+/* ============================================================ chrome */
+
+.top {
+  display: flex; align-items: center; gap: 22px;
+  padding: 11px 22px; border-bottom: 1px solid var(--rule); flex-shrink: 0;
+}
+.top .date { font-size: 12.5px; color: var(--muted); flex-shrink: 0; }
+/* The one clock that actually ticks — sits right where the static one used
+   to be read, next to the date, so the header still answers "what time is
+   it" at a glance. Same tabular-numeric treatment so the seconds digit
+   changing doesn't shift anything else in the row. */
+.top .liveclock {
+  font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums;
+  margin-left: -8px; /* the .top gap is generous; this one wants to read as
+                         glued to the date, not a separate item */
+}
+.top .right { margin-left: auto; display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.top .updated { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.top .updated b { color: var(--ink-2); font-weight: 620; font-variant-numeric: tabular-nums; }
+
+.tabs { display: flex; gap: 4px; margin: 0 auto; }
+.tab {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--muted); font: inherit; font-size: 13px; letter-spacing: .03em;
+  padding: 5px 14px; border-radius: 5px; position: relative;
+  transition: color .12s, background .12s;
+}
+.tab:hover { color: var(--ink-2); background: var(--raise); }
+.tab.on { color: var(--plane); background: var(--accent); font-weight: 620; }
+.tab i {
+  font-style: normal; font-size: 10px; margin-left: 6px; padding: 1px 5px;
+  border-radius: 7px; background: rgba(255,255,255,.13); vertical-align: 1px;
+}
+.tab.on i { background: rgba(0,0,0,.22); }
+
+.refresh {
+  appearance: none; cursor: pointer; font: inherit; font-size: 12px;
+  color: var(--ink-2); background: var(--raise); border: 1px solid var(--rule);
+  padding: 5px 12px; border-radius: 5px; transition: border-color .12s, color .12s;
+}
+.refresh:hover { color: var(--ink); border-color: var(--fill); }
+.refresh.spin { color: var(--accent); border-color: var(--accent); }
+
+.stage { flex: 1; min-height: 0; overflow: hidden; padding: 16px 22px 0; display: flex; flex-direction: column; }
+
+.foot {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 22px 10px; flex-shrink: 0;
+}
+.dots { display: flex; gap: 7px; align-items: center; }
+.dot-nav {
+  appearance: none; border: 0; padding: 0; cursor: pointer;
+  width: 7px; height: 7px; border-radius: 50%; background: var(--fill);
+  transition: background .12s;
+}
+.dot-nav:hover { background: var(--muted); }
+.dot-nav.on { background: var(--accent); }
+.dots .auto { font-size: 9.5px; color: var(--faint); letter-spacing: .1em; margin-left: 5px; }
+
+.status {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  font: inherit; font-size: 10.5px; color: var(--faint); padding: 2px 0;
+}
+.status:hover { color: var(--muted); }
+.status.stale { color: var(--accent); }
+
+/* ========================================================== page: today */
+
+/* line-height was tight enough (1.08) that a descender — the g in "Nothing
+   until Gym, 3:30 PM", say — got clipped by its own line box before the
+   timeline strip even starts. 1.25 gives it room; the extra padding-bottom
+   keeps that room from just moving the crowding down onto the strip. */
+.hero { display: flex; align-items: baseline; gap: 13px; padding-top: 3px; padding-bottom: 20px; flex-shrink: 0; }
+.hero .lbl { font-size: 10px; font-weight: 700; letter-spacing: .12em; color: var(--accent); flex-shrink: 0; }
+.hero .big {
+  font-size: 30px; font-weight: 620; letter-spacing: -.014em; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hero .sub { font-size: 13.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.hero.calm .lbl { color: var(--muted); }
+.hero.calm .big { color: var(--ink-2); font-weight: 560; }
+
+.strip-wrap { flex-shrink: 0; }
+.strip { position: relative; height: 34px; background: var(--rule); border-radius: 4px; overflow: hidden; }
+.chunk-sep { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--plane); opacity: .55; z-index: 2; }
+/* Hour ticks: enough to read exactly when something is, faint enough that the
+   blocks stay the thing you see first. */
+.tick { position: absolute; top: 0; bottom: 0; width: 1px; background: #000; opacity: .16; }
+.tick.major { opacity: .3; }
+.blk {
+  position: absolute; top: 0; bottom: 0; border-radius: 3px; overflow: hidden;
+  background: var(--fill); border-left: 2px solid transparent;
+  display: flex; align-items: center;
+}
+.blk.imp { box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+.blk.past { opacity: .4; }
+.blk .bl {
+  padding: 0 7px; font-size: 11px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; gap: 7px; align-items: baseline; min-width: 0;
+}
+.blk .bl em { font-style: normal; font-size: 10px; opacity: .62; flex-shrink: 0; }
+
+/* These key off swatch (see lib/classify.js's calendarSwatch), which mirrors
+   the actual colour of the Apple Calendar an event lives on rather than the
+   coarser life-lane domain: CANNOT MISS → orange, IMPORTANT EVENTS → purple,
+   WORK → red, Tests & Quizzes → gold, School & Classes → green, and Sydney's
+   Demands → periwinkle, matching the swatches in the calendar app itself.
+   The one deliberate exception is "gmail" — anything on the default,
+   email-named calendar (nothing to categorise it) always paints the same
+   light link-blue, regardless of what its category ends up being.
+   Categories with no calendar of their own (opportunity, deadline, admin,
+   appointment, personal/conflict) get a colour from the same family that
+   isn't already spoken for. All sit around 45% lightness — luminous enough
+   to separate at arm's length, still dark enough to carry white text at
+   ~5:1. */
+.blk.d-critical     { background: #b5560d; border-left-color: #f2a35c; } /* Can't miss     — orange, like CANNOT MISS */
+.blk.d-important    { background: #7440ad; border-left-color: #b98ef0; } /* Important      — purple, like IMPORTANT EVENTS */
+.blk.d-work         { background: #c22a1f; border-left-color: #ff5c4d; } /* Work           — bright red, like WORK (not pink) */
+.blk.d-assessment   { background: #9c7a0a; border-left-color: #e8c13c; } /* Test           — gold, like Tests & Quizzes */
+.blk.d-class        { background: #1f7a3d; border-left-color: #57cf82; } /* Class          — green, like School & Classes */
+.blk.d-family       { background: #4a4fc0; border-left-color: #9599f5; } /* Family         — periwinkle, like Sydney's Demands */
+.blk.d-gmail        { background: #1f6fa8; border-left-color: #62b4ff; } /* default calendar — light link-blue, always */
+.blk.d-opportunity  { background: #12806c; border-left-color: #4fe0c4; }
+.blk.d-deadline     { background: #a83c1c; border-left-color: #f2764a; }
+.blk.d-admin        { background: #40566d; border-left-color: #8fa8c0; }
+.blk.d-appointment  { background: #276f83; border-left-color: #5ec7de; }
+.blk.d-conflict     { background: #96222f; border-left-color: #f15c68; }
+.blk.d-personal     { background: #767322; border-left-color: #c7c14f; } /* fallback, and Gym Schedule */
+
+.nowline { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--accent); border-radius: 2px; }
+.chunks { position: relative; height: 26px; margin-top: 3px; }
+.chunks .hr {
+  position: absolute; top: 0; font-size: 9.5px; color: var(--faint);
+  transform: translateX(-50%); font-variant-numeric: tabular-nums;
+}
+.chunks .chunk {
+  position: absolute; top: 13px; font-size: 10px; color: var(--faint);
+  text-align: center; letter-spacing: .04em;
+}
+
+.cols { display: flex; gap: 34px; flex: 1; min-height: 0; padding-top: 16px; overflow: hidden; }
+.cols .zone:first-child { flex: 1.05; }
+.cols .zone:last-child { flex: 1.6; border-left: 1px solid var(--rule); padding-left: 30px; }
+.zone { min-width: 0; }
+
+.trow { display: flex; gap: 12px; align-items: baseline; padding: 4px 0; }
+.trow .t { font-variant-numeric: tabular-nums; font-size: 13.5px; color: var(--muted); min-width: 68px; flex-shrink: 0; }
+.trow .body { min-width: 0; flex: 1; }
+.trow .title { font-size: 15.5px; }
+.trow .meta { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+.trow .prep { color: var(--ink-2); }
+.trow .meta .prep::before { content: " — "; color: var(--faint); }
+
+.pri { margin-left: 9px; font-size: 11.5px; color: var(--muted); font-style: italic; white-space: nowrap; }
+
+.days { display: flex; gap: 26px; }
+.day { flex: 1; min-width: 0; }
+.dhead { display: flex; align-items: baseline; gap: 7px; margin-bottom: 4px; }
+.dname { font-size: 14px; font-weight: 640; }
+.ddate { font-size: 11.5px; color: var(--faint); }
+.drow { display: flex; gap: 9px; align-items: baseline; padding: 2px 0; }
+.drow .dt { font-size: 11px; color: var(--muted); min-width: 56px; flex-shrink: 0; letter-spacing: .03em; }
+.drow .dbody { min-width: 0; flex: 1; }
+.drow .title { font-size: 13.5px; color: var(--ink-2); }
+.drow .meta { display: block; font-size: 11.5px; color: var(--faint); }
+.drow .pri { margin-left: 7px; font-size: 11px; }
+
+
+/* ========================================================== page: tasks */
+
+.page-tasks { display: flex; gap: 34px; flex: 1; min-height: 0; overflow: hidden; }
+/* On a short panel the last rows get clipped by the fixed zone. Fade them
+   rather than cutting mid-line, so "there is more below" is visible instead
+   of the list appearing to simply end. */
+.tcol, .wgrid { position: relative; -webkit-mask-image: linear-gradient(#000 calc(100% - 26px), transparent 100%); mask-image: linear-gradient(#000 calc(100% - 26px), transparent 100%); }
+/* column-width, not column-count: the number of columns follows the space,
+   so a 1024 panel keeps two and never silently clips half the list. */
+.tcol { flex: 1.7; min-width: 0; overflow: hidden; columns: 300px; column-gap: 32px; }
+.tside { flex: 1; min-width: 0; border-left: 1px solid var(--rule); padding-left: 30px; }
+.tside .zone + .zone { margin-top: 26px; }
+
+.tgroup { break-inside: avoid; margin-bottom: 17px; }
+.tgroup h2 em {
+  font-size: 9.5px; padding: 1px 5px; border-radius: 7px;
+  background: var(--rule); color: var(--muted);
+}
+.tgroup.urgent h2 { color: var(--accent); }
+.tgroup.urgent h2 em { background: rgba(237,161,0,.18); color: var(--accent); }
+
+.task { display: flex; gap: 9px; align-items: baseline; padding: 3px 0; }
+.task .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--fill); transform: translateY(-1px); }
+.task .tbody { min-width: 0; flex: 1; }
+.task .title { font-size: 14px; display: block; line-height: 1.3; }
+.task.must .title { font-weight: 640; }
+.task .meta { font-size: 11px; color: var(--faint); display: block; margin-top: 1px; }
+.task .origin { color: var(--muted); }
+.task .when {
+  font-size: 11.5px; color: var(--muted); flex-shrink: 0;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.task .when.soon { color: var(--accent); }
+.more { font-size: 11px; color: var(--faint); margin: 3px 0 0 15px; }
+
+.dot.d-school   { background: #3987e5; }
+.dot.d-work     { background: #d95926; }
+.dot.d-career   { background: #199e70; }
+.dot.d-finance  { background: #9085e9; }
+.dot.d-social   { background: #d55181; }
+.dot.d-projects { background: #c98500; }
+.dot.d-personal { background: #0ca30c; }
+
+.dl { display: flex; gap: 11px; align-items: baseline; padding: 3px 0; font-size: 13.5px; }
+.dl .in { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 62px; flex-shrink: 0; font-size: 12.5px; }
+.dl .what { flex: 1; min-width: 0; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dl .on { font-size: 11.5px; color: var(--faint); flex-shrink: 0; }
+.dl.near .in { color: var(--accent); }
+.dl.near .what { color: var(--ink); }
+
+.origins { font-size: 12.5px; }
+.orow { display: flex; justify-content: space-between; padding: 3px 0; color: var(--ink-2); }
+.orow.off { color: var(--faint); }
+.orow.off span:last-child { font-style: italic; }
+
+/* ========================================================== page: money */
+
+.page-money { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.mhead { display: flex; align-items: flex-end; gap: 34px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+.mtotal { display: flex; align-items: baseline; gap: 14px; }
+.mtotal .val { font-size: 44px; font-weight: 620; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.mtotal .chg { font-size: 18px; font-variant-numeric: tabular-nums; }
+.mtotal .chg em { font-style: normal; font-size: 13px; opacity: .7; margin-left: 8px; }
+.mtotal .chg.up { color: var(--up); } .mtotal .chg.down { color: var(--down); }
+.mspan { display: flex; gap: 24px; font-size: 12px; color: var(--muted); padding-bottom: 7px; }
+.mspan b { font-weight: 620; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.mspan .warn b { color: var(--accent); }
+
+.mcols { display: flex; gap: 34px; flex: 1; min-height: 0; padding-top: 16px; overflow: hidden; }
+.mcols .zone { flex: 1; min-width: 0; }
+.mcols .zone + .zone { border-left: 1px solid var(--rule); padding-left: 30px; }
+
+.mgrid { display: flex; flex-direction: column; gap: 1px; }
+.mrow { display: flex; align-items: baseline; gap: 10px; padding: 2px 0; font-variant-numeric: tabular-nums; }
+.mrow .tk { font-size: 14px; font-weight: 620; letter-spacing: .01em; min-width: 62px; }
+.mrow .pc { font-size: 14px; min-width: 56px; }
+.mrow .wt { font-size: 11px; color: var(--faint); }
+.mrow.up .pc { color: var(--up); } .mrow.down .pc { color: var(--down); }
+
+/* "Worth a look" — one related-ticker candidate, not a mover, so it gets a
+   small card of its own instead of squeezing into the movers row: ticker
+   and name up top, then Yahoo's own one-or-two-sentence business summary
+   (the "what does this company actually do" line — no price, Jon didn't
+   want one here), then the real reason it surfaced (similarity plus
+   sector fit) — never a verdict. Sized to sit in the same column as the
+   up/down movers, not the wider positions table. */
+.ideas { display: flex; flex-direction: column; gap: 10px; }
+.idea { padding: 2px 0; }
+.idea-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.idea-head .tk { font-size: 14px; font-weight: 620; letter-spacing: .01em; flex-shrink: 0; }
+.idea-head .nm { font-size: 12.5px; color: var(--muted); }
+.idea-summary { font-size: 12px; color: var(--ink-2); line-height: 1.4; margin: 4px 0 0; }
+.idea-summary.none { color: var(--faint); font-style: italic; }
+.idea-why { font-size: 11px; color: var(--faint); margin-top: 4px; line-height: 1.4; }
+
+.wrow { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.wrow .tk { font-size: 13px; min-width: 62px; color: var(--ink-2); }
+.wrow .bar { flex: 1; height: 5px; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.wrow .bar i { display: block; height: 100%; background: var(--fill); border-radius: 3px; }
+.wrow .wt { font-size: 11.5px; color: var(--muted); min-width: 38px; text-align: right; }
+
+/* =========================================================== page: year */
+
+.page-year { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+
+/* The big number is the whole point of this page — GitHub leads with
+   "3,936 contributions in 2022" in large type above its own bordered grid,
+   so this leads the same way instead of burying "Day X of 365" as a footnote. */
+.yhead { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding-bottom: 16px; flex-shrink: 0; }
+.ystat .big { font-size: 36px; font-weight: 700; letter-spacing: -.02em; }
+.ystat .big em { font-style: normal; font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 8px; }
+.ystat .sub { display: block; font-size: 13.5px; color: var(--ink-2); margin-top: 4px; }
+/* This is money.js's actual last pull, not the 60s poll of this page — see
+   the comment on moneyUpdatedLabel in brief/display.js. Otherwise it would
+   always just say "just now" no matter how stale the colour underneath it. */
+.yupdated { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.yupdated b { color: var(--ink-2); font-weight: 620; }
+
+/* A titled section, not just "the grid" — leaves room for sibling
+   .ysection blocks to stack between .yhead and this one as more yearly
+   stats show up, without this one needing to change shape. */
+.ysection { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.yshead { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 10px; flex-shrink: 0; }
+.yshead h2 { margin: 0; }
+
+/* GitHub-style bordered card holding the grid + legend, sitting on the same
+   raised surface the rest of the deck uses for "a thing on the dark plane"
+   (see .refresh, .status) rather than a bespoke background of its own. */
+.ycard {
+  display: flex; flex-direction: column;
+  background: var(--raise); border: 1px solid var(--rule); border-radius: 10px;
+  padding: 18px 20px 14px;
+}
+
+/* One grid, not a labels-strip-plus-grid: the weekday column and month row
+   live in the same grid as the day cells so alignment is guaranteed by the
+   layout engine instead of two components agreeing by coincidence. --yweeks
+   is real data (Jan 1's weekday shifts week count by one some years) so it
+   has to come from JS; --ylabelw is a layout knob CSS is free to shrink on
+   a phone without the component knowing screen size exists.
+
+   Rows are "auto", not "1fr": a grid item's aspect-ratio only gets to do
+   anything when one of its two dimensions is still undetermined. With both
+   axes stretched by fr tracks the browser has already sized both, so the
+   cells came out as whatever rectangle was left over — not squares. Auto
+   rows leave height undetermined, so each cell's aspect-ratio derives its
+   height FROM the (fr-determined) column width instead, and the row track
+   just grows to match. */
+.ygrid {
+  display: grid;
+  grid-template-columns: var(--ylabelw, 44px) repeat(var(--yweeks), 1fr);
+  grid-template-rows: 16px repeat(7, auto);
+  gap: 3px;
+}
+.mlabel { align-self: end; justify-self: start; padding-bottom: 3px; font-size: 10.5px; color: var(--faint); letter-spacing: .03em; }
+.wlabel { align-self: center; justify-self: end; padding-right: 8px; font-size: 10px; color: var(--faint); }
+
+.ycell { border-radius: 3px; aspect-ratio: 1 / 1; }
+.ycell.b-nodata { background: var(--fill); }
+.ycell.b-future { background: transparent; border: 1px solid var(--rule); }
+.ycell.today { box-shadow: inset 0 0 0 2px var(--accent); }
+
+/* Darker = more extreme, either direction. The near-flat middle is close to
+   white on purpose — it's the one range meant to read as "nothing happened"
+   at a glance, not as a fourth colour of its own. */
+.b-r3   { background: #9c2f2f; }
+.b-r2   { background: #c6595c; }
+.b-r1   { background: #dd9b98; }
+.b-flat { background: #d9d7cc; }
+.b-g1   { background: #a9d9ac; }
+.b-g2   { background: #5fbf6c; }
+.b-g3   { background: #227a34; }
+
+.ylegend { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--rule); flex-shrink: 0; font-size: 10.5px; color: var(--faint); }
+.ynote { font-style: italic; }
+.yscale { display: flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap; }
+.yleg { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; }
+
+/* =========================================================== page: week */
+/* First cut, testing — a busy-vs-free forecast, not a scheduler. No attempt
+   is made here to match a looming item to a specific day's free hours: the
+   backend has no idea how long anything actually takes, so the two lists
+   below sit side by side rather than pretending to recommend anything. */
+
+.page-week { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.fchead { flex-shrink: 0; padding-bottom: 14px; }
+.fchead .big { font-size: 22px; font-weight: 700; letter-spacing: -.01em; display: block; }
+.fchead .sub { display: block; font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+.fcgrid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px; flex-shrink: 0;
+}
+.fcday {
+  background: var(--raise); border: 1px solid var(--rule); border-radius: 7px;
+  padding: 10px 11px 11px; display: flex; flex-direction: column; gap: 6px;
+}
+.fcdhead { display: flex; flex-direction: column; }
+.fcdname { font-size: 12.5px; font-weight: 620; color: var(--ink-2); }
+.fcddate { font-size: 10.5px; color: var(--faint); }
+.fcbar { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+.fcbar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.fcfree { font-size: 13px; font-weight: 620; color: var(--ink); font-variant-numeric: tabular-nums; }
+.fccount { font-size: 10.5px; color: var(--faint); }
+
+.page-week .zone { flex: none; margin-top: 20px; overflow-y: auto; min-height: 0; }
+
+/* ========================================================== page: world */
+
+.page-world { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.whead { display: flex; align-items: baseline; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+.whead h2 { margin: 0; font-size: 11px; }
+.wmeta { font-size: 11px; color: var(--faint); display: flex; align-items: center; }
+.wmeta .sep { margin-left: 7px; }
+.wgrid { columns: 330px; column-gap: 34px; padding-top: 14px; flex: 1; min-height: 0; overflow: hidden; }
+
+.story { display: flex; gap: 9px; padding: 5px 0; break-inside: avoid; }
+.story .tone {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--fill); margin-top: 6px;
+}
+.tone.good { background: var(--up); }
+.tone.bad { background: var(--down); }
+.tone.neutral, .tone.unknown { background: var(--fill); }
+.tone.inline { display: inline-block; margin: 0 4px 0 7px; align-self: center; }
+.story .sbody { min-width: 0; flex: 1; }
+.story .title { font-size: 14px; line-height: 1.32; display: block; color: var(--ink); }
+.story.small .title { font-size: 13px; }
+.story .meta { font-size: 11px; color: var(--faint); display: block; margin-top: 2px; }
+.story .why { display: block; color: var(--muted); font-style: italic; margin-top: 1px; }
+
+/* ======================================================= sources panel */
+
+.panel {
+  /* Dropped from the refresh button, top-right — where it's triggered from
+     now (the footer's status line still opens it, but landing the popup
+     itself at the bottom, far from anything you just clicked near the top,
+     never made sense). */
+  position: absolute; right: 20px; top: 54px; width: 420px;
+  background: var(--raise); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 13px 16px 15px; box-shadow: 0 14px 40px rgba(0,0,0,.6); z-index: 20;
+}
+.phead { display: flex; align-items: center; justify-content: space-between; }
+.panel h3 {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 8px;
+}
+.panel h3.spaced { margin-top: 14px; }
+.panel .x {
+  appearance: none; border: 0; background: transparent; cursor: pointer;
+  color: var(--muted); font-size: 17px; line-height: 1; padding: 0 2px 6px;
+}
+.panel .x:hover { color: var(--ink); }
+
+.srow { display: flex; align-items: baseline; gap: 11px; padding: 4px 0; font-size: 12.5px; }
+.srow .sname { min-width: 68px; color: var(--ink-2); }
+.srow .sstate { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.srow .just { font-style: normal; color: var(--up); margin-left: 7px; font-size: 11.5px; }
+.srow .fail { color: var(--down); font-weight: 400; }
+
+.feeds { display: flex; flex-wrap: wrap; gap: 5px; }
+.feed {
+  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  background: var(--rule); color: var(--muted);
+}
+.feed.bad { background: rgba(230,103,103,.14); color: var(--down); }
+
+/* ====================================================== smaller panels */
+
+@media (max-width: 1100px) {
+  .mtotal .val { font-size: 36px; }
+  .cols { gap: 24px; }
+  .cols .zone:last-child { padding-left: 22px; }
+  .story .title { font-size: 13px; }
+  .story .meta { font-size: 10.5px; }
+}
+
+@media (max-height: 620px) {
+  .stage { padding: 12px 16px 0; }
+  .top { padding: 8px 16px; }
+  .hero .big { font-size: 25px; }
+  .strip { height: 26px; }
+  .day:nth-child(3) { display: none; }
+  .mtotal .val { font-size: 34px; }
+  .ycell { border-radius: 2px; }
+  .ycard { padding: 12px 14px 10px; }
+  .cols { padding-top: 11px; }
+  .story { padding: 3px 0; }
+  .story .title { font-size: 12.5px; }
+  .task .title { font-size: 13px; }
+  .panel { top: 42px; }
+}
+
+
+/* ================================================================= hover
+   The strip is the one graphic on the site, and a twenty-minute gap between
+   classes is two pixels of it. Rather than widen every sliver until the bar
+   is a row of stubs, the narrow ones stay narrow and say what they are on
+   hover. Nothing here is load-bearing: everything in the card is also in the
+   rows underneath. */
+.blk { transition: filter .12s ease; }
+.blk:hover { filter: brightness(1.25); z-index: 6; }
+.blk .card {
+  position: absolute; bottom: calc(100% + 9px); left: 0;
+  min-width: 190px; max-width: 300px; padding: 9px 11px;
+  background: #17171a; border: 1px solid #33333a; border-radius: 7px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.6);
+  display: none; flex-direction: column; gap: 3px;
+  font-size: 12.5px; line-height: 1.35; color: var(--ink);
+  white-space: normal; pointer-events: none; z-index: 20;
+}
+.blk:hover .card { display: flex; }
+/* Past about two thirds across, anchor the card to the block's right edge so
+   it opens back towards the middle instead of off the side of the page. */
+.blk.flip .card { left: auto; right: 0; }
+.blk .card b { font-size: 13.5px; font-weight: 640; }
+.blk .card .crange { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.blk .card .cwhere { color: var(--muted); }
+.blk .card .cprep  { color: var(--ink-2); font-style: italic; }
+.blk .card .cpri   { color: var(--accent); font-size: 11.5px; letter-spacing: .02em; }
+
+/* ================================================================== tasks */
+.tgroup.focus h2 { color: var(--accent); }
+.focusrow, .task { position: relative; }
+.focusrow {
+  display: flex; gap: 11px; align-items: flex-start;
+  padding: 7px 0; border-bottom: 1px solid var(--rule);
+}
+.focusrow .n {
+  flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%;
+  background: var(--accent); color: #1a1400; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; margin-top: 1px;
+}
+.focusrow .title { font-size: 14.5px; font-weight: 560; }
+.why { display: block; font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+/* When the model rewrote the row into an action, the original still shows —
+   quietly — so you can tell what it decided to sharpen. */
+.task .from { display: block; font-size: 11.5px; color: var(--faint); margin-top: 1px; }
+.task.top { border-left: 2px solid var(--accent); padding-left: 8px; margin-left: -10px; }
+
+/* Answering a row. Hidden until the row is hovered on a pointer device, and
+   always visible on touch, where there is no hover to reveal them. */
+.acts { display: flex; gap: 4px; flex-shrink: 0; align-self: center; opacity: 0; transition: opacity .12s; }
+.task:hover .acts, .focusrow:hover .acts, .acts:focus-within { opacity: 1; }
+.act {
+  appearance: none; border: 1px solid var(--rule); background: transparent;
+  color: var(--muted); cursor: pointer; border-radius: 5px;
+  width: 24px; height: 24px; font-size: 12px; line-height: 1;
+}
+.act:hover { color: var(--ink); border-color: var(--fill-2); }
+.act.ok:hover { color: var(--up); border-color: var(--up); }
+.act.no:hover { color: var(--down); border-color: var(--down); }
+.task.busy { opacity: .4; }
+
+/* Deadlines, restacked: the interval leads, the date confirms it, the thing
+   itself gets a full line instead of being clipped between two columns. */
+.dl { display: block; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.dl .dlhead { display: flex; justify-content: space-between; align-items: baseline; }
+.dl .in { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dl .on { font-size: 11px; color: var(--faint); }
+.dl .what { display: block; font-size: 13.5px; color: var(--ink-2); margin-top: 1px; }
+.dl .dlnote { display: block; font-size: 11.5px; color: var(--muted); font-style: italic; }
+.dl.near .in { color: var(--accent); font-weight: 640; }
+.dl.near .what { color: var(--ink); }
+
+/* ============================================================== positions */
+.mwarn {
+  font-size: 12.5px; color: var(--accent); margin: 0 0 8px;
+  background: rgba(237,161,0,.09); border-left: 2px solid var(--accent);
+  padding: 6px 10px; border-radius: 0 4px 4px 0;
+}
+.zone.positions { flex: 1.5; min-width: 0; }
+.zone.positions h2 { display: flex; align-items: baseline; gap: 8px; }
+.sortby { margin-left: auto; display: flex; gap: 3px; }
+.sortby button {
+  appearance: none; border: 1px solid transparent; background: transparent;
+  color: var(--faint); cursor: pointer; font: inherit; font-size: 10px;
+  text-transform: uppercase; letter-spacing: .08em; padding: 2px 6px; border-radius: 4px;
+}
+.sortby button:hover { color: var(--ink-2); }
+.sortby button.on { color: var(--accent); border-color: var(--rule); }
+
+.ptable { font-variant-numeric: tabular-nums; }
+.ptable .phead, .ptable .prow {
+  display: grid; grid-template-columns: 4.6rem 1fr 6.4rem 4.4rem 4rem;
+  gap: 10px; align-items: center; padding: 3px 0;
+}
+.ptable .phead {
+  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint); border-bottom: 1px solid var(--rule); padding-bottom: 4px; margin-bottom: 2px;
+}
+.ptable .phead span:not(:first-child), .prow .v, .prow .d, .prow .r { text-align: right; }
+.prow { font-size: 12.5px; border-bottom: 1px solid rgba(38,38,37,.5); }
+.prow:hover { background: rgba(255,255,255,.028); }
+.prow .tk { font-weight: 620; letter-spacing: .01em; }
+.prow .tk em { font-style: normal; font-size: 9px; color: var(--faint); margin-left: 3px; }
+.prow .v { color: var(--ink-2); }
+/* The weight bar is the only chart here, and it earns it: concentration is a
+   shape, not a number you compare forty times. */
+/* Two fixed tracks. The bar lives in its own lane so a heavy position can
+   never shove its own percentage into the column beside it. */
+.prow .w { display: grid; grid-template-columns: 1fr 2.7rem; align-items: center; gap: 7px; }
+.prow .w i { height: 4px; border-radius: 2px; background: var(--fill-2); display: block; min-width: 1px; }
+.prow .w b { font-weight: 400; font-size: 11px; color: var(--muted); text-align: right; }
+.prow.stale { opacity: .5; }
+.prow.stale .v::after { content: " ⚠"; color: var(--accent); }
+.mtotal .ccy { font-size: 12px; color: var(--faint); align-self: flex-end; margin: 0 2px 4px -6px; }
+.mspan .quiet { color: var(--faint); }
+
+/* ============================================================= phone
+   Same pages, one column, bigger hit targets. The deck is a website now, so
+   it has to survive being opened on a phone between classes. */
+@media (max-width: 720px) {
+  /* The header is a three-part bar built for a wide panel; on a phone the
+     date and clock give way and the tabs get the full width. */
+  .top { flex-wrap: wrap; gap: 6px 10px; }
+  .top .date, .top .liveclock, .top .updated { display: none; }
+  .tabs { order: -1; width: 100%; justify-content: space-between; }
+  .tab { flex: 1; text-align: center; padding: 7px 4px; }
+  .mspan { flex-wrap: wrap; gap: 4px 14px; }
+  .mtotal { flex-wrap: wrap; }
+  /* Column rules and their indents are for side-by-side columns that no
+     longer exist at this width. */
+  .zone, .tside, .pf-zone { border-left: 0 !important; padding-left: 0 !important; }
+  .mcols > .zone + .zone { border-top: 1px solid var(--rule); padding-top: 12px; }
+  .disp { padding: 12px 13px 8px; font-size: 14px; }
+  .hero { flex-wrap: wrap; gap: 6px; }
+  .hero .big { font-size: 21px; white-space: normal; }
+  .hero .sub { white-space: normal; }
+  /* Every side-by-side pair collapses to one column here. `.cols` was the one
+     that got missed, and it left Today's two lists overlapping each other. */
+  .cols, .page-tasks, .mcols, .days { display: flex; flex-direction: column; gap: 16px; }
+  .cols > .zone { border-left: 0; padding-left: 0; }
+  .trow { gap: 10px; }
+  .trow .t { min-width: 58px; }
+  .tside { border-left: 0; padding-left: 0; }
+  .acts { opacity: 1; }                    /* no hover on a touch screen */
+  .act { width: 30px; height: 30px; }
+  .blk .card { display: none !important; } /* nothing to hover with */
+  /* At this width 6% of the day is about 25px — every label is a clipped
+     fragment. Colour still separates them and the rows below name them. */
+  .blk .bl { display: none; }
+  .ptable .phead, .ptable .prow { grid-template-columns: 3.6rem 1fr 3.6rem 3.6rem; }
+  .ptable .phead span:nth-child(3), .prow .w { display: none; }
+  .ygrid { --ylabelw: 18px; gap: 1px; }
+  .mlabel { font-size: 8px; }
+  .yhead { flex-wrap: wrap; gap: 4px; }
+  .yshead { flex-wrap: wrap; gap: 4px 10px; }
+  .ystat .big { font-size: 26px; }
+  .ycard { padding: 10px 12px 8px; }
+  .ylegend { flex-wrap: wrap; }
+  .mtotal .val { font-size: 26px; }
+  /* The header wraps to two rows here (tabs, then the refresh button on its
+     own line) — the panel needs to clear both, not just the first. */
+  .panel { top: 92px; right: 13px; width: calc(100vw - 26px); max-width: 420px; }
+}
+
+/* The deck is a page you scroll now, not a panel that must fit exactly. Zones
+   size to their contents instead of stretching to fill a screen that is
+   taller than the day is busy. */
+.days-zone, .tcol, .zone.positions { flex: none; min-height: 0; }
+.disp > .foot { margin-top: 24px; }
+.page-tasks .tcol { columns: auto; column-count: 1; }

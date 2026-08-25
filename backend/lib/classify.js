@@ -38,9 +38,28 @@ export function isEmailLike(text) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(text || "").trim());
 }
 
+/**
+ * Match a pattern as a WORD, not a substring.
+ *
+ * Plain `includes()` is a trap here: "exam" matches "example.com", "lab"
+ * matches "collaborate", "due" matches "overdue". A calendar literally named
+ * with your email address was being classified as a Test because the address
+ * contained "example".
+ *
+ * A trailing plural is allowed, because config reads better in the singular
+ * while calendars are usually named in the plural ("test" must still match
+ * "Tests & Quizzes").
+ */
+function hasPhrase(haystack, phrase) {
+  const p = String(phrase || "").toLowerCase().trim();
+  if (!p) return false;
+  const esc = p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${esc}(s|es|'s)?([^a-z0-9]|$)`, "i")
+    .test(String(haystack || "").toLowerCase());
+}
+
 function anyPattern(haystack, patterns) {
-  const h = String(haystack || "").toLowerCase();
-  return (patterns || []).some((p) => h.includes(String(p).toLowerCase()));
+  return (patterns || []).some((p) => hasPhrase(haystack, p));
 }
 
 /**
@@ -78,6 +97,65 @@ export function categorise({ title = "", calendarName = "", body = "", tier = nu
   matches.sort((a, b) => (b.def.weight || 0) - (a.def.weight || 0));
   const { def, why } = matches[0];
   return { id: def.id, label: def.label, weight: def.weight || 24, why, unmissable: Boolean(def.unmissable) };
+}
+
+/**
+ * Which part of your life does this belong to?
+ *
+ * Deliberately a SEPARATE axis from category. "CANNOT MISS" tells you how
+ * much something matters, not what kind of life it belongs to — a can't-miss
+ * event could be a final exam or a friend's wedding. Category answers "what
+ * kind of thing"; domain answers "which lane of my life", and the brief is
+ * grouped by the second one.
+ *
+ * Resolution order: explicit patterns first, then a hint from the category,
+ * then personal as the catch-all. Nothing here names your calendars.
+ */
+export function deriveDomain({ title = "", calendarName = "", body = "", category = null, path = "" }, config = {}) {
+  const spec = config.domains || {};
+  const defs = spec.definitions || [];
+  const haystackTitle = `${title} ${body}`;
+
+  for (const def of defs) {
+    if (anyPattern(calendarName, def.calendarPatterns)) return def.id;
+  }
+  for (const def of defs) {
+    if (anyPattern(haystackTitle, def.titlePatterns)) return def.id;
+  }
+  for (const def of defs) {
+    if (path && anyPattern(path, def.pathPatterns)) return def.id;
+  }
+
+  // A course code is a strong school signal even with no keyword.
+  if (looksLikeCourseCode(title) && defs.some((d) => d.id === "school")) return "school";
+
+  const fromCategory = spec.fromCategory?.[category];
+  if (fromCategory) return fromCategory;
+
+  return spec.fallback || "personal";
+}
+
+export function domainLabel(id, config = {}) {
+  const def = (config.domains?.definitions || []).find((d) => d.id === id);
+  return def?.label || (id ? id[0].toUpperCase() + id.slice(1) : "Personal");
+}
+
+/**
+ * Which colour a calendar event paints on the day strip.
+ *
+ * A third axis, separate from both category and domain: this one exists
+ * purely to mirror what the calendars already look like in Apple Calendar,
+ * so the strip reads at a glance the same way the calendar app does. It
+ * rides on the category id (CANNOT MISS, IMPORTANT EVENTS, WORK, Tests &
+ * Quizzes, School & Classes and Family all already have their own category,
+ * matched off the real calendar name) with one override: the default
+ * calendar — the one Google names after your email address because you
+ * never gave it a real name — always paints the same light "link" blue,
+ * regardless of what category its events land in.
+ */
+export function calendarSwatch({ calendarName = "", category = "personal" } = {}) {
+  if (isEmailLike(calendarName)) return "gmail";
+  return category || "personal";
 }
 
 /**

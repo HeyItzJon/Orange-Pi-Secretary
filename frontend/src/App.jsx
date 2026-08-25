@@ -1,27 +1,46 @@
-// App.jsx — the whole dashboard is one screen: the brief.
+// App.jsx — one screen, two tiers.
 //
-// v1 had six tabs, three of which were the same component with a different
-// filter. This replaces all of them. The archive of everything the system
-// knows is still available at /api/items; the screen shows only what today
-// needs.
+//   Today  a chronological timeline of the whole day, domains mixed and
+//          tagged, because that's the shape of a day.
+//   Lanes  School · Work · Career · Finance · Social · Projects · Personal —
+//          everything else, grouped by where your attention goes.
+//
+// Nothing is capped and nothing is silently dropped. Repeated, undated items
+// are folded behind a labelled toggle; the only things excluded entirely are
+// ones you marked done, dismissed or snoozed, events that already happened,
+// and dates beyond the horizon — and every one of those is listed at the
+// bottom with its reason.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Section from "./components/Section.jsx";
-import MoneyPanel from "./components/MoneyPanel.jsx";
+import TodayTimeline from "./components/TodayTimeline.jsx";
+import Lane from "./components/Lane.jsx";
+import Legend from "./components/Legend.jsx";
 import "./App.css";
 
-const SECTION_ORDER = [
-  ["today", "Today"],
-  ["needsYou", "Needs you"],
-  ["newSince", "New since yesterday"],
-  ["comingUp", "Coming up"],
-];
+// Must match SCHEMA in backend/brief/rules.js. If the server sends something
+// else, this bundle is stale — which otherwise looks exactly like data loss.
+const SCHEMA = "lanes-v1";
 
-// The brief changes a few times a day, not every minute. v1 polled every 60s
-// for data that regenerated every 2 hours; five minutes is plenty.
 const POLL_MS = 5 * 60 * 1000;
 
-/** en-CA renders "11:04 a.m."; the brief uses "11:04 AM" everywhere. */
+const FILTERS = [
+  { id: "all", label: "Everything" },
+  { id: "action", label: "Needs you" },
+  { id: "new", label: "New" },
+];
+
+// Which source feeds each lane — shown next to the lane title so it's never a
+// mystery where a row came from.
+const LANE_SOURCE = {
+  school: "calendar · email",
+  work: "calendar · email",
+  career: "email",
+  finance: "holdings · vault",
+  social: "calendar",
+  projects: "calendar",
+  personal: "calendar · email",
+};
+
 function fmtTime(iso, timeZone) {
   if (!iso) return "—";
   return new Intl.DateTimeFormat("en-CA", {
@@ -49,6 +68,8 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [busyIds, setBusyIds] = useState(new Set());
   const [theme, setTheme] = useState("dark");
+  const [filter, setFilter] = useState("all");
+  const [showExcluded, setShowExcluded] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -76,9 +97,7 @@ export default function App() {
       const res = await api("/api/refresh", { method: "POST", body: JSON.stringify({}) });
       setBrief(res.brief);
       const failed = Object.entries(res.report || {}).filter(([, r]) => !r.ok);
-      if (failed.length) {
-        setError(failed.map(([name, r]) => `${name}: ${r.error}`).join(" · "));
-      }
+      if (failed.length) setError(failed.map(([n, r]) => `${n}: ${r.error}`).join(" · "));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -105,25 +124,33 @@ export default function App() {
     }
   }
 
+  const sections = brief?.sections || {};
+  const order = brief?.order || [];
+  const labels = brief?.domainLabels || {};
+  const stale = brief && brief.schema !== SCHEMA;
+
+  const matches = useCallback(
+    (item) => {
+      if (filter === "action") return item._needsAction;
+      if (filter === "new") return item._new || item._changed;
+      return true;
+    },
+    [filter]
+  );
+
   const dateLine = useMemo(() => {
     if (!brief) return "";
     return new Intl.DateTimeFormat("en-CA", {
-      timeZone: brief.timezone,
-      weekday: "long", month: "long", day: "numeric",
+      timeZone: brief.timezone, weekday: "long", month: "long", day: "numeric",
     }).format(new Date(brief.generatedAt));
   }, [brief]);
 
-  const generatedLine = useMemo(
-    () => (brief ? fmtTime(brief.generatedAt, brief.timezone) : ""),
-    [brief]
+  const visibleInLanes = useMemo(
+    () => order.reduce((n, d) => n + (sections[d] || []).filter(matches).length, 0),
+    [order, sections, matches]
   );
 
-  const sections = brief?.sections || {};
-  const moneyItems = sections.money || [];
-  const emptyNames = useMemo(() => {
-    const all = [...SECTION_ORDER.map(([k, l]) => [k, l]), ["money", "Money"], ["looseThreads", "Loose threads"]];
-    return all.filter(([k]) => !sections[k]?.length && !(k === "money" && brief?.money)).map(([, l]) => l);
-  }, [sections, brief]);
+  const counts = brief?.counts || {};
 
   return (
     <div className="wrap">
@@ -139,64 +166,118 @@ export default function App() {
         </button>
       </div>
 
+      {stale && (
+        <div className="banner">
+          <b>This page is out of date.</b> The server is sending{" "}
+          <code>{brief.schema || "an unknown format"}</code> but this build understands{" "}
+          <code>{SCHEMA}</code>. Rebuild the frontend and hard-refresh:
+          <code className="cmd">cd frontend &amp;&amp; npm run build</code>
+          Until you do, most of your items won't appear here.
+        </div>
+      )}
+
       {!brief && !error && <div className="empty"><p>Loading…</p></div>}
 
-      {brief && (
+      {brief && !stale && (
         <>
           <div className="mast">
             <h1>{dateLine}</h1>
             <div className="sub">
-              Brief generated {generatedLine} · <b>{brief.counts.total} item{brief.counts.total === 1 ? "" : "s"}</b>
-              {brief.counts.new > 0 ? ` · ${brief.counts.new} new since yesterday` : " · nothing new"}
+              Updated {fmtTime(brief.generatedAt, brief.timezone)} ·{" "}
+              <b>{counts.today ?? 0} today</b> · <b>{counts.lanes ?? 0} tracked</b>
+              {counts.needsAction > 0 && ` · ${counts.needsAction} need you`}
+              {counts.new > 0 && ` · ${counts.new} new`}
             </div>
             {brief.summary && <p className="summary">{brief.summary}</p>}
           </div>
 
-          {SECTION_ORDER.map(([key, label]) => (
-            <Section
-              key={key}
-              title={label}
-              items={sections[key]}
+          <div className="filters">
+            {FILTERS.map((f) => {
+              const n =
+                f.id === "all"
+                  ? counts.lanes ?? 0
+                  : order.reduce(
+                      (acc, d) =>
+                        acc +
+                        (sections[d] || []).filter((i) =>
+                          f.id === "action" ? i._needsAction : i._new || i._changed
+                        ).length,
+                      0
+                    );
+              return (
+                <button
+                  key={f.id}
+                  className="ctl chipbtn"
+                  aria-pressed={filter === f.id}
+                  onClick={() => setFilter(f.id)}
+                >
+                  {f.label}{n > 0 ? ` (${n})` : ""}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Never filtered — it's the schedule, not a list. */}
+          <TodayTimeline
+            items={sections.today}
+            timezone={brief.timezone}
+            domainLabels={labels}
+          />
+
+          {order.map((d) => (
+            <Lane
+              key={d}
+              id={d}
+              label={labels[d] || d}
+              source={LANE_SOURCE[d]}
+              items={(sections[d] || []).filter(matches)}
+              money={d === "finance" ? brief.money : null}
               timezone={brief.timezone}
               onAction={act}
               busyIds={busyIds}
-              showCount={key !== "today"}
+              filtered={filter !== "all"}
             />
           ))}
 
-          <MoneyPanel
-            money={brief.money}
-            items={moneyItems}
-            timezone={brief.timezone}
-            onAction={act}
-            busyIds={busyIds}
-          />
-
-          <Section
-            title="Loose threads"
-            items={sections.looseThreads}
-            timezone={brief.timezone}
-            onAction={act}
-            busyIds={busyIds}
-          />
-
-          {brief.counts.total === 0 && (
+          {visibleInLanes === 0 && (
             <div className="empty">
-              <p>Nothing needs you right now.</p>
-              <button className="ctl" onClick={refresh} disabled={refreshing}>Check again</button>
+              <p>
+                {filter === "all"
+                  ? "Nothing outside today is being tracked yet. Hit Refresh."
+                  : "Nothing matches that filter."}
+              </p>
+              {filter !== "all" && (
+                <button className="ctl" onClick={() => setFilter("all")}>Show everything</button>
+              )}
             </div>
           )}
 
-          {brief.counts.total > 0 && emptyNames.length > 0 && (
-            <div className="note">
-              {emptyNames.join(" · ")} — empty, so hidden.
-            </div>
+          <Legend />
+
+          {counts.excluded > 0 && (
+            <section className="excluded">
+              <button className="quiet-toggle" onClick={() => setShowExcluded(!showExcluded)}>
+                {showExcluded ? "▾" : "▸"} {counts.excluded} not shown
+                <span className="quiet-why"> — and exactly why</span>
+              </button>
+              {showExcluded && (
+                <ul className="excluded-list">
+                  {(brief.excluded || []).map((e) => (
+                    <li key={e.id}>
+                      <span className="ex-title">{e.title}</span>
+                      <span className="ex-why">{e.why}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           )}
 
           <div className="foot">
-            <span>{brief.counts.hidden} held back</span>
             {Object.entries(brief.sources || {}).map(([name, at]) => (
-              <span key={name}>{name} {fmtTime(at, brief.timezone)}</span>
+              <span key={name}>
+                {name} {fmtTime(at, brief.timezone)}
+              </span>
             ))}
           </div>
         </>

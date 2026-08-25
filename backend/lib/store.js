@@ -2,76 +2,62 @@
 //
 // The memory. Everything the secretary knows persists here.
 //
-// Deliberately zero-dependency: a single JSON file, written atomically
-// (temp file + rename, so a power cut on the Pi can never leave a
-// half-written file), guarded by an in-process mutex so the scheduler and a
-// manual refresh can't clobber each other. That mutex is the fix for the v1
-// bug where overlapping runs silently lost data.
+// Backed by SQLite (node:sqlite, see ./db.js) — every write below is a
+// single synchronous statement against the database file, so there's no
+// in-memory snapshot two overlapping calls could clobber. That was the
+// whole reason the old JSON-file version needed a hand-rolled mutex; it's
+// gone here because the failure mode it guarded against can't happen.
+// Durability on power loss comes from SQLite's own WAL journal instead of
+// the old temp-file+rename dance.
 //
-// Scale check: one user, a few thousand items over years. A JSON file is the
-// right tool. If this ever outgrows it, swap this one module for node:sqlite
-// (Node 22+) — nothing else in the codebase knows how storage works.
+// Every exported function here keeps the exact signature and return shape
+// it had when this was a JSON blob — nothing else in the codebase knows
+// (or needs to know) how storage works.
 
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
+import { getDb } from "./db.js";
 import { logger } from "./log.js";
 
 const log = logger("store");
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "data");
-const DB_PATH = path.join(DATA_DIR, "secretary.json");
 
-const EMPTY = {
-  version: 2,
-  items: {},          // id -> item
-  seenMessageIds: [], // Gmail message ids already processed (cheap dedup)
-  cache: {},          // ai classification cache: key -> { value, at }
-  meta: {},           // lastBriefAt, usage counters, calendar list cache, ...
-};
-
-let db = null;
-let chain = Promise.resolve(); // mutex
-
-/** Serialise every mutation through one promise chain. */
-function withLock(fn) {
-  const run = chain.then(fn, fn);
-  chain = run.then(() => {}, () => {});
-  return run;
-}
-
-async function readFromDisk() {
-  try {
-    const raw = await fs.readFile(DB_PATH, "utf-8");
-    const parsed = JSON.parse(raw);
-    return { ...structuredClone(EMPTY), ...parsed };
-  } catch (err) {
-    if (err.code !== "ENOENT") log.warn(`could not read db (${err.message}) — starting fresh`);
-    return structuredClone(EMPTY);
-  }
-}
-
-async function writeToDisk() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = `${DB_PATH}.${process.pid}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(db, null, 2), "utf-8");
-  await fs.rename(tmp, DB_PATH); // atomic on the same filesystem
-}
-
-async function ensure() {
-  if (!db) db = await readFromDisk();
-  return db;
-}
-
-export async function init() {
-  return withLock(async () => {
-    await ensure();
-    log.info(`loaded ${Object.keys(db.items).length} items`);
-    return db;
-  });
+function nowIso() {
+  return new Date().toISOString();
 }
 
 // ---------------------------------------------------------------- items
+
+function readItem(dbc, id) {
+  const row = dbc.prepare("SELECT data FROM items WHERE id = ?").get(id);
+  return row ? JSON.parse(row.data) : null;
+}
+
+function writeItem(dbc, id, item) {
+  dbc.prepare(`
+    INSERT INTO items (id, status, source, dueAt, firstSeen, lastSeen, data)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      status = excluded.status,
+      source = excluded.source,
+      dueAt = excluded.dueAt,
+      firstSeen = excluded.firstSeen,
+      lastSeen = excluded.lastSeen,
+      data = excluded.data
+  `).run(
+    id,
+    item.status ?? "open",
+    item.source ?? null,
+    item.dueAt ?? null,
+    item.firstSeen ?? null,
+    item.lastSeen ?? null,
+    JSON.stringify(item)
+  );
+}
+
+export async function init() {
+  const dbc = getDb();
+  const { c } = dbc.prepare("SELECT COUNT(*) AS c FROM items").get();
+  log.info(`loaded ${c} items`);
+  return dbc;
+}
 
 /**
  * Insert or update an item, preserving everything the system has learned
@@ -79,40 +65,39 @@ export async function init() {
  * dismissed it. This is the heart of "don't repeat yourself".
  */
 export async function upsertItem(incoming) {
-  return withLock(async () => {
-    await ensure();
-    const now = new Date().toISOString();
-    const prev = db.items[incoming.id];
+  const dbc = getDb();
+  const now = nowIso();
+  const prev = readItem(dbc, incoming.id);
 
-    if (!prev) {
-      db.items[incoming.id] = {
-        status: "open",
-        surfaceCount: 0,
-        lastSurfaced: null,
-        snoozeUntil: null,
-        ...incoming,
-        firstSeen: now,
-        lastSeen: now,
-        changed: false,
-      };
-    } else {
-      const contentChanged = prev.contentHash !== incoming.contentHash;
-      db.items[incoming.id] = {
-        ...prev,
-        ...incoming,
-        firstSeen: prev.firstSeen,
-        lastSeen: now,
-        status: prev.status,
-        surfaceCount: prev.surfaceCount,
-        lastSurfaced: prev.lastSurfaced,
-        snoozeUntil: prev.snoozeUntil,
-        // A changed item earns the right to be shown again.
-        changed: contentChanged || prev.changed,
-      };
-    }
-    await writeToDisk();
-    return db.items[incoming.id];
-  });
+  let item;
+  if (!prev) {
+    item = {
+      status: "open",
+      surfaceCount: 0,
+      lastSurfaced: null,
+      snoozeUntil: null,
+      ...incoming,
+      firstSeen: now,
+      lastSeen: now,
+      changed: false,
+    };
+  } else {
+    const contentChanged = prev.contentHash !== incoming.contentHash;
+    item = {
+      ...prev,
+      ...incoming,
+      firstSeen: prev.firstSeen,
+      lastSeen: now,
+      status: prev.status,
+      surfaceCount: prev.surfaceCount,
+      lastSurfaced: prev.lastSurfaced,
+      snoozeUntil: prev.snoozeUntil,
+      // A changed item earns the right to be shown again.
+      changed: contentChanged || prev.changed,
+    };
+  }
+  writeItem(dbc, incoming.id, item);
+  return item;
 }
 
 export async function upsertMany(items) {
@@ -122,129 +107,226 @@ export async function upsertMany(items) {
 }
 
 export async function allItems() {
-  await withLock(ensure);
-  return Object.values(db.items);
+  const dbc = getDb();
+  return dbc.prepare("SELECT data FROM items").all().map((r) => JSON.parse(r.data));
 }
 
 export async function getItem(id) {
-  await withLock(ensure);
-  return db.items[id] || null;
+  return readItem(getDb(), id);
 }
 
 export async function patchItem(id, fields) {
-  return withLock(async () => {
-    await ensure();
-    if (!db.items[id]) return null;
-    db.items[id] = { ...db.items[id], ...fields };
-    await writeToDisk();
-    return db.items[id];
-  });
+  const dbc = getDb();
+  const prev = readItem(dbc, id);
+  if (!prev) return null;
+  const item = { ...prev, ...fields };
+  writeItem(dbc, id, item);
+  return item;
 }
 
 /** Record that these items went out in a brief — drives suppression. */
 export async function markSurfaced(ids) {
-  return withLock(async () => {
-    await ensure();
-    const now = new Date().toISOString();
-    for (const id of ids) {
-      const it = db.items[id];
-      if (!it) continue;
-      it.surfaceCount = (it.surfaceCount || 0) + 1;
-      it.lastSurfaced = now;
-      it.changed = false; // the change has now been reported
-    }
-    await writeToDisk();
-  });
+  const dbc = getDb();
+  const now = nowIso();
+  for (const id of ids) {
+    const it = readItem(dbc, id);
+    if (!it) continue;
+    it.surfaceCount = (it.surfaceCount || 0) + 1;
+    it.lastSurfaced = now;
+    it.changed = false; // the change has now been reported
+    writeItem(dbc, id, it);
+  }
 }
 
-/** Drop resolved/expired items so the file doesn't grow without bound. */
+/** Drop resolved/expired items so the store doesn't grow without bound. */
 export async function prune({ maxAgeDays = 90 } = {}) {
-  return withLock(async () => {
-    await ensure();
-    const cutoff = Date.now() - maxAgeDays * 86400000;
-    let removed = 0;
-    for (const [id, it] of Object.entries(db.items)) {
-      const stamp = new Date(it.lastSeen || it.firstSeen).getTime();
-      const closed = it.status === "done" || it.status === "dismissed";
-      if (stamp < cutoff && (closed || !it.dueAt)) {
-        delete db.items[id];
-        removed++;
-      }
-    }
-    if (db.seenMessageIds.length > 3000) {
-      db.seenMessageIds = db.seenMessageIds.slice(-2000);
-    }
-    for (const [k, v] of Object.entries(db.cache)) {
-      if (Date.now() - new Date(v.at).getTime() > 30 * 86400000) delete db.cache[k];
-    }
-    if (removed) log.info(`pruned ${removed} items`);
-    await writeToDisk();
-    return removed;
-  });
+  const dbc = getDb();
+  const cutoffIso = new Date(Date.now() - maxAgeDays * 86400000).toISOString();
+
+  const result = dbc.prepare(`
+    DELETE FROM items
+    WHERE COALESCE(lastSeen, firstSeen) < ?
+      AND (status IN ('done', 'dismissed') OR dueAt IS NULL)
+  `).run(cutoffIso);
+  const removed = result.changes;
+
+  const { c: seenCount } = dbc.prepare("SELECT COUNT(*) AS c FROM seen_message_ids").get();
+  if (seenCount > 3000) {
+    dbc.exec(`
+      DELETE FROM seen_message_ids
+      WHERE message_id NOT IN (
+        SELECT message_id FROM seen_message_ids ORDER BY seen_at DESC LIMIT 2000
+      )
+    `);
+  }
+
+  const cacheCutoffIso = new Date(Date.now() - 30 * 86400000).toISOString();
+  dbc.prepare("DELETE FROM ai_cache WHERE at < ?").run(cacheCutoffIso);
+
+  if (removed) log.info(`pruned ${removed} items`);
+  return removed;
 }
 
 // ------------------------------------------------- gmail message id dedup
 
 export async function knownMessageIds() {
-  await withLock(ensure);
-  return new Set(db.seenMessageIds);
+  const dbc = getDb();
+  const rows = dbc.prepare("SELECT message_id FROM seen_message_ids").all();
+  return new Set(rows.map((r) => r.message_id));
 }
 
 export async function rememberMessageIds(ids) {
-  return withLock(async () => {
-    await ensure();
-    const set = new Set(db.seenMessageIds);
-    for (const id of ids) set.add(id);
-    db.seenMessageIds = [...set];
-    await writeToDisk();
-  });
+  const dbc = getDb();
+  const now = nowIso();
+  const stmt = dbc.prepare(`
+    INSERT INTO seen_message_ids (message_id, seen_at) VALUES (?, ?)
+    ON CONFLICT(message_id) DO UPDATE SET seen_at = excluded.seen_at
+  `);
+  for (const id of ids) stmt.run(id, now);
 }
 
 // ------------------------------------------------------------- ai cache
 
 export async function cacheGet(key) {
-  await withLock(ensure);
-  return db.cache[key]?.value ?? null;
+  const row = getDb().prepare("SELECT value FROM ai_cache WHERE key = ?").get(key);
+  return row ? JSON.parse(row.value) : null;
 }
 
 export async function cacheSet(key, value) {
-  return withLock(async () => {
-    await ensure();
-    db.cache[key] = { value, at: new Date().toISOString() };
-    await writeToDisk();
-  });
+  const dbc = getDb();
+  dbc.prepare(`
+    INSERT INTO ai_cache (key, value, at) VALUES (?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, at = excluded.at
+  `).run(key, JSON.stringify(value), nowIso());
 }
 
 // ----------------------------------------------------------------- meta
 
 export async function getMeta(key, fallback = null) {
-  await withLock(ensure);
-  return db.meta[key] ?? fallback;
+  const row = getDb().prepare("SELECT value FROM meta WHERE key = ?").get(key);
+  return row ? JSON.parse(row.value) : fallback;
 }
 
 export async function setMeta(key, value) {
-  return withLock(async () => {
-    await ensure();
-    db.meta[key] = value;
-    await writeToDisk();
-  });
+  const dbc = getDb();
+  dbc.prepare(`
+    INSERT INTO meta (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(key, JSON.stringify(value));
 }
 
 /** Running tally of what the AI has cost us. Visible at /api/usage. */
 export async function addUsage({ calls = 0, promptTokens = 0, completionTokens = 0 }) {
-  return withLock(async () => {
-    await ensure();
-    const day = new Date().toISOString().slice(0, 10);
-    const u = db.meta.usage || {};
-    const d = u[day] || { calls: 0, promptTokens: 0, completionTokens: 0 };
-    d.calls += calls;
-    d.promptTokens += promptTokens;
-    d.completionTokens += completionTokens;
-    u[day] = d;
-    // keep 30 days
-    const days = Object.keys(u).sort();
-    while (days.length > 30) delete u[days.shift()];
-    db.meta.usage = u;
-    await writeToDisk();
-  });
+  const day = nowIso().slice(0, 10);
+  const u = (await getMeta("usage", {})) || {};
+  const d = u[day] || { calls: 0, promptTokens: 0, completionTokens: 0 };
+  d.calls += calls;
+  d.promptTokens += promptTokens;
+  d.completionTokens += completionTokens;
+  u[day] = d;
+  // keep 30 days
+  const days = Object.keys(u).sort();
+  while (days.length > 30) delete u[days.shift()];
+  await setMeta("usage", u);
+}
+
+// ------------------------------------------------------------- holdings
+//
+// The current book, synced from the vault's `type: holding` notes on a
+// TTL (see sources/money.js's syncHoldings) rather than re-read on every
+// 15-minute pull. This table is always the full current picture — call
+// setHoldings with a fresh list and it replaces the old one wholesale, so
+// a position you sold actually disappears instead of sitting there with
+// shares that are no longer true.
+
+export async function getHoldings() {
+  const dbc = getDb();
+  return dbc.prepare(`
+    SELECT ticker, shares, currency, sector, bookValue, avgCost, source, updatedAt
+    FROM holdings ORDER BY ticker
+  `).all();
+}
+
+export async function setHoldings(holdings, source = null) {
+  const dbc = getDb();
+  const now = nowIso();
+  dbc.exec("BEGIN");
+  try {
+    dbc.exec("DELETE FROM holdings");
+    const ins = dbc.prepare(`
+      INSERT INTO holdings (ticker, shares, currency, sector, bookValue, avgCost, source, updatedAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const h of holdings) {
+      ins.run(
+        h.ticker, h.shares, h.currency ?? null, h.sector ?? null,
+        h.bookValue ?? null, h.avgCost ?? null, source, now
+      );
+    }
+    dbc.exec("COMMIT");
+  } catch (err) {
+    dbc.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+// ----------------------------------------------------- portfolio history
+//
+// One row per day for the total (unchanged shape from the old
+// meta.portfolioHistory array), plus — new — one row per holding per day.
+// No row cap: the old 400-row limit existed only to bound a single JSON
+// blob's growth, and was quietly discarding history past ~400 days. A real
+// table doesn't need that trade-off.
+
+export async function recordPortfolioDay(date, { total, dayPct = null, dayValue = null, base = null } = {}) {
+  const dbc = getDb();
+  dbc.prepare(`
+    INSERT INTO portfolio_days (date, total, dayPct, dayValue, base)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(date) DO UPDATE SET
+      total = excluded.total,
+      dayPct = excluded.dayPct,
+      dayValue = excluded.dayValue,
+      base = excluded.base
+  `).run(date, total, dayPct, dayValue, base);
+}
+
+/** Same [{date, total, dayPct, dayValue}] shape the old meta blob returned. */
+export async function portfolioHistory({ limit } = {}) {
+  const dbc = getDb();
+  const rows = limit
+    ? dbc.prepare("SELECT date, total, dayPct, dayValue FROM portfolio_days ORDER BY date DESC LIMIT ?").all(limit).reverse()
+    : dbc.prepare("SELECT date, total, dayPct, dayValue FROM portfolio_days ORDER BY date ASC").all();
+  return rows.map((r) => ({ date: r.date, total: r.total, dayPct: r.dayPct, dayValue: r.dayValue }));
+}
+
+/**
+ * New capability — this never existed before. One row per holding per day,
+ * so "how did VFV do on the 20th" becomes a real query instead of a number
+ * that was computed fresh on every pull and thrown away.
+ */
+export async function recordHoldingDay(date, ticker, {
+  price = null, dayChangePct = null, dayChangeValue = null, shares = null, value = null, currency = null,
+} = {}) {
+  const dbc = getDb();
+  dbc.prepare(`
+    INSERT INTO holding_days (date, ticker, price, dayChangePct, dayChangeValue, shares, value, currency)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(date, ticker) DO UPDATE SET
+      price = excluded.price,
+      dayChangePct = excluded.dayChangePct,
+      dayChangeValue = excluded.dayChangeValue,
+      shares = excluded.shares,
+      value = excluded.value,
+      currency = excluded.currency
+  `).run(date, ticker, price, dayChangePct, dayChangeValue, shares, value, currency);
+}
+
+export async function holdingHistory(ticker, { limit } = {}) {
+  const dbc = getDb();
+  const cols = "date, ticker, price, dayChangePct, dayChangeValue, shares, value, currency";
+  const rows = limit
+    ? dbc.prepare(`SELECT ${cols} FROM holding_days WHERE ticker = ? ORDER BY date DESC LIMIT ?`).all(ticker, limit).reverse()
+    : dbc.prepare(`SELECT ${cols} FROM holding_days WHERE ticker = ? ORDER BY date ASC`).all(ticker);
+  return rows;
 }
