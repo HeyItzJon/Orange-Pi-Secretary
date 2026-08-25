@@ -152,8 +152,16 @@ export async function getCalendarList({ ttlHours = 24, force = false } = {}) {
  * never matched — Google returns a curly apostrophe (U+2019) and the config
  * had a straight one. Normalising quotes and whitespace fixes that class of
  * bug permanently.
+ *
+ * Exported because calendar-name matching turned out not to be a
+ * resolveCalendars()-only problem: sources/calendar.js's reconciliation and
+ * scripts/cleanup-orphaned-calendar-items.js both compare a stored item's
+ * recorded calendar name against a fresh list from Google too, and hit the
+ * exact same curly-quote class of bug — "Sydney's Demands" (an apostrophe
+ * name if there ever was one) read as orphaned everywhere it was actually
+ * still a real, unchanged calendar.
  */
-function normaliseName(s) {
+export function normaliseName(s) {
   return String(s || "")
     .replace(/[‘’ʼ]/g, "'")
     .replace(/[“”]/g, '"')

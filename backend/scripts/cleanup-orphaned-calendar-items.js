@@ -15,17 +15,21 @@
 // reports right now — not just the ones configured as targets in
 // config.json, since an item can be orphaned by a calendar that was
 // renamed, deleted, or dropped from targets entirely — and dismisses
-// anything that doesn't match any of them by id or name. Nothing here
-// touches items still traceable to a real calendar; only ones that don't
-// exist anywhere in the account get touched. Ongoing refreshes won't need
-// this again: every item collected from here on carries calendarId, which
-// survives a rename.
+// anything that doesn't match any of them by id or name. The name check is
+// normalised (see normaliseName() in lib/google.js) so a calendar with an
+// apostrophe in it — Sydney's Demands, say — isn't wrongly flagged just
+// because one side recorded a straight apostrophe and Google returns a
+// curly one; that calendar is completely unchanged, only the matching was
+// too literal. Nothing here touches items still traceable to a real
+// calendar; only ones that don't exist anywhere in the account get
+// touched. Ongoing refreshes won't need this again: every item collected
+// from here on carries calendarId, which survives a rename.
 //
 // Run: node scripts/cleanup-orphaned-calendar-items.js [--dry-run]
 
 import "dotenv/config";
 import { init, allItems, patchItem } from "../lib/store.js";
-import { getCalendarList } from "../lib/google.js";
+import { getCalendarList, normaliseName } from "../lib/google.js";
 import { isEmailLike } from "../lib/classify.js";
 import { logger } from "../lib/log.js";
 
@@ -43,9 +47,16 @@ if (!allCalendars.length) {
   process.exit(1);
 }
 
-const liveNames = new Set(allCalendars.map((c) => (isEmailLike(c.summary) ? "Personal" : c.summary)));
+// Normalised the same way resolveCalendars() normalises config targets — a
+// calendar name with an apostrophe (Sydney's Demands, say) can come back
+// from Google with a curly one while a stored item recorded a straight one,
+// or vice versa, which reads as "this calendar doesn't exist" even though
+// it's completely unchanged. See normaliseName() in lib/google.js.
+const liveNames = new Set(allCalendars.map((c) => normaliseName(isEmailLike(c.summary) ? "Personal" : c.summary)));
 const liveIds = new Set(allCalendars.map((c) => c.id));
 log.info(`${allCalendars.length} calendars on record in Google right now`);
+console.log("Live calendars:");
+for (const c of allCalendars) console.log(`  - ${c.summary}  (id: ${c.id})`);
 
 const stored = await allItems();
 const orphans = [];
@@ -54,7 +65,7 @@ for (const prev of stored) {
   if (prev.status === "done" || prev.status === "dismissed") continue;
 
   const knownById = Boolean(prev.meta?.calendarId) && liveIds.has(prev.meta.calendarId);
-  const knownByName = !prev.meta?.calendarId && liveNames.has(prev.meta?.calendarName);
+  const knownByName = !prev.meta?.calendarId && liveNames.has(normaliseName(prev.meta?.calendarName));
   if (knownById || knownByName) continue; // still traceable to a real calendar
 
   orphans.push(prev);

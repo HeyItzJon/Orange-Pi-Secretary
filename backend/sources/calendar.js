@@ -13,7 +13,7 @@
 // is your email address, which tells you nothing.
 
 import { logger } from "../lib/log.js";
-import { resolveCalendars, getEvents } from "../lib/google.js";
+import { resolveCalendars, getEvents, normaliseName } from "../lib/google.js";
 import { itemId, contentHash } from "../lib/ids.js";
 import { categorise, deriveDomain, isEmphasised, isEmailLike, calendarSwatch, durationLabel } from "../lib/classify.js";
 import { allItems, patchItem } from "../lib/store.js";
@@ -179,10 +179,19 @@ export async function collectCalendar(config, { force = false } = {}) {
   // stored under the calendar's old name would never match the new name in
   // okCalendarNames again, so a real deletion on that calendar would never
   // get noticed. ID-matching doesn't have that problem. Name is still the
-  // fallback for anything collected before this field existed.
+  // fallback for anything collected before this field existed — normalised
+  // with the same helper resolveCalendars() uses for config targets, since
+  // the name-matching fallback hits the exact same curly-quote mismatch
+  // that motivated normaliseName() in the first place (see lib/google.js):
+  // a calendar with an apostrophe in its name — Sydney's Demands, say —
+  // read as gone from every calendar Google has on record purely because
+  // one side's apostrophe was straight and the other's was curly, not
+  // because it was renamed or deleted at all.
   const ok = matched.filter((c) => !failedCalendarIds.includes(c.id));
   const okCalendarIds = new Set(ok.map((c) => c.id));
-  const okCalendarNames = new Set(ok.map((c) => (isEmailLike(c.summary) ? "Personal" : c.summary)));
+  const okCalendarNames = new Set(
+    ok.map((c) => normaliseName(isEmailLike(c.summary) ? "Personal" : c.summary))
+  );
   if (okCalendarIds.size) {
     const liveIds = new Set(items.map((i) => i.id));
     const stored = await allItems();
@@ -191,7 +200,7 @@ export async function collectCalendar(config, { force = false } = {}) {
       if (prev.status === "done" || prev.status === "dismissed") continue;
       const calendarOk = prev.meta?.calendarId
         ? okCalendarIds.has(prev.meta.calendarId)
-        : okCalendarNames.has(prev.meta?.calendarName);
+        : okCalendarNames.has(normaliseName(prev.meta?.calendarName));
       if (!prev.dueAt || !calendarOk) continue;
       const dueTime = new Date(prev.dueAt).getTime();
       if (dueTime < timeMin.getTime() || dueTime > timeMax.getTime()) continue;
