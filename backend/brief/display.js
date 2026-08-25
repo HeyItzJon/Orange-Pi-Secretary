@@ -100,7 +100,6 @@ export function priorityWord(item) {
   if (item.unmissable) return "can't miss";
   if (item.emphasised) return "you flagged it";
   if (item.meta?.needsReply) return "needs a reply";
-  if (item.kind === "conflict") return "clash";
   if (item.meta?.needsPrep) return "needs prep";
   if (item.meta?.recurring) return "routine";
   return null;
@@ -222,11 +221,6 @@ export function yearGrid(history = [], now = new Date(), timeZone) {
 
 /** Strip the noise the detail line already carries elsewhere. */
 function locationOf(item) {
-  // A conflict/"clash" pseudo-item's detail string is shaped completely
-  // differently — "8:00 AM and 8:15 AM · same day" — not
-  // "note · duration · location", so the generic tail-of-the-line guess
-  // below would read "same day" as if it were a place.
-  if (item.kind === "conflict") return null;
   const loc = item.meta?.location || null;
   if (loc) return String(loc).split(",")[0].trim().slice(0, 34);
   // fall back to the tail of the detail line, which calendar.js builds as
@@ -238,7 +232,6 @@ function locationOf(item) {
 }
 
 function prepOf(item) {
-  if (item.kind === "conflict") return null;
   const bits = String(item.detail || "").split(" · ").map((s) => s.trim());
   const first = bits[0];
   // The first segment is a human note only if it isn't a duration or a time.
@@ -348,14 +341,8 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
   for (let n = 0; n < days; n++) {
     const d = new Date(now.getTime() + n * DAY);
     const key = dayKey(d, tz);
-    // The synthetic overlap/"clash" pseudo-item (kind: "conflict", see
-    // sources/calendar.js) now carries a real meta.end (the overlap window
-    // itself) so it can highlight correctly on the day strip — but it isn't
-    // a real event, so it has no business padding out eventCount here, the
-    // same reasoning buildDisplay() already applies before this reaches the
-    // NOW/NEXT hero and "Rest of today".
     const dayEvents = events.filter(
-      (e) => !e.meta?.allDay && e.meta?.end && e.kind !== "conflict" && dayKey(e.dueAt, tz) === key
+      (e) => !e.meta?.allDay && e.meta?.end && dayKey(e.dueAt, tz) === key
     );
 
     // Clip each event to the waking window — kept as its own {start, end,
@@ -557,16 +544,6 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
 
   const todays = events.filter((e) => dayKey(e.dueAt, tz) === todayKey);
-  // The overlap/"clash" pseudo-items from sources/calendar.js (kind:
-  // "conflict") are a highlight for the strip, not a real thing that
-  // happened at a time — they carry no location, prep, or attendees of
-  // their own. Left in `todays` unfiltered, "test overlaps even more bra"
-  // would be perfectly capable of becoming the NOW/NEXT hero line, or a
-  // second, redundant row in "Rest of today" sitting right next to the two
-  // real events it's describing. The strip block generation below keeps
-  // reading from `todays` (that's the one place this item belongs); the hero
-  // and the today-list read from this instead.
-  const todaysReal = todays.filter((e) => e.kind !== "conflict");
 
   // ---------------------------------------------------------------- strip
   // A day-shaped window: 7am to 11pm covers an ordinary day without wasting
@@ -589,14 +566,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const pct = (h) => Math.max(0, Math.min(100, ((h - startHour) / span) * 100));
 
   const blocks = todays
-    // The overlap/"clash" highlight (kind: "conflict", see
-    // sources/calendar.js) went through two rounds of trying to make its
-    // position on the strip read clearly — sized to the actual overlap
-    // window, excluded from the hero and "Rest of today" — and it was
-    // still confusing on screen. Simplest fix: it doesn't get its own block
-    // here at all. The two real events it was describing already show
-    // their own overlap by literally overlapping on the strip.
-    .filter((e) => !e.meta?.allDay && e.kind !== "conflict")
+    .filter((e) => !e.meta?.allDay)
     .map((e) => {
       const s = hourOfDay(e.dueAt, tz);
       // An event with a start but no end still happened at a time, and leaving
@@ -676,10 +646,10 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   }));
 
   // ------------------------------------------------------------------ now
-  const running = todaysReal.find(
+  const running = todays.find(
     (e) => !e.meta?.allDay && e.meta?.end && new Date(e.dueAt) <= now && new Date(e.meta.end) > now
   );
-  const upcoming = todaysReal.filter((e) => new Date(e.dueAt) > now);
+  const upcoming = todays.filter((e) => new Date(e.dueAt) > now);
   const next = upcoming[0] || null;
 
   let hero;

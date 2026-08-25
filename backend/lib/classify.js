@@ -210,12 +210,6 @@ export function rankItem(item, { now = new Date(), config = {} } = {}) {
     why.push(`needs a reply +${b}`);
   }
 
-  if (item.kind === "conflict") {
-    const b = cfg.conflictBoost ?? 14;
-    score += b;
-    why.push(`overlapping events +${b}`);
-  }
-
   // Your caps convention, honoured.
   if (item.emphasised) {
     const b = cfg.emphasisBoost ?? 15;

@@ -80,7 +80,6 @@ export function isNew(item, lastBriefAt) {
 
 export function needsAction(item, u = null) {
   if (item.source === "email" && item.meta?.needsReply) return true;
-  if (item.kind === "conflict") return true;
   if (item.kind === "contribution") return true;
   if (item.kind === "system") return true;
   if (u === "critical" || u === "serious") return true;

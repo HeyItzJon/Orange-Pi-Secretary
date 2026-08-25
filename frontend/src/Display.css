@@ -173,8 +173,8 @@
    email-named calendar (nothing to categorise it) always paints the same
    light link-blue, regardless of what its category ends up being.
    Categories with no calendar of their own (opportunity, deadline, admin,
-   appointment, personal/conflict) get a colour from the same family that
-   isn't already spoken for. All sit around 45% lightness — luminous enough
+   appointment, personal) get a colour from the same family that isn't
+   already spoken for. All sit around 45% lightness — luminous enough
    to separate at arm's length, still dark enough to carry white text at
    ~5:1. */
 .blk.d-critical     { background: #b5560d; border-left-color: #f2a35c; } /* Can't miss     — orange, like CANNOT MISS */
@@ -188,7 +188,6 @@
 .blk.d-deadline     { background: #a83c1c; border-left-color: #f2764a; }
 .blk.d-admin        { background: #40566d; border-left-color: #8fa8c0; }
 .blk.d-appointment  { background: #276f83; border-left-color: #5ec7de; }
-.blk.d-conflict     { background: #96222f; border-left-color: #f15c68; }
 .blk.d-personal     { background: #767322; border-left-color: #c7c14f; } /* fallback, and Gym Schedule */
 
 /* The now-cursor. It's a sibling of .strip (see the comment in Display.jsx),
@@ -464,7 +463,6 @@
 .fcbar i.d-deadline     { background: #a83c1c; }
 .fcbar i.d-admin        { background: #40566d; }
 .fcbar i.d-appointment  { background: #276f83; }
-.fcbar i.d-conflict     { background: #96222f; }
 .fcbar i.d-personal     { background: #767322; }
 .fcfree { font-size: 13px; font-weight: 620; color: var(--ink); font-variant-numeric: tabular-nums; }
 .fccount { font-size: 10.5px; color: var(--faint); }

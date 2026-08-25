@@ -67,7 +67,6 @@ test("each priority is a phrase you can read", () => {
   assert.equal(priorityWord({ unmissable: true }), "can't miss");
   assert.equal(priorityWord({ emphasised: true }), "you flagged it");
   assert.equal(priorityWord({ meta: { needsReply: true } }), "needs a reply");
-  assert.equal(priorityWord({ kind: "conflict" }), "clash");
   assert.equal(priorityWord({ meta: { needsPrep: true } }), "needs prep");
   assert.equal(priorityWord({ meta: { recurring: true } }), "routine");
   assert.equal(priorityWord({ meta: {} }), null, "most things say nothing");
@@ -186,41 +185,6 @@ test("a real calendar named literally 'Gym Schedule' still falls back to domain,
   })];
   const { strip } = buildDisplay({ items, config, now: NOW });
   assert.equal(strip.blocks[0].swatch, "personal");
-});
-
-test("a clash pseudo-item never gets its own block on the strip", () => {
-  // Two rounds of trying to make the overlap/"clash" highlight (kind:
-  // "conflict", see sources/calendar.js) read clearly on the strip — sized
-  // to the real overlap window, excluded from the hero and "Rest of
-  // today" — and on screen it was still just a confusing extra sliver.
-  // Simplest fix: it gets no block at all. "test" and "even more bra" is
-  // the exact pair Jon built by hand to test this.
-  const items = [
-    ev({ id: "a", title: "test", dueAt: at(9), meta: { end: at(11) } }),
-    ev({
-      id: "clash", kind: "conflict", title: "test overlaps even more bra",
-      dueAt: at(10), swatch: "conflict", meta: { conflict: true, end: at(11) },
-    }),
-    ev({ id: "b", title: "even more bra", dueAt: at(10), meta: { end: at(12) } }),
-  ];
-  const { strip } = buildDisplay({ items, config, now: NOW });
-  assert.equal(strip.blocks.length, 2, "only the two real events should draw a block — they already show their own overlap by literally overlapping");
-  assert.ok(!strip.blocks.some((b) => b.id === "clash"));
-});
-
-test("a clash pseudo-item never becomes the NOW/NEXT hero line or a 'Rest of today' row", () => {
-  const items = [
-    ev({ id: "a", title: "test", dueAt: at(13), meta: { end: at(15) } }),
-    ev({
-      id: "clash", kind: "conflict", title: "test overlaps even more bra",
-      dueAt: at(14), swatch: "conflict", meta: { conflict: true, end: at(15) },
-    }),
-    ev({ id: "b", title: "even more bra", dueAt: at(14), meta: { end: at(16) } }),
-  ];
-  const d = buildDisplay({ items, config, now: NOW });
-  assert.ok(!d.today.some((t) => t.id === "clash"), "'test overlaps even more bra' would just be noise next to the two real rows already naming them");
-  assert.equal(d.today.length, 2);
-  assert.doesNotMatch(d.hero.lead, /overlaps/, "a synthetic clash line must never hijack the NOW/NEXT banner");
 });
 
 // ====================================================================
@@ -616,21 +580,6 @@ test("overlapping events each keep their own segment on the bar, unmerged — bu
   const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
   assert.equal(w.days[0].segments.length, 2, "the bar should still show both events, not one merged block");
   assert.equal(w.days[0].busyHours, 3, "merging is still the right call for the busy-hours number itself");
-});
-
-test("a clash pseudo-item doesn't inflate eventCount or draw its own segment on the week bar", () => {
-  const events = [
-    ev({ id: "a", title: "test", dueAt: at(9), swatch: "class", meta: { end: at(11) } }),
-    ev({
-      id: "clash", kind: "conflict", title: "test overlaps even more bra",
-      dueAt: at(10), swatch: "conflict", meta: { conflict: true, end: at(11) },
-    }),
-    ev({ id: "b", title: "even more bra", dueAt: at(10), swatch: "class", meta: { end: at(12) } }),
-  ];
-  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
-  assert.equal(w.days[0].eventCount, 2, "the clash item is not a third real event");
-  assert.equal(w.days[0].segments.length, 2);
-  assert.ok(!w.days[0].segments.some((s) => s.swatch === "conflict"), "the week bar has no room for per-event metadata, so the clash highlight itself has nothing to add there");
 });
 
 test("today/tomorrow read as words, later days as the weekday name", () => {

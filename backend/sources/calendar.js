@@ -31,10 +31,6 @@ export function timeLabel(date, timeZone) {
   }).format(new Date(date)).replace(/\s?([ap])\.?m\.?/i, (_, p) => ` ${p.toUpperCase()}M`);
 }
 
-function overlaps(a, b) {
-  return new Date(a.start) < new Date(b.end) && new Date(b.start) < new Date(a.end);
-}
-
 /**
  * Google descriptions arrive as HTML with boilerplate (Meet links, "view your
  * event at..."). Pull the first line that's actually a human note.
@@ -136,54 +132,17 @@ export async function collectCalendar(config, { force = false } = {}) {
     });
   }
 
-  // --- derived: same-day collisions, which no single event can tell you ---
-  const timed = events.filter((e) => !e.allDay);
-  const seenPair = new Set();
-  for (let i = 0; i < timed.length; i++) {
-    for (let j = i + 1; j < timed.length; j++) {
-      const a = timed[i], b = timed[j];
-      if (dayKey(a.start, tz) !== dayKey(b.start, tz)) continue;
-      if (!overlaps(a, b)) continue;
-      const pair = [a.id, b.id].sort().join("|");
-      if (seenPair.has(pair)) continue;
-      seenPair.add(pair);
-
-      // The overlap window itself — where the two events actually collide,
-      // not either one's own start, and not a guessed duration. Every other
-      // item's dueAt/meta.start/meta.end in this file is the plain ISO
-      // string Google itself hands back (see lib/google.js's
-      // `start: e.start?.dateTime || e.start?.date`) — .toISOString() here
-      // keeps this item the same shape. Handing store.js a raw Date object
-      // instead breaks on the very next refresh: it's bound straight into a
-      // SQLite parameter (lib/store.js's `INSERT INTO items ... dueAt ...`),
-      // and node:sqlite accepts only string/number/bigint/buffer/null there
-      // — a Date object fails with exactly "cannot be bound to SQLite
-      // parameter 4", dueAt being the 4th column in that insert.
-      const overlapStart = new Date(Math.max(new Date(a.start), new Date(b.start))).toISOString();
-      const overlapEnd = new Date(Math.min(new Date(a.end), new Date(b.end))).toISOString();
-
-      items.push({
-        id: itemId("calendar", `conflict:${pair}`),
-        source: "calendar",
-        kind: "conflict",
-        title: `${a.summary} overlaps ${b.summary}`,
-        detail: `${timeLabel(a.start, tz)} and ${timeLabel(b.start, tz)} · same day`,
-        url: a.htmlLink,
-        dueAt: overlapStart,
-        category: "conflict",
-        categoryLabel: "Clash",
-        categoryWeight: 46,
-        domain: deriveDomain({ title: `${a.summary} ${b.summary}`, category: null }, config),
-        swatch: "conflict",
-        unmissable: true,
-        emphasised: false,
-        tier: "conflict",
-        reasons: ["two events overlap"],
-        contentHash: contentHash({ a: a.start, b: b.start, x: a.summary, y: b.summary }),
-        meta: { conflict: true, start: overlapStart, end: overlapEnd },
-      });
-    }
-  }
+  // A same-day-collision detector used to live here: a synthetic "X overlaps
+  // Y" item per overlapping pair, meant to highlight the clash on the day
+  // strip. It went through three rounds trying to make that highlight read
+  // clearly on screen — sized to the real overlap window, excluded from the
+  // NOW/NEXT hero and "Rest of today", excluded from the week page's
+  // eventCount — and along the way it also crashed a live refresh entirely
+  // (a raw Date object where every other item carries a plain ISO string,
+  // bound straight into a SQLite parameter). Retired rather than patched a
+  // fourth time: the two real events it was describing already show their
+  // own overlap by literally overlapping on the strip, which is the whole
+  // reason the block-separator seam and the tap/hover card exist.
 
   if (missing.length) {
     items.push({

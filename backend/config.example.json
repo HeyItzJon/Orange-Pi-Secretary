@@ -411,12 +411,11 @@
       "personal": "personal",
       "system": "personal"
     },
-    "_fromCategory_note": "Categories that are about IMPORTANCE rather than subject (critical, important, deadline, conflict) are deliberately absent \u2014 they should never decide a lane, so those items fall through to pattern matching."
+    "_fromCategory_note": "Categories that are about IMPORTANCE rather than subject (critical, important, deadline) are deliberately absent \u2014 they should never decide a lane, so those items fall through to pattern matching."
   },
   "ranking": {
     "_comment": "Added on top of the category weight to produce one score per item. Every contribution is recorded on the item as _rankWhy, so you can always see why something ranked where it did.",
     "needsReplyBoost": 12,
-    "conflictBoost": 14,
     "emphasisBoost": 15,
     "_emphasisBoost_note": "You write things in CAPS when they matter. A title that is \u226570% uppercase (and longer than 3 letters) gets this, so your own convention is respected without listing any specific event.",
     "unmissableBoost": 10,
