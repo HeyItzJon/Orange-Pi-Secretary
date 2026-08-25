@@ -773,7 +773,7 @@ function ago(iso) {
  * header refresh button already reruns everything, and that's always what
  * should happen.
  */
-function SourcePanel({ onClose, report }) {
+function SourcePanel({ onClose, report, refreshing }) {
   const [rows, setRows] = useState(null);
 
   const load = useCallback(async () => {
@@ -783,7 +783,15 @@ function SourcePanel({ onClose, report }) {
     } catch { setRows({ sources: [], feeds: [] }); }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // The header's refresh button opens this panel the instant it's clicked
+  // (see refresh() below), before the actual refresh has run — so a fetch
+  // on mount alone was capturing each source's lastRun from BEFORE the
+  // refresh, and nothing here ever asked again once it finished, which is
+  // why every row kept reading "3m ago" instead of "just now" even after
+  // the refresh completed. Re-fetching whenever `refreshing` flips back to
+  // false (the refresh just finished) fixes that, on top of the existing
+  // fetch on mount for when this panel is opened on its own, refresh idle.
+  useEffect(() => { load(); }, [load, refreshing]);
 
   return (
     <div className="panel" onClick={(e) => e.stopPropagation()}>
@@ -1058,7 +1066,7 @@ export default function Display() {
         </button>
       </footer>
 
-      {panel && <SourcePanel report={report} onClose={() => setPanel(false)} />}
+      {panel && <SourcePanel report={report} refreshing={refreshing} onClose={() => setPanel(false)} />}
     </div>
   );
 }
