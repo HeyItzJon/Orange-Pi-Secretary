@@ -213,8 +213,17 @@ export async function getEvents(calendars, { timeMin, timeMax, maxResults = 50 }
       }));
   });
 
-  return chunks
-    .filter(Boolean)
-    .flat()
-    .sort((a, b) => new Date(a.start) - new Date(b.start));
+  // pool() swallows a per-calendar failure and leaves that slot null (see
+  // pool() above) rather than throwing — one calendar's timeout must never
+  // take the whole pull down. But a null slot is indistinguishable from "this
+  // calendar genuinely has zero events right now" unless it's reported back:
+  // collectCalendar() uses "an event that used to come back but didn't this
+  // time" to detect a real deletion, and treating a failed fetch the same
+  // way would read every event on that calendar as deleted.
+  const failedCalendarIds = calendars.filter((cal, i) => chunks[i] === null).map((c) => c.id);
+
+  return {
+    events: chunks.filter(Boolean).flat().sort((a, b) => new Date(a.start) - new Date(b.start)),
+    failedCalendarIds,
+  };
 }

@@ -16,6 +16,7 @@ import { logger } from "../lib/log.js";
 import { resolveCalendars, getEvents } from "../lib/google.js";
 import { itemId, contentHash } from "../lib/ids.js";
 import { categorise, deriveDomain, isEmphasised, isEmailLike, calendarSwatch, durationLabel } from "../lib/classify.js";
+import { allItems, patchItem } from "../lib/store.js";
 
 const log = logger("calendar");
 
@@ -74,8 +75,12 @@ export async function collectCalendar(config, { force = false } = {}) {
   const timeMin = new Date(now.getTime() - 2 * 3600000); // catch events already running
   const timeMax = new Date(now.getTime() + horizonDays * 86400000);
 
-  const events = await getEvents(matched, { timeMin, timeMax });
+  const { events, failedCalendarIds } = await getEvents(matched, { timeMin, timeMax });
   log.info(`${events.length} events over ${horizonDays} days`);
+  if (failedCalendarIds.length) {
+    const names = matched.filter((c) => failedCalendarIds.includes(c.id)).map((c) => c.summary);
+    log.warn(`fetch failed for: ${names.join(", ")} — skipping deletion cleanup for them this round`);
+  }
 
   const todayKey = dayKey(now, tz);
   const items = [];
@@ -143,6 +148,33 @@ export async function collectCalendar(config, { force = false } = {}) {
   // fourth time: the two real events it was describing already show their
   // own overlap by literally overlapping on the strip, which is the whole
   // reason the block-separator seam and the tap/hover card exist.
+
+  // Reconcile: an event that's gone from Google (deleted, or moved off a
+  // matched calendar) needs to stop showing here too, not linger forever —
+  // nothing before this ever removed a calendar item once it was written, so
+  // a deleted event stayed "open" and due in the future permanently. Only
+  // reconcile against calendars that actually returned fresh data this round
+  // (see failedCalendarIds above) — a calendar that failed to fetch must
+  // never be read as "every one of its events just got deleted".
+  const okCalendarNames = new Set(
+    matched
+      .filter((c) => !failedCalendarIds.includes(c.id))
+      .map((c) => (isEmailLike(c.summary) ? "Personal" : c.summary))
+  );
+  if (okCalendarNames.size) {
+    const liveIds = new Set(items.map((i) => i.id));
+    const stored = await allItems();
+    for (const prev of stored) {
+      if (prev.source !== "calendar" || prev.kind === "system") continue;
+      if (prev.status === "done" || prev.status === "dismissed") continue;
+      if (!prev.dueAt || !okCalendarNames.has(prev.meta?.calendarName)) continue;
+      const dueTime = new Date(prev.dueAt).getTime();
+      if (dueTime < timeMin.getTime() || dueTime > timeMax.getTime()) continue;
+      if (liveIds.has(prev.id)) continue;
+      await patchItem(prev.id, { status: "dismissed" });
+      log.info(`"${prev.title}" no longer on the calendar — marked dismissed`);
+    }
+  }
 
   if (missing.length) {
     items.push({
