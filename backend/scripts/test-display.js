@@ -718,4 +718,112 @@ test("buildDisplay wires week in as a badge-less page", () => {
   assert.equal(page.badge, null);
 });
 
+// ====================================================================
+// Google's actual all-day payload: a bare "YYYY-MM-DD" string, with no
+// dateTime, no time, no offset (see lib/google.js's getEvents(): `start:
+// e.start?.dateTime || e.start?.date`). at()/dayAt() above build full ISO
+// datetimes with the Toronto offset already baked in, which is NOT what a
+// real all-day event's dueAt looks like — every test above them exercised
+// a shape the real bug never touched. new Date("2026-08-19") parses as UTC
+// midnight; converting that instant to America/Toronto (UTC-4 in August)
+// lands on Aug 18, one day early. These tests use the literal bare strings
+// to reproduce Jon's actual report: an all-day item due "today" (Aug 19)
+// and one due "Thursday" (Aug 20, i.e. tomorrow in this fixture) both
+// failed to show up, and a couple showed up on the wrong day entirely.
+group("all-day events as Google actually sends them (bare YYYY-MM-DD dates)");
+
+const TODAY_STR = "2026-08-19";   // NOW is Aug 19, 12:20 PM Toronto
+const THURS_STR = "2026-08-20";   // tomorrow in this fixture — stands in for Jon's "Thursday"
+const FRIDAY_STR = "2026-08-21";
+const FAR_STR = "2026-08-24";     // Monday, past the 3-day day-card window (config.display.days = 3)
+
+test("a bare-date all-day event due today shows up as a strip chip", () => {
+  const items = [ev({ id: "dw", title: "Don't wanna", dueAt: TODAY_STR, meta: { allDay: true } })];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(strip.allDay.map((c) => c.title), ["Don't wanna"],
+    "a bare date string for TODAY must not be read as yesterday");
+});
+
+test("a bare-date all-day event due today shows up in rest-of-today, and doesn't steal the hero's NOW/NEXT", () => {
+  const items = [
+    ev({ id: "dw", title: "Don't wanna", dueAt: TODAY_STR, meta: { allDay: true } }),
+    ev({ id: "shift", title: "Shift", dueAt: at(17, 30), meta: { end: at(18, 15) } }),
+  ];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.ok(d.today.some((i) => i.title === "Don't wanna" && i.time === "all day"),
+    "today's all-day item belongs in the rest-of-today list");
+  assert.equal(d.hero.kind, "later");
+  assert.match(d.hero.lead, /Shift/, "the hero's NEXT must be the real timed event, not the all-day chip");
+});
+
+test("with only an all-day event today and nothing timed, the hero still reads clear rather than crashing on a fake NEXT", () => {
+  const items = [ev({ id: "dw", title: "Don't wanna", dueAt: TODAY_STR, meta: { allDay: true } })];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.equal(d.hero.kind, "clear");
+});
+
+test("a bare-date all-day event due tomorrow (Jon's 'Thursday') lands on the correct week-view day badge, not the day before", () => {
+  const items = [ev({ id: "pd", title: "Payday", dueAt: THURS_STR, meta: { allDay: true } })];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.equal(d.week.days[0].allDay.length, 0, "must not leak backward onto today");
+  assert.deepEqual(d.week.days[1].allDay.map((c) => c.title), ["Payday"], "Tomorrow's badge is where it belongs");
+});
+
+test("a recurring bare-date all-day event on a later day also lands correctly", () => {
+  const items = [ev({ id: "pd2", title: "Payday", dueAt: FRIDAY_STR, meta: { allDay: true, recurring: true } })];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(d.week.days[2].allDay.map((c) => c.title), ["Payday"]);
+  assert.equal(d.week.days[1].allDay.length, 0);
+});
+
+test("weekForecast's looming counts a bare-date all-day item as due tomorrow, not today (off-by-one guard)", () => {
+  const tasks = [ev({ id: "pd", title: "Payday", dueAt: THURS_STR, meta: { allDay: true } })];
+  const w = weekForecast([], tasks, { now: NOW, tz: TZ, days: 7 });
+  assert.equal(w.looming.length, 1);
+  assert.equal(w.looming[0].in, "tomorrow");
+});
+
+test("weekForecast's looming counts a bare-date all-day item due today as due today, not yesterday", () => {
+  const tasks = [ev({ id: "dw", title: "Don't wanna", dueAt: TODAY_STR, meta: { allDay: true } })];
+  const w = weekForecast([], tasks, { now: NOW, tz: TZ, days: 7 });
+  assert.equal(w.looming.length, 1, "must still be inside the window, not excluded as already-past");
+  assert.equal(w.looming[0].in, "today");
+});
+
+test("buildTasks buckets a bare-date all-day item due today as 'today', not 'overdue'", () => {
+  const t = buildTasks([
+    task({ id: "dw", source: "calendar", meta: { allDay: true }, title: "Don't wanna", dueAt: TODAY_STR }),
+  ], { now: NOW, tz: TZ, config });
+  const today = t.groups.find((g) => g.key === "today");
+  assert.equal(today.items.length, 1);
+  assert.equal(today.items[0].title, "Don't wanna");
+});
+
+test("buildTasks buckets a bare-date all-day item due tomorrow as 'week', not 'today'", () => {
+  const t = buildTasks([
+    task({ id: "pd", source: "calendar", meta: { allDay: true }, title: "Payday", dueAt: THURS_STR }),
+  ], { now: NOW, tz: TZ, config });
+  const week = t.groups.find((g) => g.key === "week");
+  assert.equal(week.items.length, 1);
+  assert.equal(week.items[0].title, "Payday");
+  assert.equal(t.groups.find((g) => g.key === "today"), undefined,
+    "empty groups are dropped, not left in as empty — 'today' must not appear at all");
+});
+
+test("the Tasks-page sidebar (deadlines) picks up a bare-date all-day item beyond the day-card window and labels it correctly", () => {
+  // Within config.display.days (3), a calendar event already appears on its
+  // own day card, so `deadlines` correctly excludes it via shownIds — this
+  // uses a date past that window to test deadlines itself, not the day cards.
+  const items = [ev({ id: "pd", title: "Tuition", dueAt: FAR_STR, meta: { allDay: true } })];
+  const d = buildDisplay({ items, config, now: NOW });
+  const found = d.deadlines.find((x) => x.title === "Tuition");
+  assert.ok(found, "must appear in the deadlines sidebar at all");
+  assert.equal(found.in, "5 days", "Aug 24 is 5 days after Aug 19, not 4 (the old off-by-one)");
+});
+
+test("dayKey() itself: a bare date string is returned as-is, never shifted a day earlier by timezone conversion", () => {
+  assert.equal(dayKey(TODAY_STR, TZ), TODAY_STR);
+  assert.equal(dayKey(THURS_STR, TZ), THURS_STR);
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);

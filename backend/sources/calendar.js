@@ -21,6 +21,13 @@ import { allItems, patchItem } from "../lib/store.js";
 const log = logger("calendar");
 
 export function dayKey(date, timeZone) {
+  // All-day events arrive from Google as a bare "YYYY-MM-DD" string (no time,
+  // no offset). new Date() on that parses as UTC midnight, and converting
+  // that instant to a timeZone behind UTC (e.g. America/Toronto) lands on the
+  // PREVIOUS calendar day — the string is already the answer, so return it
+  // as-is rather than round-tripping it through Date. Same bug/fix as
+  // brief/display.js's dayKey().
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   return new Intl.DateTimeFormat("en-CA", {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date(date));

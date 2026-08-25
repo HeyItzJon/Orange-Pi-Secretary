@@ -38,12 +38,32 @@ export function hourOfDay(date, timeZone) {
 }
 
 export function dayKey(date, timeZone) {
+  // An all-day calendar event arrives from Google as a bare "YYYY-MM-DD" —
+  // already the calendar day itself, not an instant in time (there's no
+  // hour, no offset, nothing to place on a clock). Handing that straight to
+  // `new Date(...)` parses it as UTC midnight, which — the moment this
+  // timezone sits behind UTC, which Toronto always does — lands on the
+  // PREVIOUS local day: "2026-08-27" becomes 2026-08-26, 8pm Toronto (EDT),
+  // so an all-day event due today read as due yesterday and simply
+  // vanished (nothing shows "yesterday" anywhere). The string already IS
+  // the answer for a bare date; this only reinterprets it through a
+  // timezone when there's an actual instant to reinterpret.
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
   return new Intl.DateTimeFormat("en-CA", {
     timeZone, year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date(date));
 }
 
 function fmt(date, timeZone, opts) {
+  // Same bare-date case dayKey() guards against, for the same reason: a
+  // calendar-only "YYYY-MM-DD" (an all-day event's dueAt) has no instant to
+  // place in `timeZone` — running it through one anyway is what read
+  // "2026-08-27" back as Aug 26 the moment the zone sits behind UTC.
+  // Formatted in UTC instead, the same Y-M-D comes back unchanged, since
+  // there's no conversion left to do.
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", ...opts }).format(new Date(`${date}T00:00:00Z`));
+  }
   return new Intl.DateTimeFormat("en-CA", { timeZone, ...opts }).format(new Date(date));
 }
 
@@ -130,6 +150,36 @@ function allDayChip(e) {
 function sortAllDay(list) {
   const rank = (e) => (e.unmissable ? 0 : e.emphasised ? 1 : 2);
   return [...list].sort((a, b) => rank(a) - rank(b) || String(a.title).localeCompare(String(b.title)));
+}
+
+/**
+ * Whether a calendar item still counts as "to come" as of `now`. A timed
+ * item has an actual instant to compare against — unchanged, plain instant
+ * comparison. An all-day item doesn't: its `dueAt` is a bare calendar date
+ * (see dayKey() above), so comparing it against the current instant reads
+ * it as "already past" for basically the entire day it's actually due on —
+ * a bare "2026-08-27" parses to UTC midnight, which is already hours
+ * behind "now" by the time anyone in Toronto is awake to look. An all-day
+ * item stays "to come" for its whole calendar day instead, exactly the way
+ * it already reads on screen ("all day", not a time that can pass).
+ */
+function isUpcoming(item, now, tz) {
+  if (item.meta?.allDay) return dayKey(item.dueAt, tz) >= dayKey(now, tz);
+  return new Date(item.dueAt) > now;
+}
+
+/**
+ * How many calendar days away an all-day item's `dueAt` is, as a real day
+ * count rather than a millisecond division — the same class of fix as
+ * dayKey() above, for the same reason: a bare date has no instant for
+ * subtraction to be meaningful against. Both sides are re-anchored to UTC
+ * midnight of their OWN already-correct calendar day (see dayKey()), so the
+ * division below is always an exact multiple of a day.
+ */
+function allDayDaysAway(dueAt, now, tz) {
+  const from = new Date(`${dayKey(now, tz)}T00:00:00Z`).getTime();
+  const to = new Date(`${dayKey(dueAt, tz)}T00:00:00Z`).getTime();
+  return Math.round((to - from) / DAY);
 }
 
 /** Where a block sits in the day, in words. */
@@ -442,10 +492,10 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
 
   const windowEnd = now.getTime() + days * DAY;
   const looming = tasks
-    .filter((i) => i.dueAt && new Date(i.dueAt) > now && new Date(i.dueAt).getTime() <= windowEnd)
+    .filter((i) => i.dueAt && isUpcoming(i, now, tz) && new Date(i.dueAt).getTime() <= windowEnd)
     .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
     .map((i) => {
-      const dLeft = Math.round((new Date(i.dueAt) - now) / DAY);
+      const dLeft = i.meta?.allDay ? allDayDaysAway(i.dueAt, now, tz) : Math.round((new Date(i.dueAt) - now) / DAY);
       return {
         id: i.id,
         title: i.title,
@@ -474,7 +524,9 @@ export function buildTasks(live, { now, tz, config = {}, priorities = [] }) {
 
     {
       const dueAt = item.dueAt || null;
-      const daysOut = dueAt ? Math.floor((new Date(dueAt) - now) / DAY) : null;
+      const daysOut = dueAt
+        ? (item.meta?.allDay ? allDayDaysAway(dueAt, now, tz) : Math.floor((new Date(dueAt) - now) / DAY))
+        : null;
       const pick = picks.get(item.id) || null;
       rows.push({
         id: item.id,
@@ -713,8 +765,12 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const running = todays.find(
     (e) => !e.meta?.allDay && e.meta?.end && new Date(e.dueAt) <= now && new Date(e.meta.end) > now
   );
-  const upcoming = todays.filter((e) => new Date(e.dueAt) > now);
-  const next = upcoming[0] || null;
+  const upcoming = todays.filter((e) => isUpcoming(e, now, tz));
+  // All-day items have no real clock time, so they can't drive the hero's
+  // "next"/"soon" math — skip past them for that, while still keeping them
+  // in `upcoming`/`today` below (that's what surfaces them in "rest of
+  // today").
+  const next = upcoming.find((e) => !e.meta?.allDay) || null;
 
   let hero;
   if (running) {
@@ -786,11 +842,11 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   // ------------------------------------------------------------ deadlines
   const shownIds = new Set([...todays.map((e) => e.id), ...days.flatMap((d) => d.items.map((i) => i.id))]);
   const deadlines = live
-    .filter((i) => i.dueAt && !shownIds.has(i.id) && new Date(i.dueAt) > now && i.kind !== "system")
+    .filter((i) => i.dueAt && !shownIds.has(i.id) && isUpcoming(i, now, tz) && i.kind !== "system")
     .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
     .slice(0, maxDeadlines)
     .map((i) => {
-      const dLeft = Math.round((new Date(i.dueAt) - now) / DAY);
+      const dLeft = i.meta?.allDay ? allDayDaysAway(i.dueAt, now, tz) : Math.round((new Date(i.dueAt) - now) / DAY);
       return {
         id: i.id,
         in: dLeft <= 0 ? "today" : dLeft === 1 ? "tomorrow" : `${dLeft} days`,
