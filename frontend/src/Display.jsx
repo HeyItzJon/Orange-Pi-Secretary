@@ -114,21 +114,31 @@ function TodayHeader({ dateLabel, timeZone, daysAhead = 0 }) {
   );
 }
 
+// A 12-hour clock face means the hour hand completes one full turn every 12
+// real hours — so representing one full day (24 hours) passing takes TWO
+// full turns, not one. The first version of this spin moved every hand by
+// one flat 360deg per day, which is why Jon said it didn't read as real
+// time travel: a minute or second hand spinning once for an entire day, or
+// an hour hand doing only a single turn for 24 hours, doesn't match how
+// this clock face actually works.
+const HOUR_SPIN_DEG_PER_DAY = 720;
+
 /**
  * A genuine rotating analog clock — hour/minute/second hands, ticking every
  * second. Always real, local time; see TodayHeader above.
  *
  * Bonus Jon asked for: when `daysAhead` changes (the carousel just paged to
- * a different day), the hands do one quick extra spin — forward when
- * paging further out, backward when paging back toward today — like a
+ * a different day), the HOUR hand — only the hour hand, per Jon; the
+ * minute/second hands stay on real time throughout — does two quick extra
+ * turns per day moved (see HOUR_SPIN_DEG_PER_DAY above), forward when paging
+ * further out and backward when paging back toward today, like a
  * time-travel montage, before settling back on the real current time.
  * `travelSpin` is a purely decorative extra degrees-offset added on top of
- * the real hourDeg/minDeg/secDeg below: it's snapped to a starting position
- * with NO transition, then eased back to 0 WITH one — the classic
- * "flush a style, then animate" double-rAF trick, since setting a new
- * transform and turning on a transition in the same tick just animates
- * from whatever the hand's old position happened to be, not from the
- * jumping-off point this needs.
+ * the real hourDeg below: it's snapped to a starting position with NO
+ * transition, then eased back to 0 WITH one — the classic "flush a style,
+ * then animate" double-rAF trick, since setting a new transform and turning
+ * on a transition in the same tick just animates from whatever the hand's
+ * old position happened to be, not from the jumping-off point this needs.
  */
 function AnalogClock({ timeZone, daysAhead = 0 }) {
   const [now, setNow] = useState(() => new Date());
@@ -147,11 +157,11 @@ function AnalogClock({ timeZone, daysAhead = 0 }) {
     prevDaysAhead.current = daysAhead;
     if (!delta) return;
 
-    setTraveling(false);          // no transition for this jump...
-    setTravelSpin(-360 * delta);  // ...land the hands one full turn "behind" per day moved
+    setTraveling(false);                                  // no transition for this jump...
+    setTravelSpin(-HOUR_SPIN_DEG_PER_DAY * delta);          // ...land the hour hand two turns "behind" per day moved
     const raf1 = requestAnimationFrame(() => {
       rafRef.current = requestAnimationFrame(() => {
-        setTraveling(true);       // ...then ease back to 0 — the extra turn plays out as a spin
+        setTraveling(true);       // ...then ease back to 0 — the extra turns play out as a spin
         setTravelSpin(0);
       });
     });
@@ -168,10 +178,14 @@ function AnalogClock({ timeZone, daysAhead = 0 }) {
   const h = Number(parts.hour) % 12;
   const m = Number(parts.minute);
   const s = Number(parts.second);
+  // Only the hour hand carries travelSpin — the minute and second hands stay
+  // on real time throughout the spin, per Jon (having them wheel around
+  // once for an entire day made the effect read as gimmicky rather than
+  // like real time passing).
   const hourDeg = h * 30 + m * 0.5 + travelSpin;
-  const minDeg = m * 6 + s * 0.1 + travelSpin;
-  const secDeg = s * 6 + travelSpin;
-  const handClass = traveling ? " traveling" : "";
+  const minDeg = m * 6 + s * 0.1;
+  const secDeg = s * 6;
+  const hourClass = traveling ? " traveling" : "";
 
   return (
     <div className="aclock" title={liveClockLabel(now, timeZone)}>
@@ -179,9 +193,9 @@ function AnalogClock({ timeZone, daysAhead = 0 }) {
         {Array.from({ length: 12 }).map((_, i) => (
           <span key={i} className={`aclock-tick${i % 3 === 0 ? " major" : ""}`} style={{ transform: `rotate(${i * 30}deg)` }} />
         ))}
-        <div className={`aclock-hand hour${handClass}`} style={{ transform: `rotate(${hourDeg}deg)` }} />
-        <div className={`aclock-hand min${handClass}`} style={{ transform: `rotate(${minDeg}deg)` }} />
-        <div className={`aclock-hand sec${handClass}`} style={{ transform: `rotate(${secDeg}deg)` }} />
+        <div className={`aclock-hand hour${hourClass}`} style={{ transform: `rotate(${hourDeg}deg)` }} />
+        <div className="aclock-hand min" style={{ transform: `rotate(${minDeg}deg)` }} />
+        <div className="aclock-hand sec" style={{ transform: `rotate(${secDeg}deg)` }} />
         <div className="aclock-hub" />
       </div>
       {/* The digital readout used to sit here as its own line — Jon asked
@@ -1002,7 +1016,9 @@ function WeekPage({ d, onGoToDay }) {
     } else {
       if (farTimer.current) clearTimeout(farTimer.current);
       setFarNotice(true);
-      farTimer.current = setTimeout(() => setFarNotice(false), 1800);
+      // Jon: give it breathing room to actually read — doubled from the
+      // original 1.8s.
+      farTimer.current = setTimeout(() => setFarNotice(false), 3600);
     }
   };
 

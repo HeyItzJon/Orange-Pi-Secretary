@@ -910,4 +910,60 @@ test("dayKey() itself: a bare date string is returned as-is, never shifted a day
   assert.equal(dayKey(THURS_STR, TZ), THURS_STR);
 });
 
+// ====================================================================
+// Jon: "I see that payday is never shown on Thursday" — traced to every
+// day-matching filter comparing an all-day event's dueAt against a single
+// day, when Google's all-day events (per calendar.js) always carry an
+// EXCLUSIVE end date too, even single-day ones. A start-only match happens
+// to work for a single-day event (its own day is the only day it could
+// match) but silently drops a genuinely multi-day all-day event — a trip,
+// a conference, a multi-day reminder some calendar sync created — from
+// every day after its first. eventOnDay() (unexported, exercised here only
+// through buildDisplay/weekForecast) is the fix: a real range check against
+// meta.end rather than a plain equality against dueAt alone.
+group("multi-day all-day events (Google's exclusive end date)");
+
+test("a 2-day all-day event shows on BOTH days it covers, not just its start day", () => {
+  // Aug 19 (today) through Aug 21 EXCLUSIVE — Google's convention — covers
+  // Aug 19 and Aug 20 only, not Aug 21.
+  const items = [ev({ id: "conf", title: "Conference", dueAt: TODAY_STR, meta: { allDay: true, end: FRIDAY_STR } })];
+  const { strip, dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(strip.allDay.map((c) => c.title), ["Conference"], "today, its first day");
+  assert.deepEqual(dayStrips[0].allDay.map((c) => c.title), ["Conference"], "tomorrow, its second day");
+});
+
+test("...but stops exactly at its exclusive end date — the day after must not also show it", () => {
+  const items = [ev({ id: "conf", title: "Conference", dueAt: TODAY_STR, meta: { allDay: true, end: FRIDAY_STR } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[1].allDay.length, 0, "Friday is the exclusive end date — the event doesn't reach it");
+});
+
+test("a single-day all-day event (end = start + 1 day, Google's normal case) still shows on exactly one day", () => {
+  const items = [ev({ id: "pd", title: "Payday", dueAt: THURS_STR, meta: { allDay: true, end: FRIDAY_STR } })];
+  const { strip, dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.allDay.length, 0, "must not leak backward onto today");
+  assert.deepEqual(dayStrips[0].allDay.map((c) => c.title), ["Payday"], "shows once, on its own day");
+  assert.equal(dayStrips[1].allDay.length, 0, "must not leak forward past its own day");
+});
+
+test("an all-day item with no meta.end at all (defensive fallback) still matches its single start day", () => {
+  const items = [ev({ id: "pd", title: "Payday", dueAt: THURS_STR, meta: { allDay: true } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(dayStrips[0].allDay.map((c) => c.title), ["Payday"]);
+});
+
+test("a multi-day all-day event appears on the Week page's badge for every day it spans", () => {
+  const items = [ev({ id: "conf", title: "Conference", dueAt: TODAY_STR, meta: { allDay: true, end: FRIDAY_STR } })];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(d.week.days[0].allDay.map((c) => c.title), ["Conference"], "today");
+  assert.deepEqual(d.week.days[1].allDay.map((c) => c.title), ["Conference"], "tomorrow");
+  assert.equal(d.week.days[2].allDay.length, 0, "Friday is past the event's exclusive end date");
+});
+
+test("a multi-day all-day event appears in the 'next N days' text list on every day it spans, not just the first", () => {
+  const items = [ev({ id: "conf", title: "Conference", dueAt: TODAY_STR, meta: { allDay: true, end: FRIDAY_STR } })];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.ok(d.days[0].items.some((i) => i.title === "Conference"), "tomorrow's day card");
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);

@@ -182,6 +182,32 @@ function allDayDaysAway(dueAt, now, tz) {
   return Math.round((to - from) / DAY);
 }
 
+/**
+ * Whether a calendar item actually occupies a given calendar day — the
+ * check every "what's on day X" filter below needs, and the one every one
+ * of them got wrong until now: they compared `dayKey(e.dueAt) === key`,
+ * which only ever matches an event's FIRST day. That's correct for a timed
+ * event (it has one real instant, so one real day) and for a single-day
+ * all-day event — but Google's all-day events always carry an EXCLUSIVE
+ * end date, even single-day ones ("Aug 27" is start=2026-08-27,
+ * end=2026-08-28), and a genuine multi-day all-day event (a trip, a
+ * conference, a multi-day reminder some banking/calendar sync created) has
+ * that end further out still. Matching start alone meant a multi-day
+ * all-day event rendered on its first day and then silently vanished from
+ * every day it was still supposed to cover — nothing "deleted" it, nothing
+ * errored, it just never matched again. Range-checking against meta.end
+ * (falling back to a single-day match if an item somehow has none) fixes
+ * every call site that was doing the narrower check: the main day strip,
+ * the forward carousel's dayStrips, the Week page's per-day badge, and the
+ * "next N days" text list all funnel through here now.
+ */
+function eventOnDay(e, key, tz) {
+  const startKey = dayKey(e.dueAt, tz);
+  if (!e.meta?.allDay || !e.meta?.end) return startKey === key;
+  const endKey = dayKey(e.meta.end, tz); // exclusive
+  return key >= startKey && key < endKey;
+}
+
 /** Where a block sits in the day, in words. */
 const CHUNKS = [
   { label: "Morning", from: 0, to: 12 },
@@ -564,7 +590,7 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
     // quietly carrying a deadline was the actual gap: this is what a small
     // per-day badge renders from, so that day at least SAYS it isn't empty.
     const dayAllDay = sortAllDay(
-      events.filter((e) => e.meta?.allDay && dayKey(e.dueAt, tz) === key)
+      events.filter((e) => e.meta?.allDay && eventOnDay(e, key, tz))
     ).map(allDayChip);
 
     // Clip each event to the waking window — kept as its own {start, end,
@@ -769,7 +795,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     .filter((i) => i.source === "calendar" && i.dueAt && i.kind !== "system")
     .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
 
-  const todays = events.filter((e) => dayKey(e.dueAt, tz) === todayKey);
+  const todays = events.filter((e) => eventOnDay(e, todayKey, tz));
 
   // ---------------------------------------------------------------- strip
   // A day-shaped window: 7am to 11pm covers an ordinary day without wasting
@@ -795,7 +821,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   for (let n = 1; n <= 3; n++) {
     const d = new Date(now.getTime() + n * DAY);
     const key = dayKey(d, tz);
-    const dayEvents = events.filter((e) => dayKey(e.dueAt, tz) === key);
+    const dayEvents = events.filter((e) => eventOnDay(e, key, tz));
     dayStrips.push({
       key,
       label: n === 1 ? "Tomorrow" : fmt(d, tz, { weekday: "long" }),
@@ -864,7 +890,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     const d = new Date(now.getTime() + n * DAY);
     const key = dayKey(d, tz);
     const dayEvents = events
-      .filter((e) => dayKey(e.dueAt, tz) === key)
+      .filter((e) => eventOnDay(e, key, tz))
       .map((e) => ({
         id: e.id,
         time: e.meta?.allDay ? "all day" : clockLabel(e.dueAt, tz),
