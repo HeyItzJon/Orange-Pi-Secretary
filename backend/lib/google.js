@@ -187,10 +187,24 @@ export async function resolveCalendars(targetNames, { force = false } = {}) {
   return { matched, missing, available: all.map((c) => c.summary) };
 }
 
-export async function getEvents(calendars, { timeMin, timeMax, maxResults = 50 }) {
-  const token = await getAccessToken();
-
-  const chunks = await pool(calendars, 4, async (cal) => {
+/**
+ * One calendar's events over [timeMin, timeMax], paginated to completion.
+ * Google caps a single events.list response at `maxResults` regardless of
+ * how many events actually match the window — the old code read page 1 and
+ * stopped, so any calendar carrying more than `maxResults` events in the
+ * horizon silently lost everything past that cutoff. That's a plausible
+ * reason an all-day event (or anything else) can just never show up: not
+ * corrupted, not misdated, just past the first page and never fetched.
+ * `pages < hardCap` is purely a runaway-loop backstop against a
+ * pathological response that keeps handing back a token forever — it is
+ * not expected to bind for an ordinary personal calendar over ~2 weeks.
+ */
+async function fetchCalendarEvents(cal, { timeMin, timeMax, token, maxResults }) {
+  const items = [];
+  let pageToken;
+  let pages = 0;
+  const hardCap = 20;
+  do {
     const data = await authed(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(cal.id)}/events`,
       {
@@ -199,28 +213,41 @@ export async function getEvents(calendars, { timeMin, timeMax, maxResults = 50 }
         singleEvents: true,
         orderBy: "startTime",
         maxResults,
+        ...(pageToken ? { pageToken } : {}),
       },
       token
     );
-    return (data.items || [])
-      .filter((e) => e.status !== "cancelled")
-      .map((e) => ({
-        id: e.id,
-        calendarId: cal.id,
-        calendarName: cal.summary,
-        calendarColor: cal.color || null,
-        summary: e.summary || "(no title)",
-        description: e.description || "",
-        location: e.location || "",
-        htmlLink: e.htmlLink || "",
-        allDay: Boolean(e.start?.date),
-        start: e.start?.dateTime || e.start?.date,
-        end: e.end?.dateTime || e.end?.date,
-        attendees: e.attendees?.length || 0,
-        recurringEventId: e.recurringEventId || null,
-        updated: e.updated || "",
-      }));
-  });
+    items.push(...(data.items || []));
+    pageToken = data.nextPageToken;
+    pages++;
+  } while (pageToken && pages < hardCap);
+
+  return items
+    .filter((e) => e.status !== "cancelled")
+    .map((e) => ({
+      id: e.id,
+      calendarId: cal.id,
+      calendarName: cal.summary,
+      calendarColor: cal.color || null,
+      summary: e.summary || "(no title)",
+      description: e.description || "",
+      location: e.location || "",
+      htmlLink: e.htmlLink || "",
+      allDay: Boolean(e.start?.date),
+      start: e.start?.dateTime || e.start?.date,
+      end: e.end?.dateTime || e.end?.date,
+      attendees: e.attendees?.length || 0,
+      recurringEventId: e.recurringEventId || null,
+      updated: e.updated || "",
+    }));
+}
+
+export async function getEvents(calendars, { timeMin, timeMax, maxResults = 250 }) {
+  const token = await getAccessToken();
+
+  const chunks = await pool(calendars, 4, async (cal) =>
+    fetchCalendarEvents(cal, { timeMin, timeMax, token, maxResults })
+  );
 
   // pool() swallows a per-calendar failure and leaves that slot null (see
   // pool() above) rather than throwing — one calendar's timeout must never

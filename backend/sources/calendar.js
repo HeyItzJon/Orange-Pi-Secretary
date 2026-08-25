@@ -79,7 +79,22 @@ export async function collectCalendar(config, { force = false } = {}) {
   log.info(`${matched.length} calendars: ${matched.map((c) => c.summary).join(", ")}`);
 
   const now = new Date();
-  const timeMin = new Date(now.getTime() - 2 * 3600000); // catch events already running
+  // The reconciliation pass below (search "no longer on the calendar") only
+  // ever dismisses a stored item that falls INSIDE [timeMin, timeMax] and is
+  // missing from this fetch — anything outside that window is left alone on
+  // purpose, since a fetch that only covers a couple of weeks has no basis
+  // for judging whether something from last month was deleted. That made
+  // "now minus 2 hours" too narrow for its own job: delete an event from
+  // earlier today (more than 2 hours ago) and it would never be re-fetched,
+  // so reconciliation would see it as simply out of range and leave the
+  // stale, deleted item on screen forever — Jon's "already-passed event
+  // that I deleted is still showing" bug. Starting from local midnight
+  // instead covers the whole current calendar day, so a deletion anywhere
+  // in today gets caught on the very next refresh. (This UTC-midnight
+  // anchor lands in the previous evening for Toronto, comfortably before
+  // real local midnight — the same safe trick dayKey()/allDayDaysAway()
+  // already lean on elsewhere for a timezone that sits behind UTC.)
+  const timeMin = new Date(`${dayKey(now, tz)}T00:00:00Z`);
   const timeMax = new Date(now.getTime() + horizonDays * 86400000);
 
   const { events, failedCalendarIds } = await getEvents(matched, { timeMin, timeMax });

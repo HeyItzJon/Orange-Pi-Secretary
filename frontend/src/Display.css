@@ -103,7 +103,11 @@
 .refresh:hover { color: var(--ink); border-color: var(--fill); }
 .refresh.spin { color: var(--accent); border-color: var(--accent); }
 
-.stage { flex: 1; min-height: 0; overflow: hidden; padding: 16px 22px 0; display: flex; flex-direction: column; }
+/* Top padding gives the page's own content room to breathe below the nav
+   bar — bumped up from 16px since it was reading cramped right under the
+   tabs. Compact breakpoints (short kiosk panel, phone) set their own
+   tighter value below and are unaffected by this. */
+.stage { flex: 1; min-height: 0; overflow: hidden; padding: 26px 22px 0; display: flex; flex-direction: column; }
 
 .foot {
   display: flex; justify-content: space-between; align-items: center;
@@ -142,7 +146,11 @@
 }
 .tday-date { display: flex; flex-direction: column; min-width: 0; }
 .tday-weekday {
-  font-size: 40px; font-weight: 700; letter-spacing: -.015em; line-height: 1.08;
+  /* line-height was tight enough (1.08) that a descender — the g in
+     "Looking ahead" — got clipped by its own line box, the same class of
+     bug already fixed once on .hero .big below for the same reason; 1.25
+     gives it room. */
+  font-size: 40px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* "Looking ahead" (see TodayHeader in Display.jsx) — tinted so the header
@@ -150,7 +158,7 @@
    text change. Same accent used for the NOW marker and the clock's second
    hand, so it reads as part of the same "this isn't quite real-time" family. */
 .tday-weekday.away { color: var(--accent); }
-.tday-monthday { font-size: 18px; color: var(--muted); margin-top: 2px; }
+.tday-monthday { font-size: 18px; color: var(--muted); margin-top: 8px; }
 
 /* A real analog face — 12 ticks (every 3rd one longer, for 12/3/6/9), three
    hands rotated by inline transform (see AnalogClock in Display.jsx), a hub
@@ -214,15 +222,17 @@
    arrow ever goes earlier than Today, since there's nothing behind it to
    preview. */
 .daycar { flex-shrink: 0; }
-.daycar-head { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 8px; }
+.daycar-head { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 10px; }
+/* Bigger and a touch bolder than before — Jon wanted the day-paging
+   controls more obvious at a glance, not just functional. */
 .daycar-arrow {
-  appearance: none; border: 1px solid var(--rule); background: var(--raise);
-  color: var(--ink-2); cursor: pointer; border-radius: 6px;
-  width: 26px; height: 26px; font-size: 15px; line-height: 1; flex-shrink: 0;
+  appearance: none; border: 1.5px solid var(--rule); background: var(--raise);
+  color: var(--ink-2); cursor: pointer; border-radius: 8px;
+  width: 34px; height: 34px; font-size: 19px; line-height: 1; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   transition: color .12s, border-color .12s;
 }
-.daycar-arrow:hover:not(:disabled) { color: var(--ink); border-color: var(--fill); }
+.daycar-arrow:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
 .daycar-arrow:disabled { opacity: .3; cursor: default; }
 .daycar-label { display: flex; align-items: baseline; gap: 8px; min-width: 12em; justify-content: center; }
 .daycar-name { font-size: 14px; font-weight: 640; }
@@ -239,14 +249,16 @@
 .daycar-slide.fwd { animation: daycarInFwd .22s ease-out; }
 .daycar-slide.back { animation: daycarInBack .22s ease-out; }
 
-.daycar-dots { display: flex; justify-content: center; gap: 7px; margin-top: 9px; }
+.daycar-dots { display: flex; justify-content: center; gap: 10px; margin-top: 12px; }
+/* Bigger, plus a subtle ring on the active one — the flat 6px dot read as
+   barely-there next to the arrows once those got bigger too. */
 .daycar-dot {
   appearance: none; border: 0; padding: 0; cursor: pointer;
-  width: 6px; height: 6px; border-radius: 50%; background: var(--fill);
-  transition: background .12s;
+  width: 9px; height: 9px; border-radius: 50%; background: var(--fill);
+  transition: background .12s, box-shadow .12s;
 }
 .daycar-dot:hover { background: var(--muted); }
-.daycar-dot.on { background: var(--accent); }
+.daycar-dot.on { background: var(--accent); box-shadow: 0 0 0 3px rgba(237, 161, 0, .25); }
 
 .strip-wrap { position: relative; flex-shrink: 0; }
 
@@ -259,7 +271,7 @@
    vertical padding) so a day WITH chips doesn't grow any taller than this.
    Without it, paging the carousel between a day with an all-day chip and
    one without visibly jumped the hour strip below up and down. */
-.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; min-height: 24px; }
+.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; min-height: 24px; }
 .aday-label {
   font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); flex-shrink: 0;
@@ -416,7 +428,10 @@
   text-align: center; letter-spacing: .04em;
 }
 
-.cols { display: flex; gap: 34px; flex: 1; min-height: 0; padding-top: 16px; overflow: hidden; }
+/* padding-top bumped from 16px — the timeline strip and "Rest of today" /
+   "Next N days" columns below it were reading crowded together. Compact
+   breakpoints keep their own tighter value (see max-height:620 below). */
+.cols { display: flex; gap: 34px; flex: 1; min-height: 0; padding-top: 28px; overflow: hidden; }
 .cols .zone:first-child { flex: 1.05; }
 .cols .zone:last-child { flex: 1.6; border-left: 1px solid var(--rule); padding-left: 30px; }
 .zone { min-width: 0; }
@@ -805,6 +820,14 @@
   .ycell { border-radius: 2px; }
   .ycard { padding: 12px 14px 10px; }
   .cols { padding-top: 11px; }
+  /* This is the actual physical kiosk panel's height — the bigger arrows/
+     dots and extra breathing room added elsewhere would eat into an
+     already-tight budget here, so this breakpoint gets its own smaller,
+     but still slightly bigger-than-before, values. */
+  .daycar-arrow { width: 28px; height: 28px; font-size: 16px; }
+  .daycar-dots { gap: 8px; margin-top: 8px; }
+  .daycar-dot { width: 7px; height: 7px; }
+  .aday-row { margin-bottom: 8px; }
   .story { padding: 3px 0; }
   .story .title { font-size: 12.5px; }
   .task .title { font-size: 13px; }
@@ -959,7 +982,7 @@
      — phone width is tight enough that a full-size doubled face would crowd
      the date text next to it. */
   .aclock-face { width: 86px; height: 86px; }
-  .daycar-arrow { width: 30px; height: 30px; }
+  .daycar-arrow { width: 38px; height: 38px; font-size: 20px; }
   .hero { flex-wrap: wrap; gap: 6px; }
   .hero .big { font-size: 21px; white-space: normal; }
   .hero .sub { white-space: normal; }
