@@ -105,6 +105,33 @@ export function priorityWord(item) {
   return null;
 }
 
+/**
+ * A small pill for a single all-day event — everything a chip needs to
+ * render, without the full item object exposed. Shared by the day strip's
+ * own all-day row and the Week page's per-day badge, so the two surfaces
+ * describe the same event the same way.
+ */
+function allDayChip(e) {
+  return {
+    id: e.id,
+    title: e.title,
+    swatch: e.swatch || (e.meta?.calendarName === "Personal" ? "gmail" : null) || e.domain || "personal",
+    color: e.color || null,
+    priority: priorityWord(e),
+  };
+}
+
+/**
+ * An all-day event carries no time to order by, so "logical" here means:
+ * the ones that matter most lead — can't-miss first, then anything you
+ * flagged — and everything else falls back to alphabetical, which is at
+ * least predictable rather than arbitrary.
+ */
+function sortAllDay(list) {
+  const rank = (e) => (e.unmissable ? 0 : e.emphasised ? 1 : 2);
+  return [...list].sort((a, b) => rank(a) - rank(b) || String(a.title).localeCompare(String(b.title)));
+}
+
 /** Where a block sits in the day, in words. */
 const CHUNKS = [
   { label: "Morning", from: 0, to: 12 },
@@ -345,6 +372,17 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
       (e) => !e.meta?.allDay && e.meta?.end && dayKey(e.dueAt, tz) === key
     );
 
+    // All-day events for this specific day — kept separate from dayEvents
+    // above on purpose. They still don't touch the busy/free math (an
+    // all-day event has no real duration to subtract, and guessing one
+    // would be exactly the kind of fabricated number this function already
+    // avoids for the looming list), but a day that reads "100% free" while
+    // quietly carrying a deadline was the actual gap: this is what a small
+    // per-day badge renders from, so that day at least SAYS it isn't empty.
+    const dayAllDay = sortAllDay(
+      events.filter((e) => e.meta?.allDay && dayKey(e.dueAt, tz) === key)
+    ).map(allDayChip);
+
     // Clip each event to the waking window — kept as its own {start, end,
     // swatch} below both to merge overlaps before summing busy hours (two
     // meetings double-booked over the same hour is still one busy hour, not
@@ -398,6 +436,7 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
       load: wakeHours ? Math.round((busyHours / wakeHours) * 100) : 0,
       eventCount: dayEvents.length,
       segments,
+      allDay: dayAllDay,
     });
   }
 
@@ -640,6 +679,13 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       },
     };
   });
+
+  // A full day has no hour to plot a block at, so an all-day event never
+  // becomes one (see timedToday's own filter above) — it sits in its own
+  // row above the strip instead. Same real colour as a timed block when
+  // one's on record (allDayChip mirrors blocks' own swatch/colour fallback
+  // exactly); can't-miss first, then alphabetical — see sortAllDay().
+  const allDayToday = sortAllDay(todays.filter((e) => e.meta?.allDay)).map(allDayChip);
 
   const nowHour = hourOfDay(now, tz);
 
@@ -895,7 +941,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
 
     // ---- page 1: Today
     hero,
-    strip: { startHour, endHour, nowPct: pct(nowHour), blocks, chunks, ticks },
+    strip: { startHour, endHour, nowPct: pct(nowHour), blocks, chunks, ticks, allDay: allDayToday },
     today,
     days,
 

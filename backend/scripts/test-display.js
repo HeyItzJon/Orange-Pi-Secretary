@@ -158,6 +158,33 @@ test("all-day events never become blocks", () => {
   assert.equal(strip.blocks.length, 0);
 });
 
+test("all-day events show up as their own chips on the strip instead", () => {
+  const items = [ev({ id: "a", title: "Essay due", dueAt: at(0), meta: { allDay: true }, swatch: "deadline", color: "#e67c73" })];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.allDay.length, 1);
+  assert.equal(strip.allDay[0].title, "Essay due");
+  assert.equal(strip.allDay[0].swatch, "deadline");
+  assert.equal(strip.allDay[0].color, "#e67c73");
+});
+
+test("a timed event today never shows up as an all-day chip", () => {
+  const items = [ev({ id: "a", title: "Standup", dueAt: at(9), meta: { end: at(9, 30) } })];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.equal(strip.allDay.length, 0);
+});
+
+test("all-day chips lead with can't-miss, then flagged, then alphabetical", () => {
+  const items = [
+    ev({ id: "z", title: "Zoo trip", dueAt: at(0), meta: { allDay: true } }),
+    ev({ id: "a", title: "Assignment", dueAt: at(0), meta: { allDay: true } }),
+    ev({ id: "f", title: "Flagged thing", dueAt: at(0), meta: { allDay: true }, emphasised: true }),
+    ev({ id: "m", title: "Must attend", dueAt: at(0), meta: { allDay: true }, unmissable: true }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(strip.allDay.map((c) => c.id), ["m", "f", "a", "z"]);
+  assert.equal(strip.allDay[0].priority, "can't miss");
+});
+
 test("a block's colour is the item's real swatch when it has one", () => {
   const items = [ev({ id: "a", title: "Interview", dueAt: at(13), swatch: "opportunity", domain: "career" })];
   const { strip } = buildDisplay({ items, config, now: NOW });
@@ -602,6 +629,27 @@ test("all-day events don't count as busy hours", () => {
   const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
   assert.equal(w.days[0].busyHours, 0);
   assert.equal(w.days[0].eventCount, 0);
+});
+
+test("an all-day event still shows up on its own day's badge, even though the bar itself stays untouched", () => {
+  const events = [ev({ id: "e1", title: "Report due", dueAt: at(0), meta: { allDay: true }, swatch: "deadline" })];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 2 });
+  assert.equal(w.days[0].allDay.length, 1);
+  assert.equal(w.days[0].allDay[0].title, "Report due");
+  assert.equal(w.days[0].allDay[0].swatch, "deadline");
+  assert.equal(w.days[1].allDay.length, 0, "a different day must not pick up another day's all-day item");
+  // untouched, same as the existing "don't count as busy hours" test above
+  assert.equal(w.days[0].busyHours, 0);
+  assert.equal(w.days[0].freeHours, w.wakeHours);
+});
+
+test("multiple all-day items on the same week day all land on that day's badge, ordered the same way as the strip", () => {
+  const events = [
+    ev({ id: "z", title: "Zoo trip", dueAt: at(0), meta: { allDay: true } }),
+    ev({ id: "m", title: "Must attend", dueAt: at(0), meta: { allDay: true }, unmissable: true }),
+  ];
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.deepEqual(w.days[0].allDay.map((c) => c.id), ["m", "z"]);
 });
 
 test("an event outside the waking window is clipped to it, not counted in full", () => {

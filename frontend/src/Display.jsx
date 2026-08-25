@@ -74,6 +74,36 @@ function LiveClock({ timeZone }) {
   return <span className="liveclock">{liveClockLabel(now, timeZone)}</span>;
 }
 
+/**
+ * All-day events never become blocks on the hour-by-hour strip below (there's
+ * no time to plot them at) — this is where they actually show, as a row of
+ * small chips sitting above it. Same real calendar colour as a timed block
+ * when there's one on record (blockStyle, same as Strip's blocks use), the
+ * .d-{swatch} palette as the fallback underneath. Order comes pre-sorted
+ * from the backend (see sortAllDay in brief/display.js) — can't-miss first,
+ * then flagged, then alphabetical — so nothing here has to re-decide it.
+ */
+function AllDayRow({ items }) {
+  if (!items || !items.length) return null;
+  return (
+    <div className="aday-row">
+      <span className="aday-label">All day</span>
+      <div className="aday-chips">
+        {items.map((c) => (
+          <span
+            key={c.id}
+            className={`aday-chip d-${c.swatch}`}
+            style={blockStyle(c.color) || {}}
+            title={[c.title, c.priority].filter(Boolean).join(" — ")}
+          >
+            {c.title}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Strip({ strip }) {
   // Which block's card is pinned open by a tap — mouse hover does this too,
   // but a touch screen has no hover, so a tap toggles the same card via this
@@ -147,93 +177,105 @@ function Strip({ strip }) {
   const activeBlock = activeId != null ? strip.blocks.find((b) => b.id === activeId) : null;
 
   return (
-    <div className="strip-wrap">
-      <div className="strip">
-        {(strip.ticks || []).map((t) => (
-          <div key={t.hour} className={`tick${t.major ? " major" : ""}`} style={{ left: `${t.left}%` }} />
-        ))}
-        {strip.chunks.map((c) => (
-          <div key={c.label} className="chunk-sep" style={{ left: `${c.left}%` }} />
-        ))}
-        {strip.blocks.map((b) => (
-          <div
-            key={b.id}
-            ref={(el) => {
-              if (el) blockRefs.current.set(b.id, el);
-              else blockRefs.current.delete(b.id);
-            }}
-            className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${openId === b.id ? " open" : ""}${b.overlap ? " overlap" : ""}`}
-            style={{
-              left: `${b.left}%`,
-              width: `${b.width}%`,
-              // The real Google calendar colour, when this item has one —
-              // overrides the .d-{swatch} class's fixed palette entirely,
-              // text colour included (see blockStyle above). The class
-              // stays in the className above as the fallback for an item
-              // with no colour on record.
-              ...(blockStyle(b.color) || {}),
-            }}
-            onMouseEnter={() => setHoverId(b.id)}
-            onMouseLeave={() => setHoverId((cur) => (cur === b.id ? null : cur))}
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpenId((cur) => (cur === b.id ? null : b.id));
-            }}
-          >
-            {b.label && (
-              <span className="bl">
-                {b.label}
-                {b.time && <em>{b.time}</em>}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-      <div className="chunks">
-        {(strip.ticks || []).filter((t) => t.label).map((t) => (
-          <span key={t.hour} className="hr" style={{ left: `${t.left}%` }}>{t.label}</span>
-        ))}
-        {strip.chunks.map((c) => (
-          <span key={c.label} className="chunk" style={{ left: `${c.left}%`, width: `${c.width}%` }}>
-            {c.label}
-          </span>
-        ))}
-      </div>
-      {/* A sibling of .strip, not a child of it — .strip clips its own
-          overflow to keep blocks contained (see the metadata-card comment
-          above), and this is deliberately drawn taller than the strip
-          itself, so it has to live outside that clip to actually show the
-          part that pokes out. Same left% as everything above: .strip-wrap
-          is exactly as wide as .strip. */}
-      <div className="nowline" style={{ left: `${strip.nowPct}%` }} />
+    <>
+      {/* A sibling of .strip-wrap, deliberately NOT a child of it: .nowline
+          inside .strip-wrap is absolutely positioned against .strip-wrap's
+          own top edge (see the comment on .nowline in Display.css), and
+          AllDayRow only renders on days that actually have one — folding it
+          inside .strip-wrap would shift that top edge (and therefore the
+          now-marker) up or down depending on whether today happens to have
+          an all-day event, which is exactly the kind of thing that should
+          never move. Sitting outside keeps .strip-wrap's own coordinate
+          space exactly what it was before this existed. */}
+      <AllDayRow items={strip.allDay} />
+      <div className="strip-wrap">
+        <div className="strip">
+          {(strip.ticks || []).map((t) => (
+            <div key={t.hour} className={`tick${t.major ? " major" : ""}`} style={{ left: `${t.left}%` }} />
+          ))}
+          {strip.chunks.map((c) => (
+            <div key={c.label} className="chunk-sep" style={{ left: `${c.left}%` }} />
+          ))}
+          {strip.blocks.map((b) => (
+            <div
+              key={b.id}
+              ref={(el) => {
+                if (el) blockRefs.current.set(b.id, el);
+                else blockRefs.current.delete(b.id);
+              }}
+              className={`blk d-${b.swatch}${b.important ? " imp" : ""}${b.past ? " past" : ""}${openId === b.id ? " open" : ""}${b.overlap ? " overlap" : ""}`}
+              style={{
+                left: `${b.left}%`,
+                width: `${b.width}%`,
+                // The real Google calendar colour, when this item has one —
+                // overrides the .d-{swatch} class's fixed palette entirely,
+                // text colour included (see blockStyle above). The class
+                // stays in the className above as the fallback for an item
+                // with no colour on record.
+                ...(blockStyle(b.color) || {}),
+              }}
+              onMouseEnter={() => setHoverId(b.id)}
+              onMouseLeave={() => setHoverId((cur) => (cur === b.id ? null : cur))}
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenId((cur) => (cur === b.id ? null : b.id));
+              }}
+            >
+              {b.label && (
+                <span className="bl">
+                  {b.label}
+                  {b.time && <em>{b.time}</em>}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="chunks">
+          {(strip.ticks || []).filter((t) => t.label).map((t) => (
+            <span key={t.hour} className="hr" style={{ left: `${t.left}%` }}>{t.label}</span>
+          ))}
+          {strip.chunks.map((c) => (
+            <span key={c.label} className="chunk" style={{ left: `${c.left}%`, width: `${c.width}%` }}>
+              {c.label}
+            </span>
+          ))}
+        </div>
+        {/* A sibling of .strip, not a child of it — .strip clips its own
+            overflow to keep blocks contained (see the metadata-card comment
+            above), and this is deliberately drawn taller than the strip
+            itself, so it has to live outside that clip to actually show the
+            part that pokes out. Same left% as everything above: .strip-wrap
+            is exactly as wide as .strip. */}
+        <div className="nowline" style={{ left: `${strip.nowPct}%` }} />
 
-      {/* A twenty-minute gap is two pixels wide. Hover — or a tap, on a
-          touch screen, see openId/hoverId above — is how it gets to say what
-          it is without stealing width from the events that fit their own
-          label. Portaled to document.body (see the useLayoutEffect above) so
-          the timeline's own overflow:hidden never clips it. */}
-      {activeBlock?.detail && createPortal(
-        <div
-          ref={cardRef}
-          className="strip-card"
-          style={cardPos ? { top: cardPos.top, left: cardPos.left } : { top: -9999, left: -9999, visibility: "hidden" }}
-        >
-          <b>{activeBlock.detail.title}</b>
-          <span className="crange">
-            {activeBlock.detail.range}
-            {activeBlock.detail.duration && <> · {activeBlock.detail.duration}</>}
-          </span>
-          {activeBlock.detail.where && <span className="cwhere">{activeBlock.detail.where}</span>}
-          {activeBlock.detail.prep && <span className="cprep">{activeBlock.detail.prep}</span>}
-          {activeBlock.detail.priority && <span className="cpri">{activeBlock.detail.priority}</span>}
-          {/* The overlap flag itself (see brief/display.js) said in words,
-              not just the corner mark on the block — a sliver too narrow
-              for that mark to read as anything still has this. */}
-          {activeBlock.overlap && <span className="cflag">Overlaps another event</span>}
-        </div>,
-        document.body
-      )}
-    </div>
+        {/* A twenty-minute gap is two pixels wide. Hover — or a tap, on a
+            touch screen, see openId/hoverId above — is how it gets to say what
+            it is without stealing width from the events that fit their own
+            label. Portaled to document.body (see the useLayoutEffect above) so
+            the timeline's own overflow:hidden never clips it. */}
+        {activeBlock?.detail && createPortal(
+          <div
+            ref={cardRef}
+            className="strip-card"
+            style={cardPos ? { top: cardPos.top, left: cardPos.left } : { top: -9999, left: -9999, visibility: "hidden" }}
+          >
+            <b>{activeBlock.detail.title}</b>
+            <span className="crange">
+              {activeBlock.detail.range}
+              {activeBlock.detail.duration && <> · {activeBlock.detail.duration}</>}
+            </span>
+            {activeBlock.detail.where && <span className="cwhere">{activeBlock.detail.where}</span>}
+            {activeBlock.detail.prep && <span className="cprep">{activeBlock.detail.prep}</span>}
+            {activeBlock.detail.priority && <span className="cpri">{activeBlock.detail.priority}</span>}
+            {/* The overlap flag itself (see brief/display.js) said in words,
+                not just the corner mark on the block — a sliver too narrow
+                for that mark to read as anything still has this. */}
+            {activeBlock.overlap && <span className="cflag">Overlaps another event</span>}
+          </div>,
+          document.body
+        )}
+      </div>
+    </>
   );
 }
 
@@ -704,8 +746,20 @@ function WeekPage({ d }) {
         {w.days.map((day) => (
           <div className="fcday" key={day.key}>
             <div className="fcdhead">
-              <span className="fcdname">{day.label}</span>
-              <span className="fcddate">{day.dateLabel}</span>
+              <span className="fcdnamewrap">
+                <span className="fcdname">{day.label}</span>
+                <span className="fcddate">{day.dateLabel}</span>
+              </span>
+              {/* A day with nothing timed on it can still carry a deadline —
+                  the busy/free bar below has no way to say that (see
+                  weekForecast's own comment on why it doesn't guess a
+                  duration for these), so this badge is what actually flags
+                  it. Hover/tap for which — see title below. */}
+              {day.allDay?.length > 0 && (
+                <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
+                  {day.allDay.length}
+                </span>
+              )}
             </div>
             {/* Coloured by calendar swatch, same family the day strip itself
                 uses — roughly sized and positioned, nothing to hover, no

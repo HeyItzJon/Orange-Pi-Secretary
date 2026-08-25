@@ -139,7 +139,42 @@
 .hero.calm .big { color: var(--ink-2); font-weight: 560; }
 
 .strip-wrap { position: relative; flex-shrink: 0; }
-.strip { position: relative; height: 34px; background: var(--rule); border-radius: 4px; overflow: hidden; }
+
+/* All-day events never become blocks on .strip below — there's no hour to
+   plot them at — so they get their own small row of chips above it instead.
+   See AllDayRow in Display.jsx. */
+.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.aday-label {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); flex-shrink: 0;
+}
+.aday-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.aday-chip {
+  font-size: 11.5px; font-weight: 560; padding: 3px 11px; border-radius: 20px;
+  background: var(--fill); color: var(--ink);
+  max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: default;
+}
+/* Same fallback palette as .blk.d-* below, for an item with no real Google
+   colour on record — kept in sync with it deliberately rather than shared
+   via one class list, same duplication .fcbar i.d-* already carries. */
+.aday-chip.d-critical     { background: #b5560d; }
+.aday-chip.d-important    { background: #7440ad; }
+.aday-chip.d-work         { background: #c22a1f; }
+.aday-chip.d-assessment   { background: #9c7a0a; }
+.aday-chip.d-class        { background: #1f7a3d; }
+.aday-chip.d-family       { background: #4a4fc0; }
+.aday-chip.d-gmail        { background: #1f6fa8; }
+.aday-chip.d-opportunity  { background: #12806c; }
+.aday-chip.d-deadline     { background: #a83c1c; }
+.aday-chip.d-admin        { background: #40566d; }
+.aday-chip.d-appointment  { background: #276f83; }
+.aday-chip.d-personal     { background: #767322; }
+
+/* 54px, up from the original 34 — Jon's call: the graphic read as too thin
+   for the room it had. See .nowline just below, sized to keep the same
+   ~9px overshoot above/below the bar it had before this. */
+.strip { position: relative; height: 54px; background: var(--rule); border-radius: 4px; overflow: hidden; }
 .chunk-sep { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--plane); opacity: .55; z-index: 2; }
 /* Hour ticks: enough to read exactly when something is, faint enough that the
    blocks stay the thing you see first. */
@@ -239,14 +274,16 @@
 
 /* The now-cursor. It's a sibling of .strip (see the comment in Display.jsx),
    positioned in .strip-wrap's own coordinate space — which starts at the
-   same top-left corner as .strip does, since .strip is its first child —
-   so top/height here are sized against .strip's own 34px height (26px in
-   the short-panel media query below) rather than against the whole wrap,
-   which also contains the hour labels underneath. Thicker than a plain
-   divider and deliberately taller than the bar it crosses, with a small
-   downward-pointing flag at the top, so it reads as a playhead sitting on
-   the timeline rather than just another tick mark. */
-.nowline { position: absolute; top: -9px; height: 52px; width: 3px; background: var(--accent); border-radius: 2px; z-index: 7; pointer-events: none; }
+   same top-left corner as .strip does, since .strip is still .strip-wrap's
+   first child (AllDayRow renders as .strip-wrap's own preceding sibling
+   now, specifically so it never shifts this) — so top/height here are sized
+   against .strip's own 54px height (40px in the short-panel media query
+   below) rather than against the whole wrap, which also contains the hour
+   labels underneath. Thicker than a plain divider and deliberately taller
+   than the bar it crosses, with a small downward-pointing flag at the top,
+   so it reads as a playhead sitting on the timeline rather than just
+   another tick mark. */
+.nowline { position: absolute; top: -9px; height: 72px; width: 3px; background: var(--accent); border-radius: 2px; z-index: 7; pointer-events: none; }
 .nowline::before {
   content: ""; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
   width: 0; height: 0;
@@ -488,9 +525,21 @@
   background: var(--raise); border: 1px solid var(--rule); border-radius: 7px;
   padding: 10px 11px 11px; display: flex; flex-direction: column; gap: 6px;
 }
-.fcdhead { display: flex; flex-direction: column; }
+.fcdhead { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.fcdnamewrap { display: flex; flex-direction: column; min-width: 0; }
 .fcdname { font-size: 12.5px; font-weight: 620; color: var(--ink-2); }
 .fcddate { font-size: 10.5px; color: var(--faint); }
+/* A day's own all-day items don't touch the bar below at all (see
+   weekForecast's comment on why it never guesses a duration for them) — this
+   badge is what actually says a visually-free day still has one sitting on
+   it. Amber, same family as the now-marker and an imminent deadline, since
+   it's the same kind of "don't miss this" flag. Hover/tap for which — plain
+   title attribute, nothing fancier needed for a count this small. */
+.fcallday {
+  flex-shrink: 0; font-size: 10px; font-weight: 700; line-height: 1;
+  padding: 3px 6px; border-radius: 8px;
+  background: rgba(237,161,0,.16); color: var(--accent);
+}
 /* A density strip, not a progress bar: one segment per event, roughly sized
    and positioned across the waking window (see weekForecast's `segments` in
    brief/display.js). Coloured the same way the day strip's blocks are: the
@@ -498,8 +547,10 @@
    has one (see Display.jsx), these d-* classes underneath as the fallback
    only — no label, no hover, nothing per-event to read. Whatever's left
    showing the bar's own grey background between segments IS the free time;
-   that's the entire visual, on purpose. */
-.fcbar { position: relative; height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; }
+   that's the entire visual, on purpose. 12px, up from the original 6 —
+   same "isn't so thin" call as the day strip above, just scaled to how
+   compact this one has to stay next to six other days. */
+.fcbar { position: relative; height: 12px; border-radius: 3px; background: var(--fill); overflow: hidden; }
 .fcbar i { position: absolute; top: 0; bottom: 0; display: block; }
 .fcbar i.d-critical     { background: #b5560d; }
 .fcbar i.d-important    { background: #7440ad; }
@@ -592,8 +643,8 @@
   .stage { padding: 12px 16px 0; }
   .top { padding: 8px 16px; }
   .hero .big { font-size: 25px; }
-  .strip { height: 26px; }
-  .nowline { top: -7px; height: 40px; }
+  .strip { height: 40px; }
+  .nowline { top: -7px; height: 54px; }
   .day:nth-child(3) { display: none; }
   .mtotal .val { font-size: 34px; }
   .ycell { border-radius: 2px; }
