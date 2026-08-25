@@ -589,7 +589,14 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const pct = (h) => Math.max(0, Math.min(100, ((h - startHour) / span) * 100));
 
   const blocks = todays
-    .filter((e) => !e.meta?.allDay)
+    // The overlap/"clash" highlight (kind: "conflict", see
+    // sources/calendar.js) went through two rounds of trying to make its
+    // position on the strip read clearly — sized to the actual overlap
+    // window, excluded from the hero and "Rest of today" — and it was
+    // still confusing on screen. Simplest fix: it doesn't get its own block
+    // here at all. The two real events it was describing already show
+    // their own overlap by literally overlapping on the strip.
+    .filter((e) => !e.meta?.allDay && e.kind !== "conflict")
     .map((e) => {
       const s = hourOfDay(e.dueAt, tz);
       // An event with a start but no end still happened at a time, and leaving
