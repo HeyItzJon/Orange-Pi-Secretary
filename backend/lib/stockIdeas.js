@@ -9,27 +9,40 @@
 // nothing is usually correct.
 //
 // This version doesn't do that. No AI call, no invented data, no verdict.
-// Two real, live signals, both from Yahoo:
+// Real, live signals, all from Yahoo:
 //
-//   1. `recommendationsBySymbol` — Yahoo's own similarity engine (price
-//      correlation, sector, and other real signals) for "what's related to
-//      this ticker." Run against every ticker you hold, in one batched
-//      call, then aggregated: a candidate that comes up for several of
-//      your holdings is more load-bearing than one that only echoes a
-//      single position.
-//   2. Your own current sector weights (real, from what you actually
-//      hold) — used only to prefer a candidate whose sector you're
-//      thin on over one that piles onto a sector you're already deep in.
-//      That's the "help rebalance" half of the ask.
+//   1. `recommendationsBySymbol` — Yahoo's own similarity engine for "what's
+//      related to this ticker," run against every ticker you hold. A
+//      candidate that comes up for several of your holdings is more
+//      load-bearing than one that only echoes a single position.
+//   2. Yahoo's `screener` module, against a predefined small-cap screen
+//      (`aggressive_small_caps` by default) — candidates that have nothing
+//      to do with what you already own. The first version of this only
+//      ever surfaced peers of your existing holdings, which is why it kept
+//      landing on things you'd already recognize (a mega-cap bank next to
+//      the mega-cap bank you already hold). This is the "actually novel"
+//      half.
+//   3. Your own current sector weights (real, from what you actually
+//      hold) — prefers a candidate whose sector you're thin on over one
+//      that piles onto a sector you're already deep in.
+//   4. `financialData`'s analyst price targets — a real (if imperfect)
+//      "is anyone bullish on this" signal, folded in as a bonus/penalty
+//      rather than the whole story. Absent for a lot of small-caps; when
+//      it's missing, it's simply not counted, not treated as a strike.
+//   5. A market-cap ceiling, applied to every candidate regardless of
+//      source. This is the direct fix for "the pick was BMO, a company I
+//      already basically know about" — a ~$90B bank should never have
+//      been eligible in the first place.
+//   6. Its own short memory: the last `stockIdeaNoRepeatDays` picks are
+//      excluded from re-selection, so a static portfolio doesn't just
+//      re-derive the same answer every morning.
 //
 // The result is one factual line — ticker, sector, price, why it
 // surfaced — never a pitch, never a rating, never "buy." Not investment
 // advice; a research candidate for you to look at yourself.
 //
 // Refreshed once a calendar day (at local midnight, not every pull) — see
-// getStockIdea below and lib/time.js. Yahoo's recommendation + profile
-// calls are heavier than a routine price pull, and this is a slow-moving
-// signal that doesn't need to be checked every 15 minutes.
+// getStockIdea below and lib/time.js.
 
 import YahooFinance from "yahoo-finance2";
 import { logger } from "./log.js";
@@ -40,6 +53,7 @@ const log = logger("stockIdeas");
 const yahoo = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 const r = (n, d = 2) => (n == null || Number.isNaN(n) ? null : Number(n.toFixed(d)));
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
 /**
  * The first sentence or two of Yahoo's business-summary blurb, trimmed to a
@@ -91,23 +105,57 @@ export function sectorWeights(positions) {
 }
 
 /**
- * Pure and testable: given enriched candidates and the book's current
- * sector weights, score and sort. Higher `aggScore` (Yahoo's own
- * similarity signal, averaged across every one of your holdings that
- * surfaced it) is better; a candidate whose sector is already heavily
- * represented in the book is discounted, since piling onto a sector you're
- * already deep in doesn't help rebalance anything.
+ * (targetMeanPrice vs. live price) as a percent. Pure and testable. Null
+ * whenever either side is missing — Yahoo has no analyst coverage at all
+ * for a lot of small-caps, and that's a fact worth keeping distinguishable
+ * from "0% upside," not collapsing into it.
  */
-export function rankCandidates(candidates, weights = {}, { concentrationPenalty = 0.6 } = {}) {
+export function analystUpsidePct(price, targetMeanPrice) {
+  if (price == null || targetMeanPrice == null || price <= 0) return null;
+  return ((targetMeanPrice - price) / price) * 100;
+}
+
+/** Drop anything whose last `stockIdeaNoRepeatDays` picks already covered.
+ *  Pure filter — the actual history comes from getStockIdea below. */
+export function excludeRecent(candidates, recentSymbols) {
+  const recent = new Set(recentSymbols || []);
+  return candidates.filter((c) => !recent.has(c.symbol));
+}
+
+/**
+ * Pure and testable: given enriched candidates and the book's current
+ * sector weights, score and sort.
+ *
+ *   - `aggScore` (from recommendationsBySymbol, or a flat 1 for a
+ *     screener-discovered candidate that has no Yahoo similarity score to
+ *     begin with) is the base signal.
+ *   - Discounted when the candidate's sector is already heavily
+ *     represented in the book (concentrationPenalty) — piling onto a
+ *     sector you're already deep in doesn't help rebalance anything.
+ *   - Adjusted by analyst upside (analystUpsideWeight), clamped to
+ *     [-30, 60]% so one stale, wild price target can't swamp everything
+ *     else. A candidate with no analyst coverage at all gets no
+ *     adjustment either way — absence isn't a penalty.
+ */
+export function rankCandidates(
+  candidates,
+  weights = {},
+  { concentrationPenalty = 0.6, analystUpsideWeight = 0 } = {}
+) {
   return candidates
     .map((c) => {
       const bucket = sectorBucket(c.sector);
       const currentWeightPct = bucket ? weights[bucket] || 0 : 0;
-      const rebalanceScore = c.aggScore * (1 - concentrationPenalty * Math.min(1, currentWeightPct / 100));
+      const upsideFactor =
+        1 + analystUpsideWeight * (clamp(c.analystUpsidePct ?? 0, -30, 60) / 100);
+      const rebalanceScore =
+        c.aggScore * (1 - concentrationPenalty * Math.min(1, currentWeightPct / 100)) * upsideFactor;
+
       const reasonBits = [];
-      reasonBits.push(
-        c.mentions > 1 ? `similar to ${c.mentions} of your holdings` : "similar to a holding you own"
-      );
+      if (c.mentions > 1) reasonBits.push(`similar to ${c.mentions} of your holdings`);
+      else if (c.mentions === 1) reasonBits.push("similar to a holding you own");
+      else reasonBits.push(c.discoveredVia || "surfaced by Yahoo's small-cap screener");
+
       if (bucket) {
         reasonBits.push(
           currentWeightPct < 3
@@ -115,6 +163,14 @@ export function rankCandidates(candidates, weights = {}, { concentrationPenalty 
             : bucket
         );
       }
+      if (c.analystUpsidePct != null) {
+        reasonBits.push(
+          c.analystUpsidePct >= 0
+            ? `analysts see ${c.analystUpsidePct.toFixed(0)}% upside`
+            : `analysts see ${Math.abs(c.analystUpsidePct).toFixed(0)}% downside`
+        );
+      }
+
       return {
         ...c,
         sectorBucket: bucket,
@@ -152,10 +208,34 @@ async function fetchRecommendations(tickers, debug) {
 }
 
 /**
- * The actual Yahoo calls: one batched (possibly chunked) `recommendationsBySymbol`
- * for the whole book, then a `quoteSummary` (sector + business summary) +
- * `quote` (price/name) per shortlisted candidate. Not cheap enough to run
- * every 15-minute pull — this is what the TTL in getStockIdea is for.
+ * The "discover beyond your portfolio's orbit" half. `scrIds` is one of
+ * Yahoo's predefined screens — `aggressive_small_caps` by default, tunable
+ * via config.money.stockIdeaScreenerId (e.g. "small_cap_gainers" leans more
+ * toward "something's moving today" than "structurally off the radar").
+ * A screener miss (Yahoo changes the endpoint, a transient error) is
+ * logged and skipped — this whole source is additive, never required; the
+ * similarity-based candidates above still carry the refresh on their own.
+ */
+async function fetchScreenerCandidates(scrIds, count, held, debug) {
+  try {
+    const res = await yahoo.screener({ scrIds, count });
+    return (res?.quotes || [])
+      .map((q) => q.symbol)
+      .filter((s) => s && !held.has(s));
+  } catch (err) {
+    log.warn(`screener(${scrIds}) failed: ${err.message}`);
+    debug.screenerError = err.message;
+    return [];
+  }
+}
+
+/**
+ * The actual Yahoo calls: a batched `recommendationsBySymbol` for the whole
+ * book, a `screener` pull for the small-cap discovery pool, then one
+ * `quoteSummary` (price + sector + business summary + analyst target) per
+ * shortlisted candidate from either source. Not cheap enough to run every
+ * 15-minute pull — this is what the day-boundary check in getStockIdea is
+ * for.
  *
  * Every path through this — including every "found nothing" exit — records
  * a `stockIdeaDebug` blob in `meta` naming exactly where it stopped, since
@@ -163,11 +243,12 @@ async function fetchRecommendations(tickers, debug) {
  * with `npm run refresh-stock-idea` if a refresh isn't turning up a
  * candidate and it's not obvious why.
  */
-export async function refreshStockIdea(config, { holdings, positions }) {
+export async function refreshStockIdea(config, { holdings, positions }, { recentSymbols = [] } = {}) {
   const debug = {
     at: new Date().toISOString(),
-    tickerCount: 0, recCount: 0, shortlistCount: 0, enrichedCount: 0,
-    chunkErrors: [], noSummary: [], note: null,
+    tickerCount: 0, recCount: 0, screenerCount: 0, shortlistCount: 0, enrichedCount: 0,
+    marketCapExcluded: [], recentExcluded: [], usedRecentFallback: false,
+    chunkErrors: [], noSummary: [], screenerError: null, note: null,
   };
   const finish = async (note, result) => {
     debug.note = note;
@@ -180,13 +261,10 @@ export async function refreshStockIdea(config, { holdings, positions }) {
   if (tickers.length < 2) {
     return finish("fewer than 2 holdings with a ticker — nothing to correlate against", null);
   }
-
-  const recs = await fetchRecommendations(tickers, debug);
-  if (!recs.length && debug.chunkErrors.length) {
-    return finish("every recommendationsBySymbol chunk failed — see chunkErrors", null);
-  }
-
   const held = new Set(tickers);
+
+  // -------------------------------------------------------- source 1: similar
+  const recs = await fetchRecommendations(tickers, debug);
   const agg = new Map(); // symbol -> { totalScore, mentions }
   for (const result of recs) {
     for (const rec of result?.recommendedSymbols || []) {
@@ -199,61 +277,99 @@ export async function refreshStockIdea(config, { holdings, positions }) {
   }
   debug.recCount = agg.size;
 
-  const shortlistSize = config.money?.stockIdeaShortlist ?? 8;
-  const shortlist = [...agg.entries()]
-    .map(([symbol, e]) => ({ symbol, aggScore: e.totalScore / e.mentions, mentions: e.mentions }))
+  const similarShortlistSize = config.money?.stockIdeaShortlist ?? 8;
+  const similarShortlist = [...agg.entries()]
+    .map(([symbol, e]) => ({
+      symbol, aggScore: e.totalScore / e.mentions, mentions: e.mentions, discoveredVia: null,
+    }))
     .sort((a, b) => b.aggScore - a.aggScore || b.mentions - a.mentions)
-    .slice(0, shortlistSize);
+    .slice(0, similarShortlistSize);
+
+  // ------------------------------------------------- source 2: small-cap screen
+  const scrIds = config.money?.stockIdeaScreenerId || "aggressive_small_caps";
+  const screenerShortlistSize = config.money?.stockIdeaScreenerShortlist ?? 10;
+  const screenerSymbols = await fetchScreenerCandidates(scrIds, screenerShortlistSize, held, debug);
+  debug.screenerCount = screenerSymbols.length;
+  const screenerShortlist = screenerSymbols
+    .filter((s) => !agg.has(s)) // already covered by the similarity source
+    .map((symbol) => ({
+      symbol, aggScore: 1, mentions: 0, discoveredVia: `surfaced by Yahoo's ${scrIds.replace(/_/g, " ")} screen`,
+    }));
+
+  let shortlist = [...similarShortlist, ...screenerShortlist];
   debug.shortlistCount = shortlist.length;
 
   if (!shortlist.length) {
-    return finish("Yahoo returned no related symbols (outside what you already hold) for any ticker", null);
+    return finish(
+      debug.chunkErrors.length && debug.screenerError
+        ? "both the recommendation source and the screener failed — see chunkErrors / screenerError"
+        : "no candidates from either source (outside what you already hold)",
+      null
+    );
+  }
+
+  // No-repeat: excluded first, before spending API calls enriching a
+  // candidate we wouldn't use anyway. If exclusion would empty the whole
+  // pool (a small book against a narrow screen), fall back to allowing a
+  // repeat rather than showing nothing — a repeat is a better outcome than
+  // a blank panel, and it's recorded (usedRecentFallback) so it's visible
+  // this happened rather than looking like the memory silently isn't
+  // working.
+  const withoutRecent = excludeRecent(shortlist, recentSymbols);
+  if (withoutRecent.length) {
+    debug.recentExcluded = shortlist
+      .filter((c) => !withoutRecent.includes(c))
+      .map((c) => c.symbol);
+    shortlist = withoutRecent;
+  } else if (shortlist.length) {
+    debug.usedRecentFallback = true;
   }
 
   const summarySentences = config.money?.stockIdeaSummarySentences ?? 2;
   const summaryMaxChars = config.money?.stockIdeaSummaryMaxChars ?? 220;
+  const maxMarketCap = config.money?.stockIdeaMaxMarketCap ?? 15_000_000_000;
 
   const enriched = [];
   const enrichErrors = [];
   const noSummary = [];
   for (const c of shortlist) {
-    // profile and quote are fetched (and can fail) independently — a bank
-    // holiday quote hiccup shouldn't take the business summary down with
-    // it, and vice versa. Each failure is caught on its own so the reason
-    // a summary is missing can actually be told apart from "the fetch
-    // itself broke," instead of both collapsing into the same silent null
-    // the way a shared `.catch(() => null)` on a combined Promise.all
-    // would (that's exactly what this replaced — see the note in the
-    // project doc on the BMO case, where that silence was the whole
-    // problem).
-    let profile = null, profileError = null;
+    // One call, three modules — price (live price + market cap + name),
+    // assetProfile (sector + business summary) and financialData (analyst
+    // targets). Each field is read defensively below: a module coming back
+    // empty for this ticker is common (financialData especially, for a
+    // small-cap with no analyst coverage) and isn't treated as a fetch
+    // failure.
+    let data = null, fetchError = null;
     try {
-      profile = await yahoo.quoteSummary(c.symbol, { modules: ["assetProfile"] });
+      data = await yahoo.quoteSummary(c.symbol, { modules: ["price", "assetProfile", "financialData"] });
     } catch (err) {
-      profileError = err.message;
-    }
-    let quote = null, quoteError = null;
-    try {
-      quote = await yahoo.quote(c.symbol);
-    } catch (err) {
-      quoteError = err.message;
+      fetchError = err.message;
     }
 
-    // No live price means nothing real to show — skip rather than
-    // surface a candidate with a blank number.
-    if (!quote?.regularMarketPrice) {
-      enrichErrors.push(`${c.symbol}: no live quote${quoteError ? ` (${quoteError})` : ""}`);
+    const price = data?.price?.regularMarketPrice ?? null;
+    if (!price) {
+      enrichErrors.push(`${c.symbol}: no live price${fetchError ? ` (${fetchError})` : ""}`);
       continue;
     }
 
-    const summary = firstSentences(profile?.assetProfile?.longBusinessSummary, {
+    const marketCap = data?.price?.marketCap ?? null;
+    // A rough filter, not FX-normalised — a USD and a CAD market cap are
+    // compared against the same raw ceiling. Close enough to keep obvious
+    // mega-caps out (see the BMO case this whole change exists to fix);
+    // not precise enough to lean on at the margin.
+    if (marketCap != null && marketCap > maxMarketCap) {
+      debug.marketCapExcluded.push(`${c.symbol}: ${(marketCap / 1e9).toFixed(1)}B`);
+      continue;
+    }
+
+    const summary = firstSentences(data?.assetProfile?.longBusinessSummary, {
       sentences: summarySentences, maxChars: summaryMaxChars,
     });
     if (!summary) {
       noSummary.push(
-        profileError
-          ? `${c.symbol}: assetProfile fetch failed (${profileError}) — unknown whether Yahoo has one`
-          : profile?.assetProfile
+        fetchError
+          ? `${c.symbol}: quoteSummary fetch failed (${fetchError}) — unknown whether Yahoo has a summary`
+          : data?.assetProfile
             ? `${c.symbol}: assetProfile came back, but no longBusinessSummary field on it`
             : `${c.symbol}: assetProfile module came back empty for this ticker`
       );
@@ -261,13 +377,16 @@ export async function refreshStockIdea(config, { holdings, positions }) {
 
     enriched.push({
       symbol: c.symbol,
-      name: quote.shortName || quote.longName || c.symbol,
-      price: r(quote.regularMarketPrice, 2),
-      currency: quote.currency || null,
-      sector: profile?.assetProfile?.sector || null,
+      name: data?.price?.shortName || data?.price?.longName || c.symbol,
+      price: r(price, 2),
+      currency: data?.price?.currency || null,
+      marketCap: marketCap != null ? r(marketCap, 0) : null,
+      sector: data?.assetProfile?.sector || null,
       summary,
       aggScore: r(c.aggScore, 4),
       mentions: c.mentions,
+      discoveredVia: c.discoveredVia,
+      analystUpsidePct: r(analystUpsidePct(price, data?.financialData?.targetMeanPrice ?? null), 1),
     });
   }
   debug.enrichedCount = enriched.length;
@@ -275,11 +394,19 @@ export async function refreshStockIdea(config, { holdings, positions }) {
   debug.noSummary = noSummary;
 
   if (!enriched.length) {
-    return finish("every shortlisted candidate failed to enrich (no live price, or the lookup itself failed)", null);
+    return finish(
+      debug.marketCapExcluded.length && !debug.chunkErrors.length
+        ? "every shortlisted candidate was above the market-cap ceiling — see marketCapExcluded"
+        : "every shortlisted candidate failed to enrich (no live price, or the lookup itself failed)",
+      null
+    );
   }
 
   const concentrationPenalty = config.money?.stockIdeaConcentrationPenalty ?? 0.6;
-  const ranked = rankCandidates(enriched, sectorWeights(positions), { concentrationPenalty });
+  const analystUpsideWeight = config.money?.stockIdeaAnalystUpsideWeight ?? 0.5;
+  const ranked = rankCandidates(enriched, sectorWeights(positions), {
+    concentrationPenalty, analystUpsideWeight,
+  });
   const count = config.money?.stockIdeaCount ?? 1;
   return finish("ok", { at: new Date().toISOString(), candidates: ranked.slice(0, count) });
 }
@@ -294,6 +421,11 @@ export async function refreshStockIdea(config, { holdings, positions }) {
  * 1) is the tuning knob if daily turns out to be too chatty or too slow —
  * every-other-day, every three days, whatever. See lib/time.js for the
  * calendar-day math this is built on.
+ *
+ * Keeps a short memory of past picks (`stockIdeaHistory`, capped at
+ * `stockIdeaNoRepeatDays`) so a static portfolio doesn't just re-derive the
+ * same answer morning after morning — see refreshStockIdea's no-repeat
+ * step and excludeRecent above.
  */
 export async function getStockIdea(config, { holdings, positions }, { force = false } = {}) {
   const tz = config.timezone || "America/Toronto";
@@ -303,10 +435,20 @@ export async function getStockIdea(config, { holdings, positions }, { force = fa
 
   if (!stale) return cached;
 
-  const fresh = await refreshStockIdea(config, { holdings, positions });
+  const noRepeatDays = Math.max(0, config.money?.stockIdeaNoRepeatDays ?? 10);
+  const history = (await getMeta("stockIdeaHistory", [])) || [];
+  const recentSymbols = history.slice(0, noRepeatDays).map((h) => h.symbol);
+
+  const fresh = await refreshStockIdea(config, { holdings, positions }, { recentSymbols });
   if (fresh) {
     await setMeta("stockIdea", fresh);
-    log.info(`stock idea refreshed: ${fresh.candidates.map((c) => c.symbol).join(", ") || "none found"}`);
+    const pickedSymbols = fresh.candidates.map((c) => c.symbol);
+    const nextHistory = [
+      ...pickedSymbols.map((symbol) => ({ symbol, at: fresh.at })),
+      ...history,
+    ].slice(0, Math.max(noRepeatDays, 1) * 2); // a little slack past the window itself
+    await setMeta("stockIdeaHistory", nextHistory);
+    log.info(`stock idea refreshed: ${pickedSymbols.join(", ") || "none found"}`);
     return fresh;
   }
 

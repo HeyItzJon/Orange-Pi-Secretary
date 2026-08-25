@@ -16,10 +16,22 @@ import { getStockIdea } from "../lib/stockIdeas.js";
 function printDebug(debug) {
   if (!debug) { console.log("(no debug trail recorded — that's unexpected, worth flagging)"); return; }
   console.log(
-    `  ${debug.tickerCount} tickers checked → ${debug.recCount} related symbols found → ` +
-    `${debug.shortlistCount} shortlisted → ${debug.enrichedCount} enriched`
+    `  ${debug.tickerCount} tickers checked → ${debug.recCount} related symbols (similarity) + ` +
+    `${debug.screenerCount} from the screener → ${debug.shortlistCount} shortlisted → ${debug.enrichedCount} enriched`
   );
   if (debug.note) console.log(`  stopped because: ${debug.note}`);
+  if (debug.screenerError) console.log(`  screener call failed: ${debug.screenerError} (similarity source still ran on its own)`);
+  if (debug.marketCapExcluded?.length) {
+    console.log(`  excluded for being above the market-cap ceiling:`);
+    for (const e of debug.marketCapExcluded) console.log(`    - ${e}`);
+  }
+  if (debug.recentExcluded?.length) {
+    console.log(`  excluded as a repeat of a recent pick:`);
+    for (const e of debug.recentExcluded) console.log(`    - ${e}`);
+  }
+  if (debug.usedRecentFallback) {
+    console.log(`  note: excluding recent picks would have left nothing, so a repeat was allowed this time`);
+  }
   if (debug.chunkErrors?.length) {
     console.log(`  errors along the way:`);
     for (const e of debug.chunkErrors) console.log(`    - ${e}`);

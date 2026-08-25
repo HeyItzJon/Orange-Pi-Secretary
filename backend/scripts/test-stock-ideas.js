@@ -6,7 +6,14 @@
 // Run: node scripts/test-stock-ideas.js
 
 import assert from "node:assert/strict";
-import { sectorBucket, sectorWeights, rankCandidates, firstSentences } from "../lib/stockIdeas.js";
+import {
+  sectorBucket,
+  sectorWeights,
+  rankCandidates,
+  firstSentences,
+  analystUpsidePct,
+  excludeRecent,
+} from "../lib/stockIdeas.js";
 
 let pass = 0, fail = 0;
 const group = (t) => console.log(`\n${t}\n`);
@@ -155,6 +162,153 @@ test("a result longer than maxChars is truncated at a word boundary with an elli
 
 test("a text with no sentence-ending punctuation at all still comes back, not dropped", () => {
   assert.equal(firstSentences("no punctuation here at all"), "no punctuation here at all");
+});
+
+group("analystUpsidePct — how far the live price sits below Yahoo's analyst target");
+
+test("target above price is positive upside", () => {
+  assert.equal(analystUpsidePct(100, 120), 20);
+});
+
+test("target below price is negative (downside)", () => {
+  assert.equal(analystUpsidePct(100, 80), -20);
+});
+
+test("missing price or missing target is null, not a NaN or a guess", () => {
+  assert.equal(analystUpsidePct(null, 120), null);
+  assert.equal(analystUpsidePct(100, null), null);
+  assert.equal(analystUpsidePct(undefined, undefined), null);
+});
+
+test("a zero or negative price is null rather than dividing by it", () => {
+  assert.equal(analystUpsidePct(0, 120), null);
+  assert.equal(analystUpsidePct(-5, 120), null);
+});
+
+group("excludeRecent — keeping a static portfolio from re-deriving yesterday's pick");
+
+test("drops any candidate whose symbol is in the recent list", () => {
+  const out = excludeRecent(
+    [{ symbol: "AAA" }, { symbol: "BBB" }, { symbol: "CCC" }],
+    ["BBB"]
+  );
+  assert.deepEqual(out.map((c) => c.symbol), ["AAA", "CCC"]);
+});
+
+test("an empty recent list is a no-op", () => {
+  const candidates = [{ symbol: "AAA" }, { symbol: "BBB" }];
+  assert.deepEqual(excludeRecent(candidates, []), candidates);
+});
+
+test("a missing/undefined recent list is also a no-op, not a crash", () => {
+  const candidates = [{ symbol: "AAA" }];
+  assert.deepEqual(excludeRecent(candidates, undefined), candidates);
+});
+
+group("rankCandidates — analyst upside, layered on top of the sector-concentration score");
+
+test("analystUpsideWeight: 0 (the default) ignores analyst data entirely", () => {
+  const ranked = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: 40 }],
+    {}
+  );
+  assert.equal(ranked[0].rebalanceScore, ranked[0].aggScore);
+});
+
+test("positive upside raises the score above the no-upside baseline, negative lowers it", () => {
+  const base = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: 0 }],
+    {},
+    { analystUpsideWeight: 0.5 }
+  )[0].rebalanceScore;
+  const up = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: 20 }],
+    {},
+    { analystUpsideWeight: 0.5 }
+  )[0].rebalanceScore;
+  const down = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: -20 }],
+    {},
+    { analystUpsideWeight: 0.5 }
+  )[0].rebalanceScore;
+  assert.ok(up > base, `expected upside score ${up} > baseline ${base}`);
+  assert.ok(down < base, `expected downside score ${down} < baseline ${base}`);
+});
+
+test("upside is clamped to +60/-30 so one outlier target can't dominate", () => {
+  const extreme = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 1, mentions: 1, analystUpsidePct: 500 }],
+    {},
+    { analystUpsideWeight: 1 }
+  )[0].rebalanceScore;
+  const atCap = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 1, mentions: 1, analystUpsidePct: 60 }],
+    {},
+    { analystUpsideWeight: 1 }
+  )[0].rebalanceScore;
+  assert.equal(extreme, atCap);
+
+  const extremeDown = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 1, mentions: 1, analystUpsidePct: -500 }],
+    {},
+    { analystUpsideWeight: 1 }
+  )[0].rebalanceScore;
+  const atFloor = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 1, mentions: 1, analystUpsidePct: -30 }],
+    {},
+    { analystUpsideWeight: 1 }
+  )[0].rebalanceScore;
+  assert.equal(extremeDown, atFloor);
+});
+
+test("a candidate with no analyst data at all is neutral, not penalized", () => {
+  const withNull = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: null }],
+    {},
+    { analystUpsideWeight: 0.5 }
+  )[0].rebalanceScore;
+  const withZero = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: 0 }],
+    {},
+    { analystUpsideWeight: 0.5 }
+  )[0].rebalanceScore;
+  assert.equal(withNull, withZero);
+});
+
+test("the reason string names the upside or downside when analyst data is present", () => {
+  const up = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: 22 }],
+    {}
+  )[0];
+  assert.match(up.reason, /analysts see 22% upside/);
+
+  const down = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: -15 }],
+    {}
+  )[0];
+  assert.match(down.reason, /analysts see 15% downside/);
+});
+
+test("a candidate with no analyst data omits the upside/downside clause entirely", () => {
+  const ranked = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 0.5, mentions: 1, analystUpsidePct: null }],
+    {}
+  );
+  assert.doesNotMatch(ranked[0].reason, /analysts see/);
+});
+
+test("mentions: 0 falls back to the discoveredVia text — the 'beyond your portfolio' source", () => {
+  const withSource = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 1, mentions: 0, discoveredVia: "surfaced by Yahoo's aggressive small caps screen" }],
+    {}
+  )[0];
+  assert.match(withSource.reason, /surfaced by Yahoo's aggressive small caps screen/);
+
+  const noSource = rankCandidates(
+    [{ symbol: "X", sector: null, aggScore: 1, mentions: 0, discoveredVia: null }],
+    {}
+  )[0];
+  assert.match(noSource.reason, /surfaced by Yahoo's small-cap screener/);
 });
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}\n`);

@@ -647,7 +647,17 @@
     "stockIdeaSummarySentences": 2,
     "_stockIdeaSummarySentences_note": "How many sentences of Yahoo's own business-summary blurb show under a candidate \u2014 the plain-English 'what does this company actually do' line. Straight from Yahoo's text, nothing rewritten or generated.",
     "stockIdeaSummaryMaxChars": 220,
-    "_stockIdeaSummaryMaxChars_note": "Hard length cap on that summary regardless of sentence count, so one run-on sentence can't blow out the layout."
+    "_stockIdeaSummaryMaxChars_note": "Hard length cap on that summary regardless of sentence count, so one run-on sentence can't blow out the layout.",
+    "stockIdeaScreenerId": "aggressive_small_caps",
+    "_stockIdeaScreenerId_note": "The 'discover beyond your portfolio' half of the pick, alongside the similarity-based half above. One of Yahoo's predefined screens: aggressive_small_caps, small_cap_gainers, undervalued_growth_stocks, growth_technology_stocks, most_actives, day_gainers, day_losers, undervalued_large_caps. Small-cap ones lean toward genuinely unfamiliar names; the gainer/mover ones lean toward 'something's happening today.'",
+    "stockIdeaScreenerShortlist": 10,
+    "_stockIdeaScreenerShortlist_note": "How many candidates to pull from the screener and carry into enrichment/ranking, same idea as stockIdeaShortlist above but for the screener source.",
+    "stockIdeaMaxMarketCap": 15000000000,
+    "_stockIdeaMaxMarketCap_note": "Hard ceiling in raw market cap (not FX-adjusted — a USD and a CAD cap are compared against the same number, so treat this as approximate). Anything above it is excluded outright, from either source. This exists specifically so a mega-cap you basically already know about (a big bank, a big telecom) can't be the pick — that's what was happening before this existed.",
+    "stockIdeaAnalystUpsideWeight": 0.5,
+    "_stockIdeaAnalystUpsideWeight_note": "How much Yahoo's analyst price targets (financialData.targetMeanPrice vs. the live price) move the ranking, clamped to ±30%/60% so one stale outlier target can't dominate. 0 = ignore analyst targets entirely. A candidate with no analyst coverage at all (common for small-caps) gets no adjustment either way — missing data isn't a penalty.",
+    "stockIdeaNoRepeatDays": 10,
+    "_stockIdeaNoRepeatDays_note": "How many past picks stay excluded from re-selection. Keeps a static portfolio from just re-deriving the same answer every morning. 0 disables the no-repeat check entirely."
   },
   "display": {
     "_comment": "The three-page screen at /display. Small, mostly looked-at rather than operated \u2014 but there IS a cursor and a refresh button, because the same URL is how you debug the pipeline on a laptop.",
