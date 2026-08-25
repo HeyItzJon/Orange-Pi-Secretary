@@ -100,19 +100,33 @@ const dismissed = stored.filter(
 const orphans = dismissed.filter((i) => !isMatchedTarget(i));
 const onTrackedCalendar = dismissed.filter((i) => isMatchedTarget(i));
 
-// Pass 2 — event-level, only for candidates pass 1 couldn't already clear:
-// dueAt is required (nothing to look up a window around without it), and a
-// calendarId is required (the live-set rebuild below is keyed by it).
-const checkable = onTrackedCalendar.filter((i) => i.dueAt && i.meta?.calendarId);
-const unverifiable = onTrackedCalendar.filter((i) => !i.dueAt || !i.meta?.calendarId);
+// Pass 2 — event-level, only for candidates pass 1 couldn't already clear.
+// dueAt is required (nothing to look up a window around without it) — that's
+// the only hard requirement. A calendarId on record narrows which calendar's
+// fetch failing should protect an item; without one (a legacy row from
+// before meta.calendarId was tracked — exactly what "Test"/"Test 2"/"Test 3"
+// turned out to be) every tracked calendar is checked instead, since the
+// item's own id was always built from the real calendarId:eventId pair at
+// collection time (see lib/ids.js) even when that pair wasn't ALSO saved
+// separately into meta — so it still matches correctly against a fresh
+// fetch, we just can't narrow which single calendar's failure would excuse
+// it, and treat any failure among the checked calendars as reason to leave
+// it protected rather than guess.
+const checkable = onTrackedCalendar.filter((i) => i.dueAt);
+const unverifiable = onTrackedCalendar.filter((i) => !i.dueAt);
 
 let confirmedDeletedEvents = [];
 let stillLiveEvents = [];
 let uncheckedFetchFailed = [];
 
 if (checkable.length) {
-  const calendarIdsNeeded = new Set(checkable.map((i) => i.meta.calendarId));
-  const calendarsToCheck = matched.filter((c) => calendarIdsNeeded.has(c.id));
+  const knownCalendarIds = new Set(checkable.filter((i) => i.meta?.calendarId).map((i) => i.meta.calendarId));
+  const hasUnknownCalendarId = checkable.some((i) => !i.meta?.calendarId);
+  // An item with no calendarId on record could be on any tracked calendar,
+  // so when at least one exists, check them all rather than guessing which.
+  const calendarsToCheck = hasUnknownCalendarId
+    ? matched
+    : matched.filter((c) => knownCalendarIds.has(c.id));
 
   const dueTimes = checkable.map((i) => new Date(i.dueAt).getTime());
   const timeMin = new Date(Math.min(...dueTimes) - 86400000); // a day of padding
@@ -123,7 +137,14 @@ if (checkable.length) {
   const failedIds = new Set(failedCalendarIds);
 
   for (const item of checkable) {
-    if (failedIds.has(item.meta.calendarId)) {
+    // Known calendar: only ITS failure excuses it. Unknown calendar: any
+    // failure among everything checked excuses it, since it could have been
+    // hiding on the calendar that failed.
+    const excusedByFailure = item.meta?.calendarId
+      ? failedIds.has(item.meta.calendarId)
+      : failedIds.size > 0;
+
+    if (excusedByFailure) {
       uncheckedFetchFailed.push(item);
     } else if (liveIds.has(item.id)) {
       stillLiveEvents.push(item);
