@@ -263,6 +263,59 @@ test("a third event that overlaps neither of two overlapping ones is not flagged
 });
 
 // ====================================================================
+group("strip.events — the day's timed events as a plain chronological list");
+
+test("all-day items never show up in the events list — they're their own chip row", () => {
+  const items = [
+    ev({ id: "a", title: "Standup", dueAt: at(9), meta: { end: at(9, 30) } }),
+    ev({ id: "b", title: "Payday", dueAt: at(0), meta: { allDay: true } }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(strip.events.map((e) => e.id), ["a"]);
+});
+
+test("the events list reads chronologically, regardless of input order", () => {
+  const items = [
+    ev({ id: "late", title: "Gym", dueAt: at(18), meta: { end: at(19) } }),
+    ev({ id: "early", title: "Standup", dueAt: at(9), meta: { end: at(9, 30) } }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(strip.events.map((e) => e.id), ["early", "late"]);
+});
+
+test("an event that's already finished is marked past, but stays in the list", () => {
+  const items = [ev({ id: "a", title: "Standup", dueAt: at(9), meta: { end: at(9, 30) } })];
+  const { strip } = buildDisplay({ items, config, now: NOW }); // now is 12:20
+  assert.equal(strip.events.length, 1, "a finished event is not removed");
+  assert.equal(strip.events[0].past, true);
+  assert.equal(strip.events[0].running, false);
+});
+
+test("the event actually happening now is marked running; a finished one and an upcoming one are not", () => {
+  const items = [
+    ev({ id: "done", title: "Standup", dueAt: at(9), meta: { end: at(9, 30) } }),
+    ev({ id: "now", title: "Focus block", dueAt: at(12), meta: { end: at(13) } }),
+    ev({ id: "later", title: "Gym", dueAt: at(18), meta: { end: at(19) } }),
+  ];
+  const { strip } = buildDisplay({ items, config, now: NOW }); // now is 12:20 — inside the "now" event
+  const byId = Object.fromEntries(strip.events.map((e) => [e.id, e]));
+  assert.equal(byId.done.past, true);
+  assert.equal(byId.done.running, false);
+  assert.equal(byId.now.past, false);
+  assert.equal(byId.now.running, true);
+  assert.equal(byId.later.past, false);
+  assert.equal(byId.later.running, false);
+});
+
+test("a future day's events list never marks anything past or running — nothing on it has happened, or is happening, yet", () => {
+  const items = [ev({ id: "a", title: "Standup", dueAt: dayAt(1, 9), meta: { end: dayAt(1, 9, 30) } })];
+  const { dayStrips } = buildDisplay({ items, config, now: NOW });
+  assert.equal(dayStrips[0].events.length, 1);
+  assert.equal(dayStrips[0].events[0].past, false);
+  assert.equal(dayStrips[0].events[0].running, false);
+});
+
+// ====================================================================
 group("dayStrips — the forward-day carousel, same graphic as the day strip");
 
 test("dayStrips carries exactly the next 3 days, forward only", () => {

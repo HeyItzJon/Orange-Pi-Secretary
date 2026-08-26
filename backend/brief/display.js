@@ -249,6 +249,13 @@ function buildDayStrip(dayEvents, tz, { now = null } = {}) {
   const span = endHour - startHour;
   const pct = (h) => Math.max(0, Math.min(100, ((h - startHour) / span) * 100));
 
+  // An event with no explicit end is assumed to run an hour — the same
+  // stand-in used everywhere else an end time is needed but Google didn't
+  // give one. Shared by the block's own `past` flag below and the new
+  // per-event `events` list, so "has this finished" always means the same
+  // thing whichever of the two asks.
+  const endOf = (e) => new Date(e.meta?.end || new Date(e.dueAt).getTime() + 3600000);
+
   const timed = dayEvents
     .filter((e) => !e.meta?.allDay)
     .map((e) => {
@@ -272,7 +279,7 @@ function buildDayStrip(dayEvents, tz, { now = null } = {}) {
         ? `${clockLabel(e.dueAt, tz)}–${clockLabel(e.meta.end, tz)}`
         : "",
       // No `now` (every future day): nothing on the strip has happened yet.
-      past: now ? new Date(e.meta?.end || new Date(e.dueAt).getTime() + 3600000) < now : false,
+      past: now ? endOf(e) < now : false,
       important: Boolean(e.unmissable || e.emphasised),
       detail: {
         title: e.title,
@@ -292,6 +299,31 @@ function buildDayStrip(dayEvents, tz, { now = null } = {}) {
   // then alphabetical — see sortAllDay()/allDayChip().
   const allDay = sortAllDay(dayEvents.filter((e) => e.meta?.allDay)).map(allDayChip);
 
+  // The day's TIMED events (never all-day — those are their own chip row
+  // above, see AllDayZone in Display.jsx) as a plain chronological list —
+  // `dayEvents` already arrives sorted by dueAt (see the `events` array in
+  // buildDisplay()), and filtering preserves that order, so nothing here
+  // has to re-sort. Every event stays in the list even once it's finished
+  // (Jon's call: cross it out, don't remove it — the day strip's own
+  // blocks already do the same with `.past`, see above) so the list reads
+  // as the whole day's shape, not just what's left. `running` is the one
+  // (or, for a genuine overlap, more than one) event `now` actually falls
+  // inside — the frontend uses it to place a "NOW" tag that walks down the
+  // list as the day goes on. Both flags are always false without `now`
+  // (every future day in the carousel — nothing on it has happened, or is
+  // happening, yet).
+  const events = timed.map(({ e }) => ({
+    id: e.id,
+    time: clockLabel(e.dueAt, tz),
+    title: e.title,
+    where: locationOf(e),
+    duration: durationLabel(e.dueAt, e.meta?.end, false),
+    prep: prepOf(e),
+    priority: priorityWord(e),
+    past: now ? endOf(e) < now : false,
+    running: now ? (new Date(e.dueAt) <= now && endOf(e) > now) : false,
+  }));
+
   const ticks = [];
   for (let h = Math.ceil(startHour); h <= endHour; h++) {
     const major = h % 3 === 0;
@@ -309,7 +341,7 @@ function buildDayStrip(dayEvents, tz, { now = null } = {}) {
     width: pct(Math.min(c.to, endHour)) - pct(Math.max(c.from, startHour)),
   }));
 
-  const result = { startHour, endHour, blocks, chunks, ticks, allDay };
+  const result = { startHour, endHour, blocks, chunks, ticks, allDay, events };
   if (now) result.nowPct = pct(hourOfDay(now, tz));
   return result;
 }
@@ -904,7 +936,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   // it or leaving the strip's scale the same regardless of the day's shape.
   // An event before the 4am floor still shows, just pinned to the left edge
   // rather than positioned at its exact time. See buildDayStrip() above.
-  const { startHour, endHour, blocks, chunks, ticks, allDay: allDayToday, nowPct } =
+  const { startHour, endHour, blocks, chunks, ticks, allDay: allDayToday, nowPct, events: todayEventsList } =
     buildDayStrip(todays, tz, { now });
 
   const nowHour = hourOfDay(now, tz);
@@ -1169,6 +1201,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     hero,
     strip: {
       startHour, endHour, nowPct, blocks, chunks, ticks, allDay: allDayToday,
+      events: todayEventsList,
       // Today's own slot in the same `week.days` array the line above
       // reuses — see the comment on `week`'s computation for why this is
       // one shared number, not a second one computed just for this page.

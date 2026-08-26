@@ -288,20 +288,31 @@
    carousel can no longer make the strip itself jump, since nothing above
    it changes size day to day any more). */
 .aday-zone { margin-bottom: 20px; }
-.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Vertically stacked, on every screen size — Jon's call: the old
+   horizontal-scroll-on-mobile row (see the retired phone-only rule this
+   replaced) read as "weird scrolling" rather than a list. .aday-label sits
+   above the pills now (this is a column, not a row), same on a laptop as
+   on a phone. */
+.aday-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .aday-label {
   font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); flex-shrink: 0;
 }
-.aday-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.aday-chips { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
 /* The plain-language form underneath the pills — Jon: "in pill form and in
    written form in the body" — same joined-names phrasing brief/display.js's
    own daySummary() uses for an all-day-only day. */
 .aday-text { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
+/* No fixed max-width/ellipsis truncation any more — Jon's call: a pill
+   should be exactly as wide as its own text needs, not clipped to a fixed
+   box. `width: fit-content` sizes it to its content; `max-width: 100%` (plus
+   the wrap fallback) is only there so one genuinely very long title can't
+   push wider than its own column and get clipped by an ancestor instead. */
 .aday-chip {
-  font-size: 12.5px; font-weight: 560; padding: 3px 11px; border-radius: 20px;
+  font-size: 12.5px; font-weight: 560; padding: 5px 12px; border-radius: 16px;
   background: var(--fill); color: var(--ink);
-  max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  width: fit-content; max-width: 100%;
+  white-space: normal; word-break: break-word; line-height: 1.3;
   cursor: default;
 }
 /* Same fallback palette as .blk.d-* below, for an item with no real Google
@@ -464,6 +475,21 @@
 .trow .meta { display: block; font-size: 13.5px; color: var(--muted); margin-top: 1px; }
 .trow .prep { color: var(--ink-2); }
 .trow .meta .prep::before { content: " — "; color: var(--faint); }
+/* A finished event stays in the list (Jon: don't remove it, just make it
+   obvious it's done) — greyed and struck through rather than gone, same
+   "still here, just quieter" treatment .blk.past already gives the day
+   strip's own blocks. */
+.trow.past .title { text-decoration: line-through; color: var(--faint); }
+.trow.past .t, .trow.past .meta, .trow.past .pri { opacity: .55; }
+/* Orange, same family as the day strip's own now-marker (.nowline) — walks
+   down the list on its own as `now` moves past each event (see `running`
+   in brief/display.js's buildDayStrip), never shown on a future carousel
+   slide since nothing there is happening "now". */
+.now-tag {
+  flex-shrink: 0; align-self: center; font-size: 10px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: #1a1400;
+  background: var(--accent); padding: 2px 7px; border-radius: 9px;
+}
 
 .pri { margin-left: 9px; font-size: 12px; color: var(--muted); font-style: italic; white-space: nowrap; }
 
@@ -628,23 +654,38 @@
    rows leave height undetermined, so each cell's aspect-ratio derives its
    height FROM the (fr-determined) column width instead, and the row track
    just grows to match. */
-/* No-op on a wide screen (nothing to scroll — the grid's own 1fr columns
-   already shrink to fit); this is what the phone media query turns into a
-   horizontal scroller once the grid switches to fixed-width columns. */
-.ygrid-scroll { overflow: visible; }
+/* Scrollable whenever the grid's own minimum column width (see minmax()
+   below) doesn't fit the available space — not gated to a phone-width media
+   query any more. A wide desktop has plenty of room, so 1fr wins and the
+   columns just grow to fill it exactly like before (no scrollbar, no
+   visible change); anywhere narrower — a phone in portrait OR landscape, an
+   iPad, whatever the viewport — the 13px floor makes the grid's own natural
+   width exceed the container's, and this is what makes the overflow
+   reachable by scrolling instead of either being silently clipped by an
+   ancestor's overflow:hidden or squeezed illegibly thin to force a fit. */
+.ygrid-scroll {
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px; /* room for the scrollbar to not sit on the grid */
+}
 .ygrid {
   display: grid;
-  grid-template-columns: var(--ylabelw, 44px) repeat(var(--yweeks), 1fr);
+  grid-template-columns: var(--ylabelw, 44px) repeat(var(--yweeks), minmax(13px, 1fr));
   grid-template-rows: 16px repeat(7, auto);
   gap: 3px;
 }
 .mlabel { align-self: end; justify-self: start; padding-bottom: 3px; font-size: 10.5px; color: var(--faint); letter-spacing: .03em; }
 .wlabel { align-self: center; justify-self: end; padding-right: 8px; font-size: 10px; color: var(--faint); }
 
-.ycell { border-radius: 3px; aspect-ratio: 1 / 1; }
+/* Tappable now (see YearPage's openDate in Display.jsx) as well as
+   hoverable — a mouse still gets the native `title` tooltip below for free,
+   a tap opens the same info via a portal card since touch has no hover at
+   all. `.open` is a light outline, not a box-shadow, so it never fights
+   with `.today`'s own inset ring on the one day that's both. */
+.ycell { border-radius: 3px; aspect-ratio: 1 / 1; cursor: pointer; }
 .ycell.b-nodata { background: var(--fill); }
-.ycell.b-future { background: transparent; border: 1px solid var(--rule); }
+.ycell.b-future { background: transparent; border: 1px solid var(--rule); cursor: default; }
 .ycell.today { box-shadow: inset 0 0 0 2px var(--accent); }
+.ycell.open { outline: 2px solid var(--ink-2); outline-offset: 1px; }
 
 /* Darker = more extreme, either direction. The near-flat middle is close to
    white on purpose — it's the one range meant to read as "nothing happened"
@@ -930,6 +971,20 @@
 .strip-card .cpri   { color: var(--accent); font-size: 11.5px; letter-spacing: .02em; }
 .strip-card .cflag  { color: var(--ink-2); font-size: 11.5px; letter-spacing: .02em; }
 
+/* The Year grid's own tap-card (see YearPage's openDate in Display.jsx) —
+   same portal-plus-fixed-position pattern as .strip-card above and for the
+   same reason (.ygrid-scroll clips its own overflow to be scrollable at
+   all), just a single line of text since that's all a cell's own `title`
+   ever carried on a mouse. */
+.ycell-card {
+  position: fixed;
+  padding: 7px 11px; white-space: nowrap;
+  background: #17171a; border: 1px solid #33333a; border-radius: 7px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.6);
+  font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums;
+  pointer-events: none; z-index: 9999;
+}
+
 /* ================================================================== tasks */
 .tgroup.focus h2 { color: var(--accent); }
 .focusrow, .task { position: relative; }
@@ -1075,41 +1130,12 @@
      fragment. Colour still separates them; a tap (see Strip's openId in
      Display.jsx) names them the same way hover does on a laptop. */
   .blk .bl { display: none; }
-  /* All-day chips: on a narrow phone, a day with more than 2-3 pills wrapped
-     to a second line and pushed the timeline (and the carousel's nav below
-     it) down by a different amount from day to day. Scroll horizontally in
-     one line instead, so the row's height — and everything below it —
-     stays put regardless of how many chips a given day has. The label
-     stays put; only the chip strip itself scrolls. */
-  .aday-row { flex-wrap: nowrap; }
-  .aday-chips {
-    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-  .aday-chips::-webkit-scrollbar { display: none; }
-  .aday-chip { flex-shrink: 0; }
   .ptable .phead, .ptable .prow { grid-template-columns: 3.6rem 1fr 3.6rem 3.6rem; }
   .ptable .phead span:nth-child(3), .prow .w { display: none; }
-  /* The grid's 1fr columns were squeezing all ~53 weeks into one screen's
-     width, which — depending on the browser's own floor on how small a
-     grid-auto track is allowed to get before it just overflows — meant
-     either illegibly thin slivers or, per Jon's report, the columns past
-     whatever fit silently clipped by .page-year's own overflow:hidden with
-     no way to reach the rest. Fixed-pixel columns instead: every cell
-     renders at the same legible size regardless of viewport width, the
-     grid's total width naturally exceeds the screen, and .ygrid-scroll
-     (below) is what makes the overflow reachable instead of clipped —
-     scrolled a finger's swipe at a time, same as GitHub's own contribution
-     graph does on a phone. */
-  .ygrid-scroll {
-    overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
-    padding-bottom: 4px; /* room for the scrollbar to not sit on the grid */
-  }
-  .ygrid {
-    --ylabelw: 30px; gap: 2px;
-    grid-template-columns: var(--ylabelw) repeat(var(--yweeks), 15px);
-    width: max-content;
-  }
+  /* Scrolling itself is now the default everywhere it's needed (see
+     .ygrid-scroll/.ygrid above) — this just tightens the label column and
+     cell gap a bit further for a narrow phone specifically. */
+  .ygrid { --ylabelw: 30px; gap: 2px; }
   .ycell { border-radius: 2px; }
   .mlabel { font-size: 9px; }
   .yhead { flex-wrap: wrap; gap: 4px; }

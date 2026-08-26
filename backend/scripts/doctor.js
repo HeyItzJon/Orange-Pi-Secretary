@@ -99,15 +99,35 @@ if (!vaultPath) {
 }
 
 // ---- portfolio ----------------------------------------------------------
+// The real, current book is the SQLite `holdings` table (synced from the
+// vault — see sources/money.js's syncHoldings, Round 23). config/portfolio.json
+// below is read separately, straight off disk, purely as a last-resort
+// fallback file for when BOTH the vault AND that synced cache are
+// unreachable — its own holding count has no reason to match the real one,
+// and reporting only IT here (as this used to) is exactly what made the
+// doctor's count look wrong next to the real, live Finances page: this file
+// can go stale indefinitely since nothing ever re-derives it from anything
+// live, while the real book keeps itself current on every sync.
 console.log("\nPortfolio");
+try {
+  const { init: initStore, getHoldings } = await import("../lib/store.js");
+  await initStore();
+  const holdings = await getHoldings();
+  holdings.length
+    ? ok(`${holdings.length} holdings in the synced book (this is the real count the app actually uses)`)
+    : warn("no holdings synced yet — run `npm run sync-holdings`, or start the server once");
+} catch (err) {
+  warn(`could not read the synced holdings table: ${err.message}`);
+}
+
 try {
   const p = JSON.parse(await fs.readFile(path.join(root, "config", "portfolio.json"), "utf-8"));
   const n = (p.holdings || []).length;
-  n ? ok(`${n} holdings`) : warn("portfolio.json has no holdings (fine if your holdings live in the vault instead)");
+  ok(`fallback file present: ${n} holding(s) (only ever used if the vault AND the synced cache above both fail — a different count here from the real book is expected, not a bug)`);
   const withTargets = (p.holdings || []).filter((h) => h.targetPct != null).length;
-  if (!withTargets) warn("no targetPct on any holding — drift alerts disabled");
+  if (n && !withTargets) warn("no targetPct on any holding in the fallback file — drift alerts would be disabled if this file were ever actually used");
 } catch (err) {
-  warn(`portfolio.json: ${err.message} (fine if your holdings live in the vault instead)`);
+  warn(`portfolio.json: ${err.message} (fine if your holdings live in the vault instead — this file is only a last-resort fallback)`);
 }
 
 // ---- frontend -----------------------------------------------------------

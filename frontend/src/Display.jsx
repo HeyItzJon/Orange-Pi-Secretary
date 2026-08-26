@@ -588,14 +588,31 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
           delete" — brief/display.js still computes `d.days`, this page
           simply no longer renders it, so nothing downstream that might
           still read it breaks. */}
+      {/* This used to always read `d.today` — TODAY's own remaining
+          agenda — regardless of which carousel slide above was showing, so
+          paging to Thursday updated the all-day pills but silently left
+          yesterday's... er, today's list sitting there underneath. Reading
+          `slide.events` instead (see buildDayStrip's own comment in
+          brief/display.js) fixes that: it's always whichever day the
+          carousel is turned to, all-day items already excluded (those are
+          the pills above), and — for today specifically — it's the WHOLE
+          day, past included, rather than just what's left: a finished
+          event stays in the list, just crossed out (see .trow.past below),
+          so the list reads as the day's real shape rather than shrinking
+          as things happen. */}
       <div className="cols">
         <section className="zone">
-          <h2>Rest of today</h2>
-          {d.today.length === 0 ? (
-            <p className="empty">Nothing left on the calendar.</p>
+          <h2>{onToday ? "Today's events" : `${slide.label}'s events`}</h2>
+          {!slide.events || slide.events.length === 0 ? (
+            <p className="empty">{onToday ? "Nothing timed today." : "Nothing timed that day."}</p>
           ) : (
-            d.today.map((t) => (
-              <div className="trow" key={t.id}>
+            slide.events.map((t) => (
+              <div className={`trow${t.past ? " past" : ""}`} key={t.id}>
+                {/* Orange, same family as the day strip's own now-marker —
+                    walks down the list on its own as `now` moves past each
+                    event, since `running` is recomputed fresh every pull.
+                    Never set on a future slide (see buildDayStrip). */}
+                {t.running && <span className="now-tag">Now</span>}
                 <span className="t">{t.time}</span>
                 <span className="body">
                   <span className="title">{t.title}</span>
@@ -910,6 +927,66 @@ const LEGEND_BUCKETS = ["r3", "r2", "r1", "flat", "g1", "g2", "g3"];
 
 function YearPage({ d }) {
   const y = d.year;
+  // Which cell's card is pinned open by a tap — same idea as Strip's own
+  // openId/hoverId, minus the hover half: a mouse already gets this same
+  // information for free from the cell's own `title` tooltip below, so the
+  // only thing missing on a touch screen (no hover at all) is a tap
+  // equivalent that shows the same metadata.
+  const [openDate, setOpenDate] = useState(null);
+  const cellRefs = useRef(new Map());
+  const cardRef = useRef(null);
+  const [cardPos, setCardPos] = useState(null);
+
+  useEffect(() => {
+    if (openDate == null) return;
+    const close = () => setOpenDate(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [openDate]);
+
+  // Same portal-plus-getBoundingClientRect positioning as Strip's own
+  // metadata card, for the same reason: .ygrid-scroll clips its own
+  // overflow (that's what makes it scrollable rather than just wide), so a
+  // card positioned as a DOM child of a cell would be clipped away the
+  // moment the grid has scrolled at all.
+  useLayoutEffect(() => {
+    if (openDate == null) { setCardPos(null); return; }
+    const anchor = cellRefs.current.get(openDate);
+    const card = cardRef.current;
+    if (!anchor || !card) { setCardPos(null); return; }
+    const ar = anchor.getBoundingClientRect();
+    const cw = card.offsetWidth;
+    const ch = card.offsetHeight;
+    const GAP = 9;
+    const PAD = 8;
+
+    let left = ar.left;
+    if (left + cw > window.innerWidth - PAD) left = Math.max(PAD, window.innerWidth - PAD - cw);
+    left = Math.max(PAD, left);
+
+    let top = ar.top - GAP - ch;
+    if (top < PAD) top = ar.bottom + GAP;
+    top = Math.min(top, window.innerHeight - PAD - ch);
+
+    setCardPos({ top, left });
+  }, [openDate]);
+
+  // A resize (orientation flip) or a scroll anywhere — including inside
+  // .ygrid-scroll itself, which a plain window-resize listener wouldn't
+  // catch — leaves a stale position behind; closing is simpler and safer
+  // than trying to re-derive it mid-gesture. Capture phase so a scroll
+  // inside the grid's own scroller is caught, not just a window-level one.
+  useEffect(() => {
+    if (openDate == null) return;
+    const closeAll = () => setOpenDate(null);
+    window.addEventListener("resize", closeAll);
+    window.addEventListener("scroll", closeAll, true);
+    return () => {
+      window.removeEventListener("resize", closeAll);
+      window.removeEventListener("scroll", closeAll, true);
+    };
+  }, [openDate]);
+
   if (!y) return null;
   // The week count is real data (weeks vary with what day Jan 1 lands on),
   // so it has to come from JS — but the label column's width is a layout
@@ -927,6 +1004,8 @@ function YearPage({ d }) {
     const dollars = c.dayValue != null ? ` · ${signed(c.dayValue, 0).replace(/^([+-])/, "$1$")} ${y.base}` : "";
     return `${c.date} · ${pct}${dollars}`;
   };
+
+  const openCell = openDate != null ? y.cells.find((c) => c.date === openDate) : null;
 
   return (
     <div className="page-year">
@@ -949,15 +1028,15 @@ function YearPage({ d }) {
         </div>
 
         <div className="ycard">
-          {/* Scrollable on its own — see .ygrid-scroll in the phone media
-              query. On a wide screen the grid already shrinks to fit (each
-              cell is a 1fr column), so this never needs to scroll there; on
-              a phone the grid instead renders at a fixed, legible cell size
-              and this is what makes the columns past the first screenful
-              reachable, rather than silently clipped by an ancestor's
-              overflow:hidden — the wall-display layout this page was
-              originally built for was never meant to be scrolled, but a
-              365-day grid on a phone has no other way to all fit. */}
+          {/* Scrollable whenever the grid's own minimum cell size doesn't
+              fit the available width — not just on a narrow phone. A wide
+              desktop has room to spare, so the grid's columns just grow to
+              fill it (see .ygrid's minmax() in Display.css) and this never
+              needs to scroll there; anywhere narrower — a phone in
+              portrait OR landscape, an iPad, whatever — the columns hit
+              their floor and the rest becomes reachable by scrolling
+              instead of being silently clipped by an ancestor's
+              overflow:hidden or squeezed illegibly thin. */}
           <div className="ygrid-scroll">
             <div className="ygrid" style={gridVars}>
               {y.months.map((m) => (
@@ -971,9 +1050,17 @@ function YearPage({ d }) {
               {y.cells.map((c) => (
                 <div
                   key={c.date}
-                  className={`ycell b-${c.bucket}${c.today ? " today" : ""}`}
+                  ref={(el) => {
+                    if (el) cellRefs.current.set(c.date, el);
+                    else cellRefs.current.delete(c.date);
+                  }}
+                  className={`ycell b-${c.bucket}${c.today ? " today" : ""}${openDate === c.date ? " open" : ""}`}
                   style={{ gridColumn: c.week + 2, gridRow: c.weekday + 2 }}
                   title={cellTitle(c)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenDate((cur) => (cur === c.date ? null : c.date));
+                  }}
                 />
               ))}
             </div>
@@ -991,6 +1078,19 @@ function YearPage({ d }) {
           </div>
         </div>
       </section>
+
+      {/* Same metadata a mouse already gets for free from the cell's own
+          `title` attribute — this is just that, made reachable by tap. */}
+      {openCell && createPortal(
+        <div
+          ref={cardRef}
+          className="ycell-card"
+          style={cardPos ? { top: cardPos.top, left: cardPos.left } : { top: -9999, left: -9999, visibility: "hidden" }}
+        >
+          {cellTitle(openCell)}
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
