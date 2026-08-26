@@ -803,12 +803,19 @@ test("buildDisplay wires week in as a badge-less page", () => {
 });
 
 // ====================================================================
-group("busyness score — a 1-10 read of how loaded a day is, for the Week page");
+group("busyness score — a 0-10 read of how loaded a day is, for the Week page");
 
-test("an empty day floors at 1, not 0 — a 1-10 scale has no zero", () => {
+test("an empty day scores a flat zero — nothing scheduled is not busy at all", () => {
   const w = weekForecast([], [], { now: NOW, tz: TZ, days: 1 });
-  assert.equal(w.days[0].busyness, 1);
+  assert.equal(w.days[0].busyness, 0);
   assert.deepEqual(w.days[0].busynessWhy, []);
+});
+
+test("less than an hour of free time left in the day is a flat 10 — Jon's other reference point", () => {
+  const events = [ev({ id: "a", dueAt: at(7), meta: { end: at(22, 30) } })]; // 15.5h booked, 0.5h free
+  const w = weekForecast(events, [], { now: NOW, tz: TZ, days: 1 });
+  assert.ok(w.days[0].freeHours < 1, `expected under an hour free, got ${w.days[0].freeHours}`);
+  assert.equal(w.days[0].busyness, 10);
 });
 
 test("busyness never exceeds 10 even on a genuinely packed day", () => {
@@ -844,8 +851,8 @@ test("an all-day item nudges the score up once there's already some real time bo
   // it can only ever nudge an already-nonzero day, not manufacture "busy"
   // out of nothing — a lone reminder on an otherwise empty day stays at the
   // same floor a truly empty day gets (both are, in practice, a free day).
-  // 4h booked is a fairer place to see the nudge than the floor itself.
-  const base = [ev({ id: "a", dueAt: at(9), meta: { end: at(13) } })];
+  // 3h booked is a fairer place to see the nudge than the floor itself.
+  const base = [ev({ id: "a", dueAt: at(9), meta: { end: at(12) } })];
   const withAllDay = [...base, ev({ id: "b", dueAt: at(0), meta: { allDay: true } })];
   const wBase = weekForecast(base, [], { now: NOW, tz: TZ, days: 1 });
   const wAllDay = weekForecast(withAllDay, [], { now: NOW, tz: TZ, days: 1 });

@@ -574,20 +574,30 @@ const ORIGIN_LABELS = {
 function busynessScore(dayEvents, dayAllDayRaw, { busyHours, wakeHours }) {
   const why = [];
 
-  // A genuinely empty day — nothing timed, nothing all-day — is the floor,
-  // full stop, before any of the math below even runs.
-  if (!dayEvents.length && !dayAllDayRaw.length) return { score: 1, why };
+  // A genuinely empty day — nothing timed, nothing all-day — is a flat
+  // zero, full stop, before any of the math below even runs. Jon's own
+  // calibration: nothing scheduled should read as "not busy at all," not
+  // just the floor of a 1-10 scale.
+  if (!dayEvents.length && !dayAllDayRaw.length) return { score: 0, why };
 
   // Time actually booked out of the waking window IS the score, first and
-  // foremost — Jon's own calibration: a "busy" day is one with maybe 3-5h
-  // free left in it, and a day with only 2-3 short things on it "cannot
-  // possibly be that busy" no matter how those hours are split up. Nine of
-  // the ten points come from this alone; everything below is a small nudge
-  // on top, never the main event, so a mostly-free day can't get talked
-  // into a high score by anything other than actual booked time.
-  const load = wakeHours ? busyHours / wakeHours : 0;
-  let score = load * 9;
-  if (load > 0) why.push(`${Math.round(load * 100)}% of the day booked`);
+  // foremost — Jon's own calibration, two reference points he gave directly:
+  // less than an hour of free time left in the day is a flat 10, and a
+  // "busy" day is one with maybe 3-5h free left in it. A day with only 2-3
+  // short things on it "cannot possibly be that busy" no matter how those
+  // hours are split up. All ten points can come from this alone at the top
+  // end; everything below is a small nudge on top, never the main event, so
+  // a mostly-free day can't get talked into a high score by anything other
+  // than actual booked time.
+  //
+  // busyCap is the amount of booked time that lands exactly on a 10 — wake
+  // hours minus the 1 free hour Jon named as the "that's definitely a 10"
+  // line, floored at 1h so a very short waking window can't divide by
+  // something tiny (or zero).
+  const percentOfDay = wakeHours ? busyHours / wakeHours : 0;
+  if (busyHours > 0) why.push(`${Math.round(percentOfDay * 100)}% of the day booked`);
+  const busyCap = Math.max(1, wakeHours - 1);
+  let score = Math.min(10, (busyHours / busyCap) * 10);
 
   // Heavier categories cost a little more per hour than a casual one —
   // config.categories already ranks these (24 for personal, up to 50 for
@@ -625,7 +635,7 @@ function busynessScore(dayEvents, dayAllDayRaw, { busyHours, wakeHours }) {
   // exactly the same as one block of the same total length would. If a day
   // genuinely has a lot going on, that already shows up as more busyHours
   // above; counting events on top of that double-counts the same fact.
-  return { score: Math.max(1, Math.min(10, Math.round(score))), why };
+  return { score: Math.max(0, Math.min(10, Math.round(score))), why };
 }
 
 /**

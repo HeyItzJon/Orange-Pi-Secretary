@@ -273,7 +273,7 @@ function DayCarousel({ slides, offset, onOffset }) {
             title={
               slide.busynessWhy?.length
                 ? `Busy Score ${slide.busyness}/10 — ${slide.busynessWhy.join(", ")}`
-                : `Busy Score ${slide.busyness}/10 — nothing scheduled yet`
+                : `Busy Score ${slide.busyness}/10 — nothing scheduled`
             }
           >
             <span className="daycar-busy-label">Busy Score:</span>
@@ -548,6 +548,13 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
     <>
       <TodayHeader dateLabel={d.dateLabel} timeZone={d.timezone} daysAhead={onToday ? 0 : offset} />
 
+      <DayCarousel slides={slides} offset={offset} onOffset={onDayOffset} />
+
+      {/* Moved below the carousel — Jon's call: the carousel itself now
+          covers "what does Tomorrow/Thursday/Friday look like" (see the
+          removed Next-N-days panel below), so this line's job changed from
+          "the whole story" to "introduce the detail underneath it" for
+          whichever slide is showing. */}
       {onToday ? (
         <div className={`hero${d.hero.urgent ? "" : " calm"}`}>
           <span className="lbl">{d.hero.urgent ? "NOW" : "NEXT"}</span>
@@ -565,8 +572,13 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
         </div>
       )}
 
-      <DayCarousel slides={slides} offset={offset} onOffset={onDayOffset} />
-
+      {/* The old second column here — a text restatement of Tomorrow/
+          Thursday/Friday — is gone on purpose: the carousel above already
+          swipes to exactly those days now, and duplicating that as a list
+          just repeated the same information twice. Jon: "delete will not
+          delete" — brief/display.js still computes `d.days`, this page
+          simply no longer renders it, so nothing downstream that might
+          still read it breaks. */}
       <div className="cols">
         <section className="zone">
           <h2>Rest of today</h2>
@@ -589,40 +601,6 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
               </div>
             ))
           )}
-        </section>
-
-        <section className="zone">
-          <h2>Next {d.days.length} days</h2>
-          <div className="days">
-            {d.days.map((day) => (
-              <div className="day" key={day.key}>
-                <div className="dhead">
-                  <span className="dname">{day.label}</span>
-                  <span className="ddate">{day.dateLabel}</span>
-                </div>
-                {day.clear ? (
-                  <p className="empty">Clear.</p>
-                ) : (
-                  day.items.map((it) => (
-                    <div className="drow" key={it.id}>
-                      <span className="dt">{it.chunk || it.time}</span>
-                      <span className="dbody">
-                        <span className="title">{it.title}</span>
-                        {it.priority && <span className="pri">{it.priority}</span>}
-                        {(it.where || it.duration) && (
-                          <span className="meta">
-                            {[it.time !== it.chunk ? it.time : null, it.duration, it.where]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  ))
-                )}
-              </div>
-            ))}
-          </div>
         </section>
       </div>
     </>
@@ -1026,6 +1004,28 @@ function busynessBucket(score) {
   return "calm";
 }
 
+/**
+ * Jon's own call: a flat list of loose deadlines "has become completely
+ * unreadable" once there's more than a handful — every row repeating its
+ * own "in 5 days" / "Thu, Aug 27" made it hard to tell at a glance which
+ * things actually share a day. Grouping by day (the list already arrives
+ * sorted soonest-first, so this just folds adjacent same-day rows together
+ * rather than re-sorting anything) turns that into a handful of headers,
+ * each with its own short list underneath.
+ */
+function groupLooming(items) {
+  const order = [];
+  const byDate = new Map();
+  for (const it of items) {
+    if (!byDate.has(it.dateLabel)) {
+      byDate.set(it.dateLabel, { dateLabel: it.dateLabel, in: it.in, items: [] });
+      order.push(it.dateLabel);
+    }
+    byDate.get(it.dateLabel).items.push(it);
+  }
+  return order.map((k) => byDate.get(k));
+}
+
 function WeekPage({ d, onGoToDay }) {
   const w = d.week;
   const [farNotice, setFarNotice] = useState(false);
@@ -1077,7 +1077,10 @@ function WeekPage({ d, onGoToDay }) {
           >
             <div className="fcdhead">
               <span className="fcdnamewrap">
-                <span className="fcdname">{day.label}</span>
+                {/* Bright for the 4 days a click actually goes somewhere,
+                    dimmer for the rest — Jon's own ask, so the card itself
+                    hints at which ones are clickable before you even try. */}
+                <span className={`fcdname${i < clickableCount ? " fcd-live" : " fcd-far"}`}>{day.label}</span>
                 <span className="fcddate">{day.dateLabel}</span>
               </span>
               {/* A day with nothing timed on it can still carry a deadline —
@@ -1110,23 +1113,25 @@ function WeekPage({ d, onGoToDay }) {
             </div>
             <span className="fcfree">{day.freeHours}h free</span>
             {day.eventCount > 0 && (
-              <span className="fccount">{day.eventCount} on the calendar</span>
+              <span className="fccount">{day.eventCount} event{day.eventCount === 1 ? "" : "s"}</span>
             )}
             {/* Pinned to the bottom right (see .fcbusy-row's margin-top:auto)
                 rather than up in the header — Jon's call, so it reads as a
                 footnote to the card rather than competing with the day name
                 for attention. Standardised size (see .fcscore) — only the
                 colour and number carry the score now, not the badge's own
-                dimensions. */}
+                dimensions. "Busy Score:" — same label as the Today page's
+                own carousel header, so the two surfaces read as one
+                feature rather than two similarly-named ones. */}
             {typeof day.busyness === "number" && (
               <div className="fcbusy-row">
-                <span className="fcbusy-label">Busyness:</span>
+                <span className="fcbusy-label">Busy Score:</span>
                 <span
                   className={`fcscore b-${busynessBucket(day.busyness)}`}
                   title={
                     day.busynessWhy?.length
-                      ? `Busyness ${day.busyness}/10 — ${day.busynessWhy.join(", ")}`
-                      : `Busyness ${day.busyness}/10 — nothing scheduled yet`
+                      ? `Busy Score ${day.busyness}/10 — ${day.busynessWhy.join(", ")}`
+                      : `Busy Score ${day.busyness}/10 — nothing scheduled`
                   }
                 >
                   {day.busyness}
@@ -1142,14 +1147,20 @@ function WeekPage({ d, onGoToDay }) {
         {w.looming.length === 0 ? (
           <p className="empty">Nothing due in this window.</p>
         ) : (
-          w.looming.map((it) => (
-            <div className="trow" key={it.id}>
-              <span className="t">{it.in}</span>
-              <span className="body">
-                <span className="title">{it.title}</span>
-                {it.note && <span className="pri">{it.note}</span>}
-                <span className="meta">{it.dateLabel}</span>
-              </span>
+          groupLooming(w.looming).map((group) => (
+            <div className="lgroup" key={group.dateLabel}>
+              <div className="lghead">
+                <span className="lgin">{group.in}</span>
+                <span className="lgdate">{group.dateLabel}</span>
+              </div>
+              {group.items.map((it) => (
+                <div className="trow" key={it.id}>
+                  <span className="body">
+                    <span className="title">{it.title}</span>
+                    {it.note && <span className="pri">{it.note}</span>}
+                  </span>
+                </div>
+              ))}
             </div>
           ))
         )}

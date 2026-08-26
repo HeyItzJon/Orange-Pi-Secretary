@@ -444,9 +444,11 @@
 /* padding-top bumped from 16px — the timeline strip and "Rest of today" /
    "Next N days" columns below it were reading crowded together. Compact
    breakpoints keep their own tighter value (see max-height:620 below). */
-.cols { display: flex; gap: 34px; flex: 1; min-height: 0; padding-top: 28px; overflow: hidden; }
-.cols .zone:first-child { flex: 1.05; }
-.cols .zone:last-child { flex: 1.6; border-left: 1px solid var(--rule); padding-left: 30px; }
+/* Down to a single zone ("Rest of today") since the Next-N-days column was
+   removed (Jon: the sliding carousel already covers those days) — no more
+   two-column divider to draw, just the one list filling the row. */
+.cols { display: flex; flex: 1; min-height: 0; padding-top: 28px; overflow: hidden; }
+.cols .zone { flex: 1; min-width: 0; }
 .zone { min-width: 0; }
 
 .trow { display: flex; gap: 12px; align-items: baseline; padding: 4px 0; }
@@ -689,6 +691,12 @@
 .fcdhead { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 6px; }
 .fcdnamewrap { display: flex; flex-direction: column; min-width: 0; }
 .fcdname { font-size: 13.5px; font-weight: 620; color: var(--ink-2); }
+/* Jon's visual cue for which cards the carousel can actually jump to: the
+   clickable ones (today + the next `clickableCount`-1 days, matching
+   dayStrips in brief/display.js) get the brightest possible title; the rest
+   of the week fades toward the background instead. */
+.fcdname.fcd-live { color: var(--ink); }
+.fcdname.fcd-far { color: var(--faint); }
 .fcddate { font-size: 11px; color: var(--faint); }
 /* The 1-10 busyness read (see busynessScore() in brief/display.js) — one
    fixed size for every card (Jon's call: the colour and number already
@@ -752,6 +760,18 @@
 .fccount { font-size: 11px; color: var(--faint); }
 
 .page-week .zone { flex: none; margin-top: 20px; overflow-y: auto; min-height: 0; }
+
+/* Looming, regrouped by day (see groupLooming in Display.jsx) — Jon's
+   complaint was a flat list repeating "in 3 days · Thu Aug 27" on every
+   single row until it was unreadable. One header per day instead, the
+   individual items underneath it plain. */
+.lgroup + .lgroup { margin-top: 14px; }
+.lghead {
+  display: flex; align-items: baseline; gap: 8px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--rule); margin-bottom: 4px;
+}
+.lgin { font-size: 13px; font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: .02em; }
+.lgdate { font-size: 12px; color: var(--faint); }
 
 /* ========================================================== page: world */
 
@@ -817,8 +837,6 @@
 
 @media (max-width: 1100px) {
   .mtotal .val { font-size: 36px; }
-  .cols { gap: 24px; }
-  .cols .zone:last-child { padding-left: 22px; }
   .story .title { font-size: 13px; }
   .story .meta { font-size: 10.5px; }
 }
@@ -1031,7 +1049,6 @@
   /* Every side-by-side pair collapses to one column here. `.cols` was the one
      that got missed, and it left Today's two lists overlapping each other. */
   .cols, .page-tasks, .mcols, .days { display: flex; flex-direction: column; gap: 16px; }
-  .cols > .zone { border-left: 0; padding-left: 0; }
   .trow { gap: 10px; }
   .trow .t { min-width: 58px; }
   .tside { border-left: 0; padding-left: 0; }
@@ -1041,6 +1058,19 @@
      fragment. Colour still separates them; a tap (see Strip's openId in
      Display.jsx) names them the same way hover does on a laptop. */
   .blk .bl { display: none; }
+  /* All-day chips: on a narrow phone, a day with more than 2-3 pills wrapped
+     to a second line and pushed the timeline (and the carousel's nav below
+     it) down by a different amount from day to day. Scroll horizontally in
+     one line instead, so the row's height — and everything below it —
+     stays put regardless of how many chips a given day has. The label
+     stays put; only the chip strip itself scrolls. */
+  .aday-row { flex-wrap: nowrap; }
+  .aday-chips {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .aday-chips::-webkit-scrollbar { display: none; }
+  .aday-chip { flex-shrink: 0; }
   .ptable .phead, .ptable .prow { grid-template-columns: 3.6rem 1fr 3.6rem 3.6rem; }
   .ptable .phead span:nth-child(3), .prow .w { display: none; }
   /* The grid's 1fr columns were squeezing all ~53 weeks into one screen's
