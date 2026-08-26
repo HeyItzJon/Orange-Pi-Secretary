@@ -303,41 +303,53 @@ function DayCarousel({ slides, offset, onOffset }) {
 }
 
 /**
- * All-day events never become blocks on the hour-by-hour strip below (there's
- * no time to plot them at) — this is where they actually show, as a row of
- * small chips sitting above it. Same real calendar colour as a timed block
- * when there's one on record (blockStyle, same as Strip's blocks use), the
- * .d-{swatch} palette as the fallback underneath. Order comes pre-sorted
+ * Two names joined the way a person would say them out loud: "a and b", or
+ * "a, b and c" — never an Oxford comma before that last "and". Same shape
+ * brief/display.js's own daySummary() already uses for an all-day-only day;
+ * kept here too since this is now the one place still building a sentence
+ * out of a list of titles client-side.
+ */
+function joinNames(names) {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/**
+ * All-day events, for whichever day the carousel above is currently showing.
+ * Used to sit right above the hour-by-hour strip (there's no hour to plot
+ * them at) — Jon's call to move it: it now reads as part of the page's own
+ * body, below the title, rather than bolted onto the timeline. Pill form
+ * (same chips as before — same real calendar colour when there's one on
+ * record, the .d-{swatch} palette as the fallback) plus a plain-language
+ * sentence underneath, since a screen reader — or a glance too quick to
+ * read six pills — still needs a way to take this in. Order comes pre-sorted
  * from the backend (see sortAllDay in brief/display.js) — can't-miss first,
  * then flagged, then alphabetical — so nothing here has to re-decide it.
+ * Renders nothing on a day with no all-day items — no timeline above it to
+ * keep a fixed height against anymore, so there's nothing to reserve space
+ * for.
  */
-function AllDayRow({ items }) {
-  // Always renders the row itself — even with nothing in it — so its
-  // reserved height (see .aday-row's min-height in Display.css) holds the
-  // timeline strip below in the same place on every carousel slide. Letting
-  // this return null on an empty day (the old behaviour) meant paging from
-  // a day with an all-day chip to one without visibly yanked the strip up,
-  // and back down again paging the other way.
-  const has = items && items.length > 0;
+function AllDayZone({ items }) {
+  if (!items || !items.length) return null;
   return (
-    <div className="aday-row">
-      {has && (
-        <>
-          <span className="aday-label">All day</span>
-          <div className="aday-chips">
-            {items.map((c) => (
-              <span
-                key={c.id}
-                className={`aday-chip d-${c.swatch}`}
-                style={blockStyle(c.color) || {}}
-                title={[c.title, c.priority].filter(Boolean).join(" — ")}
-              >
-                {c.title}
-              </span>
-            ))}
-          </div>
-        </>
-      )}
+    <div className="aday-zone">
+      <div className="aday-row">
+        <span className="aday-label">All day</span>
+        <div className="aday-chips">
+          {items.map((c) => (
+            <span
+              key={c.id}
+              className={`aday-chip d-${c.swatch}`}
+              style={blockStyle(c.color) || {}}
+              title={[c.title, c.priority].filter(Boolean).join(" — ")}
+            >
+              {c.title}
+            </span>
+          ))}
+        </div>
+      </div>
+      <p className="aday-text">{joinNames(items.map((c) => c.title))}</p>
     </div>
   );
 }
@@ -416,16 +428,6 @@ function Strip({ strip }) {
 
   return (
     <>
-      {/* A sibling of .strip-wrap, deliberately NOT a child of it: .nowline
-          inside .strip-wrap is absolutely positioned against .strip-wrap's
-          own top edge (see the comment on .nowline in Display.css), and
-          AllDayRow only renders on days that actually have one — folding it
-          inside .strip-wrap would shift that top edge (and therefore the
-          now-marker) up or down depending on whether today happens to have
-          an all-day event, which is exactly the kind of thing that should
-          never move. Sitting outside keeps .strip-wrap's own coordinate
-          space exactly what it was before this existed. */}
-      <AllDayRow items={strip.allDay} />
       <div className="strip-wrap">
         <div className="strip">
           {(strip.ticks || []).map((t) => (
@@ -571,6 +573,13 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
           <span className="big">{slide.summary}</span>
         </div>
       )}
+
+      {/* All-day items for whichever day the carousel is currently showing
+          — used to sit right above the hour strip; Jon's call to move it
+          below the (now-relocated) title instead, as the first thing in the
+          page's own body, in both pill and written form. See AllDayZone's
+          own comment. */}
+      <AllDayZone items={slide.allDay} />
 
       {/* The old second column here — a text restatement of Tomorrow/
           Thursday/Friday — is gone on purpose: the carousel above already
@@ -1090,7 +1099,7 @@ function WeekPage({ d, onGoToDay }) {
                   it. Hover/tap for which — see title below. */}
               {day.allDay?.length > 0 && (
                 <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
-                  {day.allDay.length}
+                  {day.allDay.length} all-day
                 </span>
               )}
             </div>

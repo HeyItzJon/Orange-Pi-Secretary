@@ -91,6 +91,24 @@ await atest("markSurfaced bumps surfaceCount, stamps lastSurfaced, clears change
   assert.equal(it.changed, false);
 });
 
+await atest("a real user dismiss survives a refresh — no meta.autoDismissed, so it's never revived", async () => {
+  await upsertItem({ id: "a4", title: "v1", contentHash: "h1" });
+  await patchItem("a4", { status: "dismissed" }); // the same shape server.js's dismiss action writes
+  const again = await upsertItem({ id: "a4", title: "v1", contentHash: "h1" });
+  assert.equal(again.status, "dismissed");
+});
+
+await atest("an autoDismissed item revives the moment it legitimately reappears", async () => {
+  await upsertItem({ id: "a5", title: "v1", contentHash: "h1", meta: { calendarId: "c1" } });
+  // The exact shape sources/calendar.js's reconciliation pass writes when a
+  // fetch comes back without this item.
+  await patchItem("a5", { status: "dismissed", meta: { calendarId: "c1", autoDismissed: true } });
+  const revived = await upsertItem({ id: "a5", title: "v1", contentHash: "h1", meta: { calendarId: "c1" } });
+  assert.equal(revived.status, "open");
+  assert.equal(revived.changed, true, "a revived item should earn the right to be shown again");
+  assert.ok(!revived.meta?.autoDismissed, "the flag itself shouldn't linger once revived");
+});
+
 group("prune — same rules as before: closed or dateless, and stale");
 
 await atest("an old, done item with no dueAt is pruned; an old item with a future dueAt survives", async () => {

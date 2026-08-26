@@ -104,10 +104,11 @@
 .refresh.spin { color: var(--accent); border-color: var(--accent); }
 
 /* Top padding gives the page's own content room to breathe below the nav
-   bar — bumped up from 16px since it was reading cramped right under the
-   tabs. Compact breakpoints (short kiosk panel, phone) set their own
-   tighter value below and are unaffected by this. */
-.stage { flex: 1; min-height: 0; overflow: hidden; padding: 26px 22px 0; display: flex; flex-direction: column; }
+   bar — bumped up again (26px → 32px) per Jon's ask for more air between the
+   menu and the clock below it, now that the Today page's redesign moved
+   things around. Compact breakpoints (short kiosk panel, phone) set their
+   own tighter value below and are unaffected by this. */
+.stage { flex: 1; min-height: 0; overflow: hidden; padding: 32px 22px 0; display: flex; flex-direction: column; }
 
 .foot {
   display: flex; justify-content: space-between; align-items: center;
@@ -140,9 +141,12 @@
 .tday-head {
   /* Centered as a group (date + clock together), not spread to the edges —
      Jon asked for the date to read more centrally and the clock to sit
-     "mostly centered" rather than pinned to the right. */
+     "mostly centered" rather than pinned to the right. Bottom padding bumped
+     22px → 34px — more air between the clock and the carousel/timeline
+     below it, per the same "give this a little more space" ask as .stage's
+     top padding above. */
   display: flex; align-items: center; justify-content: center;
-  gap: 28px; padding: 4px 2px 22px; flex-shrink: 0;
+  gap: 28px; padding: 4px 2px 34px; flex-shrink: 0;
 }
 .tday-date { display: flex; flex-direction: column; min-width: 0; }
 .tday-weekday {
@@ -275,21 +279,25 @@
 
 .strip-wrap { position: relative; flex-shrink: 0; }
 
-/* All-day events never become blocks on .strip below — there's no hour to
-   plot them at — so they get their own small row of chips above it instead.
-   See AllDayRow in Display.jsx. */
-/* min-height reserves this row's space even on a day with no all-day items
-   (see AllDayRow in Display.jsx, which now always renders the row itself) —
-   sized to match a single .aday-chip's own height (12.5px font + 3px
-   vertical padding) so a day WITH chips doesn't grow any taller than this.
-   Without it, paging the carousel between a day with an all-day chip and
-   one without visibly jumped the hour strip below up and down. */
-.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; min-height: 24px; }
+/* All-day events never become blocks on .strip — there's no hour to plot
+   them at. They used to get their own row of chips right above the strip;
+   Jon's call to move that below the page's title instead, as the first
+   thing in the body, for whichever day the carousel is currently showing
+   (see AllDayZone in Display.jsx) — so this no longer needs to reserve a
+   fixed height against the timeline the way it once did (paging the
+   carousel can no longer make the strip itself jump, since nothing above
+   it changes size day to day any more). */
+.aday-zone { margin-bottom: 20px; }
+.aday-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .aday-label {
   font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); flex-shrink: 0;
 }
 .aday-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+/* The plain-language form underneath the pills — Jon: "in pill form and in
+   written form in the body" — same joined-names phrasing brief/display.js's
+   own daySummary() uses for an all-day-only day. */
+.aday-text { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
 .aday-chip {
   font-size: 12.5px; font-weight: 560; padding: 3px 11px; border-radius: 20px;
   background: var(--fill); color: var(--ink);
@@ -415,15 +423,13 @@
 
 /* The now-cursor. It's a sibling of .strip (see the comment in Display.jsx),
    positioned in .strip-wrap's own coordinate space — which starts at the
-   same top-left corner as .strip does, since .strip is still .strip-wrap's
-   first child (AllDayRow renders as .strip-wrap's own preceding sibling
-   now, specifically so it never shifts this) — so top/height here are sized
-   against .strip's own 54px height (40px in the short-panel media query
-   below) rather than against the whole wrap, which also contains the hour
-   labels underneath. Thicker than a plain divider and deliberately taller
-   than the bar it crosses, with a small downward-pointing flag at the top,
-   so it reads as a playhead sitting on the timeline rather than just
-   another tick mark. */
+   same top-left corner as .strip does, since .strip is .strip-wrap's first
+   child — so top/height here are sized against .strip's own 54px height
+   (40px in the short-panel media query below) rather than against the whole
+   wrap, which also contains the hour labels underneath. Thicker than a
+   plain divider and deliberately taller than the bar it crosses, with a
+   small downward-pointing flag at the top, so it reads as a playhead
+   sitting on the timeline rather than just another tick mark. */
 .nowline { position: absolute; top: -9px; height: 72px; width: 3px; background: var(--accent); border-radius: 2px; z-index: 7; pointer-events: none; }
 .nowline::before {
   content: ""; position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
@@ -1022,8 +1028,19 @@
   .top .date, .top .liveclock, .top .updated { display: none; }
   .tabs { order: -1; width: 100%; justify-content: space-between; }
   .tab { flex: 1; text-align: center; padding: 7px 4px; }
-  .mspan { flex-wrap: wrap; gap: 4px 14px; }
+  /* .mhead's desktop layout puts the big total and the week/month/holdings
+     line side by side, sized for a wide panel; at phone width the two
+     columns had nowhere to go, and .ccy's desktop position (a small
+     negative margin that tucks "CAD" right up against the number when
+     they sit on one baseline — see .mtotal .ccy above) pushed it left of
+     .mhead's own edge the moment .mtotal wrapped, clipped away entirely by
+     .page-money's overflow:hidden. Stacking the two rows and giving .ccy an
+     ordinary positive margin here (rather than reusing the desktop's
+     baseline trick) fixes both at once. */
+  .mhead { flex-direction: column; align-items: flex-start; gap: 8px; }
   .mtotal { flex-wrap: wrap; }
+  .mtotal .ccy { align-self: auto; margin: 0 0 0 2px; }
+  .mspan { flex-wrap: wrap; gap: 4px 14px; }
   /* Column rules and their indents are for side-by-side columns that no
      longer exist at this width. */
   .zone, .tside, .pf-zone { border-left: 0 !important; padding-left: 0 !important; }

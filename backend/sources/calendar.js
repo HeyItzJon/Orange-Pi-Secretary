@@ -227,7 +227,13 @@ export async function collectCalendar(config, { force = false } = {}) {
       const dueTime = new Date(prev.dueAt).getTime();
       if (dueTime < timeMin.getTime() || dueTime > timeMax.getTime()) continue;
       if (liveIds.has(prev.id)) continue;
-      await patchItem(prev.id, { status: "dismissed" });
+      // Flagged as autoDismissed (as opposed to a real user dismiss, which
+      // never sets this) so upsertItem can tell an inferred "this looks
+      // gone" apart from an actual "I dismissed this" — and revive the item
+      // automatically if it turns out this was wrong and the very same
+      // event legitimately reappears in a later fetch. See that comment in
+      // lib/store.js for the full reasoning.
+      await patchItem(prev.id, { status: "dismissed", meta: { ...prev.meta, autoDismissed: true } });
       log.info(`"${prev.title}" no longer on the calendar — marked dismissed`);
     }
   }

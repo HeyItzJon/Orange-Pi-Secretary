@@ -83,17 +83,32 @@ export async function upsertItem(incoming) {
     };
   } else {
     const contentChanged = prev.contentHash !== incoming.contentHash;
+    // A dismiss/done the USER made must survive every future refresh no
+    // matter what (see force-dismiss.js's own comment on this) — that's the
+    // whole point of preserving prev.status below. But sources/calendar.js
+    // also writes status "dismissed" when it only INFERS an item is gone
+    // (missing from a fetch), flagging that guess with meta.autoDismissed —
+    // and a guess can be wrong: a transient fetch gap, a calendar that
+    // briefly stopped matching its config name, anything that makes one
+    // round's fetch incomplete. If the exact same item then legitimately
+    // reappears in a later successful fetch — which is exactly what's
+    // happening right here, since upsertItem only ever runs against fresh
+    // incoming data — that was never a real dismissal and must not stay
+    // hidden forever. Only meta.autoDismissed makes that call; a real user
+    // dismiss never sets it, so this can't revive one of those.
+    const revive = prev.status === "dismissed" && prev.meta?.autoDismissed;
     item = {
       ...prev,
       ...incoming,
       firstSeen: prev.firstSeen,
       lastSeen: now,
-      status: prev.status,
+      status: revive ? "open" : prev.status,
       surfaceCount: prev.surfaceCount,
       lastSurfaced: prev.lastSurfaced,
       snoozeUntil: prev.snoozeUntil,
-      // A changed item earns the right to be shown again.
-      changed: contentChanged || prev.changed,
+      // A changed item earns the right to be shown again — same as a
+      // revived one: either way, this is new information worth resurfacing.
+      changed: contentChanged || prev.changed || revive,
     };
   }
   writeItem(dbc, incoming.id, item);
