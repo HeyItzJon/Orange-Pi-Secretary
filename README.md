@@ -54,6 +54,51 @@ name doesn't match Google, and whether the frontend is built.
 
 ---
 
+## Running in production (the Orange Pi)
+
+The Pi runs this as a systemd service, not a manual `nohup npm start &` —
+that needs to survive an accidental power loss and come back on its own,
+which a background shell job started over SSH never does once the SSH
+session or the Pi itself goes away.
+
+**One-time setup**, after cloning the repo on the Pi:
+
+```bash
+pkill -f "node server.js"    # stop any manually-started copy first
+sudo cp pi-secretary.service /etc/systemd/system/pi-secretary.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now pi-secretary
+```
+
+That's it — from now on it starts on every boot, including after an
+unplug/power-loss reboot, and systemd restarts it on its own if it ever
+crashes. See the comments in `pi-secretary.service` for how it finds
+`node` regardless of whether it's installed via apt, NodeSource, or nvm.
+
+**Every time new code is pushed**, on the Pi:
+
+```bash
+./deploy.sh
+```
+
+One command: pulls the latest commit, reinstalls dependencies, rebuilds
+the frontend, runs the backend test suite as a safety gate (a broken pull
+never goes live silently), and restarts the service. Pass `--skip-tests`
+to skip the test run if you're in a hurry.
+
+Check on it any time with `systemctl status pi-secretary` and
+`journalctl -u pi-secretary -f` (add `sudo` to either if your account
+isn't in a group with journal-read access).
+
+**Why unplugging it is safe:** `backend/data/secretary.db` is SQLite in
+WAL mode — every write is a real transaction against the file itself, not
+an in-memory snapshot a power cut could catch half-written. Worst case on
+an unclean shutdown is losing the last few seconds of writes, never a
+corrupted store. Combined with the systemd service above, a full
+unplug-and-replug should come back on its own with nothing to fix by hand.
+
+---
+
 ## How a brief is assembled
 
 ```
