@@ -253,7 +253,23 @@
 }
 .daycar-arrow:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
 .daycar-arrow:disabled { opacity: .3; cursor: default; }
-.daycar-label { display: flex; align-items: baseline; gap: 9px; min-width: 12em; justify-content: center; }
+/* A fixed width now, not just a minimum — sized to the longest realistic
+   combination that can ever land here, measured directly against the real
+   font rather than guessed: a long weekday name next to a long
+   weekday+month+day date ("Wednesday" / "Wednesday, September 22") comes
+   out to just under 315px. Pinning the box there (flex-shrink: 0 so
+   nothing can compress it either) means paging from "Today" to
+   "Wednesday" never moves the arrows on either side of it, even a pixel —
+   they're always exactly this box's width plus .daycar-nav's own gap
+   apart. justify-content: center (below) keeps the shorter, more common
+   strings centered inside that fixed box rather than pinned to one edge
+   of it. The phone breakpoint overrides this back to a flexible width —
+   a screen that narrow has no room to spare for a worst-case reservation
+   this size. */
+.daycar-label {
+  display: flex; align-items: baseline; gap: 9px; justify-content: center;
+  width: 330px; flex-shrink: 0; white-space: nowrap; overflow: hidden;
+}
 /* "Today", "Tuesday, August 25" — bumped up (14px/12px → 18px/14px) along
    with the arrows above, same "make the whole nav row read bigger" ask. */
 .daycar-name { font-size: 18px; font-weight: 660; }
@@ -343,24 +359,32 @@
 
 /* 68px — taller than the events sitting on it (see .blk's 7px top/bottom
    inset below), by 7px each side. That's deliberate: the strip itself is
-   now a small ruler, with hour/half-hour ticks visible above and below
-   each event, and hidden behind it — a block is opaque and sits later in
-   paint order (see the .tick/.chunk-sep vs .blk order in Display.jsx), so
-   a tick or chunk-seam only shows where no block currently covers it.
-   Block height itself is unchanged from before (54px) — only the track
-   around it grew. See .nowline just below, sized to keep the same ~9px
-   overshoot above/below the (new, taller) bar. */
+   now a small ruler, with hour ticks (and the shorter half-hour notch,
+   see .tick.half below) visible above and below each event, and hidden
+   behind it — a block is opaque and sits later in paint order (see the
+   .tick/.chunk-sep vs .blk order in Display.jsx), so a tick or chunk-seam
+   only shows where no block currently covers it. Block height itself is
+   unchanged from before (54px) — only the track around it grew. See
+   .nowline just below, sized to keep the same ~9px overshoot above/below
+   the (new, taller) bar. */
 .strip { position: relative; height: 68px; background: var(--rule); border-radius: 4px; overflow: hidden; }
 .chunk-sep { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--plane); opacity: .55; z-index: 2; }
-/* Hour ticks: the same thickness at every hour (2px, up from 1px) — a
-   major hour (every 3rd, see buildDayStrip in brief/display.js) is only
-   darker, never thicker, so nothing reads as an accidentally-thinner
-   line. A half-hour mark (.tick.half, added between each pair) is
-   deliberately thinner and fainter than either — a bit more granularity
-   on the ruler without competing with the hour marks or their labels. */
-.tick { position: absolute; top: 0; bottom: 0; width: 2px; background: #000; opacity: .22; }
-.tick.major { opacity: .4; }
-.tick.half { width: 1px; opacity: .13; }
+/* Hour ticks: the same thickness at every hour (2px) — a major hour
+   (every 3rd, see buildDayStrip in brief/display.js) is only darker,
+   never thicker, so nothing reads as an accidentally-thinner line.
+   Bumped a shade darker again (.22/.4 → .3/.52) so the lines themselves
+   are easier to pick out at a glance, not just in the gap above/below a
+   block but against the strip's own background everywhere. */
+.tick { position: absolute; top: 0; bottom: 0; width: 2px; background: #000; opacity: .3; }
+.tick.major { opacity: .52; }
+/* The half-hour mark used to be a second full-height line — dropped, since
+   two lines' worth of visual weight per hour competed with the hour marks
+   themselves rather than supporting them. What's left is just a short
+   notch at the bottom of the strip, in the same reveal band .blk's own
+   7px bottom inset already leaves open (see .blk below) — enough to spot
+   where the half-hour falls without it reading as a second tier of lines
+   running the full height of the ruler. */
+.tick.half { position: absolute; top: auto; bottom: 0; height: 7px; width: 1px; background: #000; opacity: .45; }
 .blk {
   /* Inset from the strip's own top/bottom (was 0/0, flush with the old,
      shorter strip) — see the .strip comment above for why. */
@@ -1170,6 +1194,13 @@
      still right-aligned to match the desktop layout's intent. */
   .daycar-head { display: flex; flex-direction: column; gap: 6px; }
   .daycar-nav { width: 100%; }
+  /* The desktop fixed-width reservation (330px, see the base rule) is
+     sized for the arrows/gaps a wide panel has room for — a phone this
+     narrow doesn't have 330px to spare next to two 48px arrows, so this
+     goes back to a flexible box rather than force an overflow or a
+     squeeze here. Jon didn't ask for pixel-perfect arrow spacing on a
+     phone specifically, and a flexible box beats a broken layout. */
+  .daycar-label { width: auto; min-width: 0; flex-shrink: 1; overflow: visible; white-space: normal; }
   .daycar-busy { width: 100%; justify-content: flex-end; }
   .hero { flex-wrap: wrap; gap: 6px; }
   .hero .big { font-size: 21px; white-space: normal; }
