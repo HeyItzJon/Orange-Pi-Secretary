@@ -9,7 +9,7 @@ import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { expandHome } from "../lib/paths.js";
+import { resolveVaultPath } from "../lib/paths.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
@@ -85,16 +85,22 @@ try {
 // resolves, because money.js still reads it directly for holdings (share
 // counts, book value). No task/loose-thread scanning happens here anymore.
 console.log("\nVault");
-const rawVaultPath = config.vault?.path || config.notes?.vaultPath || config.vaultPath;
-const vaultPath = expandHome(rawVaultPath);
+const { path: vaultPath, source: vaultPathSource, raw: rawVaultPath } = resolveVaultPath(config);
 if (!vaultPath) {
   warn("no vaultPath set — holdings will fall back to config/portfolio.json");
 } else {
   try {
     await fs.access(vaultPath);
-    ok(vaultPath === rawVaultPath ? `vault reachable: ${vaultPath}` : `vault reachable: ${vaultPath} (expanded from "${rawVaultPath}")`);
+    ok(vaultPath === rawVaultPath
+      ? `vault reachable: ${vaultPath} (from ${vaultPathSource})`
+      : `vault reachable: ${vaultPath} (expanded from "${rawVaultPath}", from ${vaultPathSource})`);
   } catch (err) {
-    bad(`vault: ${err.message}`);
+    // config.json is tracked in git (see lib/paths.js's own comment on
+    // resolveVaultPath) — a path that's right on one machine and wrong on
+    // this one, right after a `git pull`, is the single most likely reason
+    // this fails, not a typo. Naming the source here is what makes that
+    // obvious instead of a mystery ENOENT.
+    bad(`vault: ${err.message} (path came from ${vaultPathSource}${vaultPathSource === "config.json" ? " — set VAULT_PATH in .env on this machine to override it" : ""})`);
   }
 }
 

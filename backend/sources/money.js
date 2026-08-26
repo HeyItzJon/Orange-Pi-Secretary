@@ -42,7 +42,7 @@ import {
 } from "../lib/store.js";
 import { getStockIdea } from "../lib/stockIdeas.js";
 import { calendarDaysBetween } from "../lib/time.js";
-import { expandHome } from "../lib/paths.js";
+import { resolveVaultPath } from "../lib/paths.js";
 
 const log = logger("money");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -74,7 +74,7 @@ function frontmatter(text) {
  * taken on one particular day and has been quietly rotting since.
  */
 async function holdingsFromVault(config) {
-  const vaultPath = expandHome(config.vault?.path || config.notes?.vaultPath || config.vaultPath);
+  const { path: vaultPath } = resolveVaultPath(config);
   if (!vaultPath) return null;
   const dir = path.join(vaultPath, config.money?.holdingsFolder || "Areas/Finances/Investments");
 

@@ -679,6 +679,7 @@
   },
   "vault": {
     "path": "C:\\Users\\you\\Documents\\Obsidian\\Your Vault",
+    "_path_note": "This file is normally tracked in git so `git pull` alone brings over a working setup (see README) \u2014 but that means this exact path travels to every machine that pulls it, which breaks the moment two machines don't share a filesystem layout (a laptop and a Linux server, say). Set VAULT_PATH in that machine's own .env (never tracked) to override this on a per-machine basis without editing this shared file \u2014 see lib/paths.js's resolveVaultPath.",
     "watchFolders": [
       "Areas",
       "Inbox"
