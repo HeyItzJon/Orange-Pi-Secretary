@@ -701,8 +701,11 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
  * carousel is currently showing, never a running list (see buildDeadlinePool
  * in brief/display.js: it's already bucketed per calendar day, and
  * dayStrips[n].deadlinesToday is already filtered to this slide's own key).
- * Reuses the Tasks page's own `.dot.d-{domain}` palette so a deadline reads
- * as the same category colour wherever it shows up.
+ * The dot is coloured by `importance` (high/medium/low — the same
+ * deterministic call buildDeadlinePool itself makes, see importanceOf() in
+ * brief/display.js), not by domain: Jon's own ask — a domain palette (school
+ * blue, work orange, ...) doesn't say anything about how urgent a deadline
+ * actually is, and urgency is the one thing this list exists to surface.
  */
 function DeadlinesZone({ label, items, onSelect }) {
   return (
@@ -720,7 +723,7 @@ function DeadlinesZone({ label, items, onSelect }) {
               role={onSelect ? "button" : undefined}
               tabIndex={onSelect ? 0 : undefined}
             >
-              <span className={`dot d-${x.domain || "personal"}`} />
+              <span className={`dot pri-${x.importance || "medium"}`} />
               <span className="dlbody">
                 <span className="title">{x.title}</span>
                 <span className="meta">
@@ -793,8 +796,18 @@ function ItemDetailModal({ detail, onClose }) {
         {error && <p className="item-modal-error">Couldn't load detail — {error}</p>}
         {facts && (
           <>
+            {/* Matches whatever the item actually IS, not its broad life-area
+                domain: a calendar event/all-day item gets its own calendar's
+                real colour (facts.color/swatch — same source Strip/AllDayZone
+                paint with, via blockStyle() below), while a deadline gets the
+                priority palette (facts.importance) instead, same as the
+                Deadlines list itself — Jon's own ask, so the dot you tapped
+                is still recognisably the same dot once the panel opens. */}
             <div className="item-modal-head">
-              <span className={`dot d-${facts.domain}`} />
+              <span
+                className={`dot ${data.kind === "deadline" ? `pri-${facts.importance || "medium"}` : `d-${facts.swatch || facts.domain}`}`}
+                style={data.kind === "deadline" ? {} : (blockStyle(facts.color) || {})}
+              />
               <h3>{facts.title}</h3>
             </div>
             <div className="item-modal-facts">
@@ -1464,18 +1477,24 @@ function WeekPage({ d, onGoToDay }) {
                 </button>
               )}
             </div>
-            {/* All-day badge's new home — its own row, right-aligned, sitting
-                close to the timeline it's describing rather than up in the
-                header competing with the day name for space (Jon's call).
-                Only rendered when the day actually has one, same as before —
-                a day with nothing all-day just skips straight to the bar. */}
-            {day.allDay?.length > 0 && (
-              <div className="fcallday-row">
+            {/* All-day badge's own row, right-aligned, sitting close to the
+                timeline it's describing rather than up in the header
+                competing with the day name for space (Jon's call). The row
+                itself always renders now, with a fixed min-height (see
+                .fcallday-row in Display.css) — only the pill inside it is
+                conditional. A day with nothing all-day used to skip this
+                row entirely, which meant the busy bar below started one
+                row higher than on a day that DID have an all-day badge —
+                Jon's own bug report: the bars were "jumping up and down"
+                card to card. Reserving the row's height even when empty is
+                what keeps every card's timeline starting at the same y. */}
+            <div className="fcallday-row">
+              {day.allDay?.length > 0 && (
                 <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
                   {day.allDay.length} all-day
                 </span>
-              </div>
-            )}
+              )}
+            </div>
             {/* Coloured by calendar swatch, same family the day strip itself
                 uses — roughly sized and positioned, nothing to hover, no
                 label of its own. Whatever's left grey (the bar's own

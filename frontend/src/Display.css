@@ -368,22 +368,26 @@
    inset below), by 7px each side. That's deliberate: the strip itself is
    now a small ruler, with hour ticks (and the shorter half-hour notch,
    see .tick.half below) visible above and below each event, and hidden
-   behind it — a block is opaque and sits later in paint order (see the
-   .tick/.chunk-sep vs .blk order in Display.jsx), so a tick or chunk-seam
-   only shows where no block currently covers it. Block height itself is
-   unchanged from before (54px) — only the track around it grew. See
-   .nowline just below, sized to keep the same ~9px overshoot above/below
-   the (new, taller) bar. */
+   behind it — a block is opaque and given a higher z-index than the ticks
+   and the chunk separators (see below), so a tick or chunk-seam only shows
+   where no block currently covers it, never through one. Block height
+   itself is unchanged from before (54px) — only the track around it grew.
+   See .nowline just below, sized to keep the same ~9px overshoot
+   above/below the (new, taller) bar. */
 .strip { position: relative; height: 68px; background: var(--rule); border-radius: 4px; overflow: hidden; }
-.chunk-sep { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--plane); opacity: .55; z-index: 2; }
-/* Hour ticks: the same thickness at every hour (2px) — a major hour
-   (every 3rd, see buildDayStrip in brief/display.js) is only darker,
-   never thicker, so nothing reads as an accidentally-thinner line.
-   Bumped a shade darker again (.22/.4 → .3/.52) so the lines themselves
-   are easier to pick out at a glance, not just in the gap above/below a
-   block but against the strip's own background everywhere. */
-.tick { position: absolute; top: 0; bottom: 0; width: 2px; background: #000; opacity: .3; }
-.tick.major { opacity: .52; }
+/* z-index: 1 — same background layer as .tick below, and deliberately
+   BELOW .blk's own z-index: 2. This used to be z-index: 2 with .blk left
+   at the default (auto, effectively 0), which meant a chunk separator sat
+   ABOVE every block regardless of DOM order — exactly the "pops through
+   the event" bug Jon reported. */
+.chunk-sep { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--plane); opacity: .55; z-index: 1; }
+/* Hour ticks: the same thickness AND the same weight at every hour — a
+   major hour (every 3rd, see buildDayStrip in brief/display.js) used to be
+   drawn at a higher opacity than the rest (.3 vs .52), which read as
+   "some lines thicker than others" even though the actual width (2px) was
+   always identical. Jon's own ask: make them equal. z-index: 1, same
+   reasoning as .chunk-sep above — a tick must never out-rank a block. */
+.tick { position: absolute; top: 0; bottom: 0; width: 2px; background: #000; opacity: .4; z-index: 1; }
 /* The half-hour mark used to be a second full-height line — dropped, since
    two lines' worth of visual weight per hour competed with the hour marks
    themselves rather than supporting them. What's left is just a short
@@ -391,12 +395,15 @@
    7px bottom inset already leaves open (see .blk below) — enough to spot
    where the half-hour falls without it reading as a second tier of lines
    running the full height of the ruler. */
-.tick.half { position: absolute; top: auto; bottom: 0; height: 7px; width: 1px; background: #000; opacity: .45; }
+.tick.half { position: absolute; top: auto; bottom: 0; height: 7px; width: 1px; background: #000; opacity: .45; z-index: 1; }
 .blk {
   /* Inset from the strip's own top/bottom (was 0/0, flush with the old,
-     shorter strip) — see the .strip comment above for why. */
+     shorter strip) — see the .strip comment above for why. z-index: 2 is
+     what actually keeps every tick/chunk-sep behind a block now (opacity
+     and paint order alone don't guarantee it once any sibling has its own
+     z-index — see .chunk-sep's own comment above). */
   position: absolute; top: 7px; bottom: 7px; border-radius: 3px; overflow: hidden;
-  background: var(--fill); border-left: 2px solid transparent;
+  background: var(--fill); border-left: 2px solid transparent; z-index: 2;
   /* The ring that makes overlapping/adjacent blocks legible: box-shadow
      (not border) so it doesn't perturb the left/width percentages above,
      and it's drawn in the strip's own background colour so two abutting
@@ -634,7 +641,12 @@
 .item-modal-close:hover { color: var(--ink); }
 .item-modal-loading, .item-modal-error { color: var(--muted); font-size: 14px; }
 .item-modal-head { display: flex; align-items: baseline; gap: 9px; margin: 2px 30px 10px 0; }
-.item-modal-head .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; transform: translateY(-1px); }
+/* background is a fallback only — an event/all-day item overrides it inline
+   via blockStyle(facts.color) (see ItemDetailModal in Display.jsx), same as
+   Strip/AllDayZone; a deadline overrides it with a .pri-* class instead.
+   Only shows through on the rare item with neither a real calendar colour
+   nor a matching .d-{swatch} rule below. */
+.item-modal-head .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; transform: translateY(-1px); background: var(--fill); }
 .item-modal-head h3 { margin: 0; font-size: 19px; font-weight: 640; line-height: 1.25; }
 .item-modal-facts {
   display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 3px;
@@ -701,6 +713,17 @@
 .dot.d-social   { background: #d55181; }
 .dot.d-projects { background: #c98500; }
 .dot.d-personal { background: #0ca30c; }
+
+/* Deadline dots (Today's own Deadlines list, and the detail modal's own
+   header dot when kind is "deadline" — see DeadlinesZone/ItemDetailModal in
+   Display.jsx) are coloured by importance, not domain: a traffic-light read
+   — red for something that can't slip, amber for the ordinary middle,
+   green for something genuinely low-stakes — says something useful about a
+   deadline the way domain never did (Jon's own ask: "make them logical,
+   either by priority or event category or something useful"). */
+.dot.pri-high   { background: #d6452f; }
+.dot.pri-medium { background: #eda100; }
+.dot.pri-low    { background: #2f8f5b; }
 
 .dl { display: flex; gap: 11px; align-items: baseline; padding: 3px 0; font-size: 14.5px; }
 .dl .in { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 62px; flex-shrink: 0; font-size: 13px; }
@@ -955,7 +978,13 @@
    the badge's own margin, since it's the row's only child. Small negative
    margin-top tucks it snug against the bar right below it rather than
    reading as a third evenly-spaced row in the card's own flex gap. */
-.fcallday-row { display: flex; justify-content: flex-end; margin-top: -2px; }
+/* min-height reserves the pill's own rendered height (line-height 10px +
+   3px top/bottom padding = 16px) even on a day with nothing all-day, so
+   the .fcbar timeline below always starts at the same y across every card
+   in the row — Jon's bug report: without this, a day with no all-day badge
+   left a gap the others didn't, and the busy bars visibly jumped up and
+   down card to card. */
+.fcallday-row { display: flex; justify-content: flex-end; margin-top: -2px; min-height: 16px; }
 .fcallday {
   flex-shrink: 0; font-size: 10px; font-weight: 700; line-height: 1;
   padding: 3px 6px; border-radius: 8px;

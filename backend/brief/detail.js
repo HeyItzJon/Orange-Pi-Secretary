@@ -20,7 +20,7 @@
 
 import { ask } from "../lib/ai.js";
 import { cacheKey } from "../lib/ids.js";
-import { clockLabel, durationLabel, priorityWord } from "./display.js";
+import { clockLabel, durationLabel, priorityWord, importanceOf } from "./display.js";
 
 const ORIGIN_LABELS = { calendar: "Calendar", email: "Email", brightspace: "Brightspace", money: "Finance" };
 
@@ -47,6 +47,16 @@ function inferKind(item) {
  * Deterministic, no AI — always present in the response even when the
  * model is off, unavailable, or came back unparseable, so a click never
  * shows a blank panel, only a panel with a plainer summary underneath it.
+ *
+ * `swatch`/`color` carry the item's own real calendar colour (see
+ * calendar.js: every calendar-sourced item — timed or all-day — already
+ * stores these) so the modal's header dot can match the calendar it's
+ * actually on, the same way the day strip and week bars already do,
+ * rather than the broader life-area `domain` palette Tasks/Deadlines use.
+ * `importance` is the same deterministic high/medium/low buildDeadlinePool
+ * itself computes (see importanceOf() in display.js) — recomputed here
+ * from the raw item since this endpoint never has that day's whole pool
+ * built, just the one clicked item.
  */
 function buildFacts(item, tz) {
   const allDay = Boolean(item.meta?.allDay);
@@ -65,6 +75,9 @@ function buildFacts(item, tz) {
     from: item.meta?.from || null,
     url: item.url || null,
     priority: priorityWord(item),
+    swatch: item.swatch || null,
+    color: item.color || null,
+    importance: importanceOf(item),
   };
 }
 

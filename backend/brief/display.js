@@ -438,18 +438,22 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
  * Seven buckets either side of flat. The split is a judgment call, not a
  * fact — these thresholds are sized for a personal book's ordinary daily
  * wobble (most days land within half a point of flat), not for a trading
- * desk. `dayPct` at exactly 0 is "flat", same as anything inside ±0.15 —
+ * desk. `dayPct` at exactly 0 is "flat", same as anything inside ±0.2 —
  * without a dead band nearly every day would show as a faint color for
- * noise the eye shouldn't be asked to read as a signal.
+ * noise the eye shouldn't be asked to read as a signal (Jon's own call:
+ * under ±0.2% is "probably a few hundred dollars", not worth a colour).
+ * Above that: a light shade out to ±0.75, a darker shade out to ±1.5, and
+ * ±1.5 or past is the "dark dark" extreme — Jon's own words for a real
+ * swing day, not the ±2 the original cut used.
  */
 export function colorBucket(dayPct) {
   if (dayPct == null || Number.isNaN(dayPct)) return "nodata";
-  if (dayPct <= -2) return "r3";
+  if (dayPct <= -1.5) return "r3";
   if (dayPct <= -0.75) return "r2";
-  if (dayPct < -0.15) return "r1";
-  if (dayPct <= 0.15) return "flat";
+  if (dayPct < -0.2) return "r1";
+  if (dayPct <= 0.2) return "flat";
   if (dayPct < 0.75) return "g1";
-  if (dayPct < 2) return "g2";
+  if (dayPct < 1.5) return "g2";
   return "g3";
 }
 
@@ -971,13 +975,25 @@ export function buildDayContext(items, config, now, { days = 7 } = {}) {
 }
 
 /**
+ * A plain, deterministic default (unmissable or a heavy category scores
+ * "high", a light one "low", everything else "medium") — organizeDeadlines()
+ * only ever overrides this for what actually renders in the Deadlines list,
+ * never invents the category itself. Exported so brief/detail.js's own
+ * on-demand facts can recompute the exact same number for an item clicked
+ * straight from the store, without needing the whole day's pool built.
+ */
+export function importanceOf(item) {
+  const weight = item.categoryWeight ?? 0;
+  return item.unmissable || weight >= 70 ? "high" : weight < 30 ? "low" : "medium";
+}
+
+/**
  * The upcoming deadlines for today + the next `days - 1` days, bucketed by
  * calendar day — the pool brief/insights.js's organizeDeadlines() renames
  * and ranks, and the same pool buildDisplay() falls back to, unchanged,
  * whenever the model hasn't run yet or came back empty. `importance` here
- * is a plain, deterministic default (unmissable or a heavy category scores
- * "high", a light one "low", everything else "medium") — organizeDeadlines()
- * only ever overrides it, never invents the category itself.
+ * is importanceOf() above, a plain deterministic default that
+ * organizeDeadlines() only ever overrides, never invents from scratch.
  */
 export function buildDeadlinePool(items, config, now, { days = 4 } = {}) {
   const tz = config.timezone || "America/Toronto";
@@ -993,8 +1009,7 @@ export function buildDeadlinePool(items, config, now, { days = 4 } = {}) {
     if (!it.dueAt) continue;
     const key = dayKey(it.dueAt, tz);
     if (!(key in byDay)) continue;
-    const weight = it.categoryWeight ?? 0;
-    const importance = it.unmissable || weight >= 70 ? "high" : weight < 30 ? "low" : "medium";
+    const importance = importanceOf(it);
     byDay[key].push({
       id: it.id,
       title: it.title,

@@ -22,22 +22,27 @@ test("a missing or NaN value is no data, never a guess", () => {
 });
 
 test("the dead band around zero reads as flat, not a faint colour", () => {
+  // Widened from ±0.15 to ±0.2 — Jon's own call: "it's probably a few
+  // hundred dollars for now", not worth a colour at all.
   assert.equal(colorBucket(0), "flat");
-  assert.equal(colorBucket(0.15), "flat");
-  assert.equal(colorBucket(-0.15), "flat");
+  assert.equal(colorBucket(0.2), "flat");
+  assert.equal(colorBucket(-0.2), "flat");
 });
 
 test("red deepens as the loss grows", () => {
-  assert.equal(colorBucket(-0.2), "r1");
+  assert.equal(colorBucket(-0.3), "r1");
   assert.equal(colorBucket(-1), "r2");
-  assert.equal(colorBucket(-2), "r3");
+  // The "dark dark" cutoff moved in from ±2 to ±1.5 (Jon's own words:
+  // "one or one point five, maybe even two percent... is your dark dark
+  // days" — 1.5 was the middle of that range).
+  assert.equal(colorBucket(-1.5), "r3");
   assert.equal(colorBucket(-5), "r3");
 });
 
 test("green deepens as the gain grows", () => {
-  assert.equal(colorBucket(0.2), "g1");
+  assert.equal(colorBucket(0.3), "g1");
   assert.equal(colorBucket(1), "g2");
-  assert.equal(colorBucket(2), "g3");
+  assert.equal(colorBucket(1.5), "g3");
   assert.equal(colorBucket(5), "g3");
 });
 

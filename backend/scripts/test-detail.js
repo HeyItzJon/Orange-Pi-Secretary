@@ -50,6 +50,7 @@ const eventItem = (o) => ({
   id: "ev1", source: "calendar", title: "Design review", domain: "work",
   categoryLabel: "Meeting", status: "open", dueAt: "2026-08-26T18:00:00Z",
   detail: "Design review", contentHash: "hash-ev1",
+  swatch: "work", color: "#c22a1f",
   meta: { allDay: false, end: "2026-08-26T19:00:00Z", location: "Room 204", attendees: 3, description: "Bring the updated slides" },
   ...o,
 });
@@ -58,6 +59,7 @@ const deadlineItem = (o) => ({
   id: "dl1", source: "email", title: "EOI for Fall 2026 courses due", domain: "school",
   categoryLabel: "Assignment", status: "open", dueAt: "2026-08-26T13:00:00Z",
   detail: "Registrar's Office", contentHash: "hash-dl1",
+  unmissable: true,
   meta: { allDay: false, from: "Registrar's Office", body: "Please submit your expression of interest by 9am on August 26th to be considered for Fall 2026 course registration." },
   ...o,
 });
@@ -105,6 +107,41 @@ await test("status is read straight off the item, never invented", async () => {
   const item = eventItem({ status: "done" });
   const out = await buildItemDetail(item, OFF);
   assert.equal(out.facts.status, "done");
+});
+
+// ====================================================================
+group("colour facts — the modal's own dot must match what it's showing");
+
+await test("an event's facts carry its real calendar swatch/colour, for the modal to match the calendar it's actually on", async () => {
+  const item = eventItem();
+  const out = await buildItemDetail(item, OFF);
+  assert.equal(out.facts.swatch, "work");
+  assert.equal(out.facts.color, "#c22a1f");
+});
+
+await test("a non-calendar (email) deadline has no swatch/colour of its own — the modal falls back to the priority palette instead", async () => {
+  const item = deadlineItem();
+  const out = await buildItemDetail(item, OFF);
+  assert.equal(out.facts.swatch, null);
+  assert.equal(out.facts.color, null);
+});
+
+await test("an unmissable deadline's importance recomputes to 'high', the same rule buildDeadlinePool itself uses", async () => {
+  const item = deadlineItem();
+  const out = await buildItemDetail(item, OFF);
+  assert.equal(out.facts.importance, "high");
+});
+
+await test("a deadline with a mid-range category weight and not unmissable recomputes to 'medium'", async () => {
+  const item = deadlineItem({ unmissable: false, categoryWeight: 50 });
+  const out = await buildItemDetail(item, OFF);
+  assert.equal(out.facts.importance, "medium");
+});
+
+await test("a deadline with no weight at all and not unmissable recomputes to 'low', same as buildDeadlinePool's own default", async () => {
+  const item = deadlineItem({ unmissable: false, categoryWeight: undefined });
+  const out = await buildItemDetail(item, OFF);
+  assert.equal(out.facts.importance, "low");
 });
 
 // ====================================================================
