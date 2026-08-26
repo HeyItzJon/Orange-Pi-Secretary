@@ -16,7 +16,7 @@ import { logger } from "../lib/log.js";
 import { resolveCalendars, getEvents, normaliseName } from "../lib/google.js";
 import { itemId, contentHash } from "../lib/ids.js";
 import { categorise, deriveDomain, isEmphasised, isEmailLike, calendarSwatch, durationLabel } from "../lib/classify.js";
-import { allItems, patchItem } from "../lib/store.js";
+import { allItems, dismissItem } from "../lib/store.js";
 
 const log = logger("calendar");
 
@@ -209,6 +209,14 @@ export async function collectCalendar(config, { force = false } = {}) {
   // read as gone from every calendar Google has on record purely because
   // one side's apostrophe was straight and the other's was curly, not
   // because it was renamed or deleted at all.
+  // Jon's own call: an inferred "this looks gone" guess here is never allowed
+  // to make an item vanish forever on its own say-so, any more than his own
+  // manual dismiss is (see lib/store.js's dismissItem/upsertItem for the
+  // full reasoning). Every reconciliation dismiss below counts a strike
+  // through dismissItem() the same as a manual one would; it only becomes
+  // permanent once the same item has looked "gone" this many times in a row.
+  const dismissThreshold = config.dismissal?.afterCount ?? 3;
+
   const ok = matched.filter((c) => !failedCalendarIds.includes(c.id));
   const okCalendarIds = new Set(ok.map((c) => c.id));
   const okCalendarNames = new Set(
@@ -227,14 +235,17 @@ export async function collectCalendar(config, { force = false } = {}) {
       const dueTime = new Date(prev.dueAt).getTime();
       if (dueTime < timeMin.getTime() || dueTime > timeMax.getTime()) continue;
       if (liveIds.has(prev.id)) continue;
-      // Flagged as autoDismissed (as opposed to a real user dismiss, which
-      // never sets this) so upsertItem can tell an inferred "this looks
-      // gone" apart from an actual "I dismissed this" — and revive the item
-      // automatically if it turns out this was wrong and the very same
-      // event legitimately reappears in a later fetch. See that comment in
-      // lib/store.js for the full reasoning.
-      await patchItem(prev.id, { status: "dismissed", meta: { ...prev.meta, autoDismissed: true } });
-      log.info(`"${prev.title}" no longer on the calendar — marked dismissed`);
+      // auto: true flags this as an inferred "this looks gone" guess (as
+      // opposed to a real user dismiss) so upsertItem can revive the item on
+      // its own if it turns out this was wrong and the very same event
+      // legitimately reappears in a later fetch — see lib/store.js's
+      // dismissItem/upsertItem for the full reasoning. Still counts toward
+      // the same strike total a manual dismiss would, so a calendar that
+      // repeatedly, wrongly looks empty doesn't just get silently reprieved
+      // forever either.
+      const after = await dismissItem(prev.id, { threshold: dismissThreshold, auto: true });
+      const lockedNote = after?.permanentlySuppressed ? " — permanently suppressed" : "";
+      log.info(`"${prev.title}" no longer on the calendar — marked dismissed${lockedNote}`);
     }
   }
 

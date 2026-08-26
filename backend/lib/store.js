@@ -83,20 +83,22 @@ export async function upsertItem(incoming) {
     };
   } else {
     const contentChanged = prev.contentHash !== incoming.contentHash;
-    // A dismiss/done the USER made must survive every future refresh no
-    // matter what (see force-dismiss.js's own comment on this) — that's the
-    // whole point of preserving prev.status below. But sources/calendar.js
-    // also writes status "dismissed" when it only INFERS an item is gone
-    // (missing from a fetch), flagging that guess with meta.autoDismissed —
-    // and a guess can be wrong: a transient fetch gap, a calendar that
-    // briefly stopped matching its config name, anything that makes one
-    // round's fetch incomplete. If the exact same item then legitimately
-    // reappears in a later successful fetch — which is exactly what's
-    // happening right here, since upsertItem only ever runs against fresh
-    // incoming data — that was never a real dismissal and must not stay
-    // hidden forever. Only meta.autoDismissed makes that call; a real user
-    // dismiss never sets it, so this can't revive one of those.
-    const revive = prev.status === "dismissed" && prev.meta?.autoDismissed;
+    // Jon's own call: no single dismiss — his own click, or the system's own
+    // "this looks gone" guess in sources/calendar.js — gets to be permanent
+    // on the first try. See dismissItem() below for where a dismiss actually
+    // gets recorded: every one counts a strike on the item, and only once
+    // the SAME item has needed dismissing config.dismissal.afterCount times
+    // does permanentlySuppressed lock it in for good. Below that count, a
+    // dismissed item can still be revived right here — by the system's own
+    // guess turning out wrong (autoDismissed, same idea as before), or now
+    // also by the item's content genuinely changing since the dismiss: an
+    // edited event or task is arguably a different ask than the one that
+    // got dismissed, and deserves a fresh look rather than being silently
+    // swallowed by an old dismiss on stale content. "done" is never touched
+    // by any of this — finishing a task and then someone editing its
+    // description doesn't un-finish it.
+    const locked = Boolean(prev.permanentlySuppressed);
+    const revive = !locked && prev.status === "dismissed" && (prev.autoDismissed || contentChanged);
     item = {
       ...prev,
       ...incoming,
@@ -106,12 +108,67 @@ export async function upsertItem(incoming) {
       surfaceCount: prev.surfaceCount,
       lastSurfaced: prev.lastSurfaced,
       snoozeUntil: prev.snoozeUntil,
+      // Carried forward explicitly, the same reason surfaceCount etc. are
+      // above: this is persistent memory that has to survive every future
+      // fetch regardless of what that fetch's own fresh `incoming` carries,
+      // or the whole point of counting strikes across time (rather than
+      // resetting the moment the item is naturally refetched) falls apart.
+      dismissStrikes: prev.dismissStrikes || 0,
+      permanentlySuppressed: locked,
+      // Cleared the moment it's done its one job — deciding whether THIS
+      // upsert should revive the item — so a stale "this was an auto-guess"
+      // flag can't misattribute some later, separate dismissal (the user's
+      // own, say) as another wrong guess.
+      autoDismissed: false,
       // A changed item earns the right to be shown again — same as a
       // revived one: either way, this is new information worth resurfacing.
       changed: contentChanged || prev.changed || revive,
     };
   }
   writeItem(dbc, incoming.id, item);
+  return item;
+}
+
+/**
+ * The one way anything should ever get dismissed — your own click on the
+ * Tasks page's ✕, or sources/calendar.js's reconciliation guessing an event
+ * is gone. Every dismiss counts a strike on the item (persisted across
+ * revivals — see upsertItem's own comment on why that has to be an explicit
+ * top-level field rather than left inside a blob that gets overwritten by
+ * the next fetch); only once `threshold` is reached does permanentlySuppressed
+ * lock it in for good. `auto: true` is sources/calendar.js's own inferred
+ * dismiss — the one kind upsertItem's revive check will undo on its own if
+ * it turns out to be wrong; a real dismiss (auto: false) only comes back via
+ * a genuine content change, never on its own.
+ */
+export async function dismissItem(id, { threshold = 3, auto = false } = {}) {
+  const dbc = getDb();
+  const prev = readItem(dbc, id);
+  if (!prev) return null;
+  const strikes = (prev.dismissStrikes || 0) + 1;
+  const item = {
+    ...prev,
+    status: "dismissed",
+    dismissStrikes: strikes,
+    autoDismissed: auto,
+    permanentlySuppressed: strikes >= threshold,
+  };
+  writeItem(dbc, id, item);
+  return item;
+}
+
+/**
+ * The explicit "no really, forever" lever — Jon's own alternative to waiting
+ * out the strike count: skips straight to permanentlySuppressed regardless
+ * of how many strikes the item has on record. Used by the /api/items
+ * "suppress" action and scripts/force-dismiss.js's deliberate CLI dismiss.
+ */
+export async function suppressPermanently(id) {
+  const dbc = getDb();
+  const prev = readItem(dbc, id);
+  if (!prev) return null;
+  const item = { ...prev, status: "dismissed", permanentlySuppressed: true, autoDismissed: false };
+  writeItem(dbc, id, item);
   return item;
 }
 

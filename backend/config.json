@@ -617,7 +617,7 @@
   },
   "calendar": {
     "targets": [
-      "Jonathan Bourget",
+      "jon.m.bourget@gmail.com",
       "IMPORTANT EVENTS",
       "Regular Events",
       "Tests & Quizzes",
@@ -628,6 +628,10 @@
     ],
     "horizonDays": 14,
     "_note": "The calendar's own name is never printed in the brief \u2014 for the default calendar that name is your email address, which tells you nothing. It's used to derive the category chip instead."
+  },
+  "dismissal": {
+    "_comment": "No single dismiss \u2014 your own click, or the system's own automatic 'this looks gone' guess \u2014 makes an item vanish forever on the first try. Every dismiss counts a strike; only after this many strikes on the SAME item does it lock in for good (permanentlySuppressed). Below that, a dismissed item can still come back on its own if it turns out to be a wrong guess, or if its content genuinely changes. Use scripts/force-dismiss.js, or the 'suppress' action, to skip the count and lock something in immediately instead of waiting it out.",
+    "afterCount": 3
   },
   "money": {
     "_comment": "Money speaks only when one of these fires. Most days it says nothing.",

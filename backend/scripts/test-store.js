@@ -18,7 +18,7 @@ const {
   init, upsertItem, upsertMany, allItems, getItem, patchItem, markSurfaced, prune,
   knownMessageIds, rememberMessageIds, cacheGet, cacheSet, getMeta, setMeta, addUsage,
   recordPortfolioDay, portfolioHistory, recordHoldingDay, holdingHistory,
-  getHoldings, setHoldings,
+  getHoldings, setHoldings, dismissItem, suppressPermanently,
 } = await import("../lib/store.js");
 
 let pass = 0, fail = 0;
@@ -91,9 +91,11 @@ await atest("markSurfaced bumps surfaceCount, stamps lastSurfaced, clears change
   assert.equal(it.changed, false);
 });
 
-await atest("a real user dismiss survives a refresh — no meta.autoDismissed, so it's never revived", async () => {
+await atest("a manual dismiss below threshold survives an unchanged refresh, but isn't yet permanent", async () => {
   await upsertItem({ id: "a4", title: "v1", contentHash: "h1" });
-  await patchItem("a4", { status: "dismissed" }); // the same shape server.js's dismiss action writes
+  const d = await dismissItem("a4", { threshold: 3, auto: false }); // server.js's dismiss action
+  assert.equal(d.dismissStrikes, 1);
+  assert.equal(d.permanentlySuppressed, false);
   const again = await upsertItem({ id: "a4", title: "v1", contentHash: "h1" });
   assert.equal(again.status, "dismissed");
 });
@@ -102,11 +104,62 @@ await atest("an autoDismissed item revives the moment it legitimately reappears"
   await upsertItem({ id: "a5", title: "v1", contentHash: "h1", meta: { calendarId: "c1" } });
   // The exact shape sources/calendar.js's reconciliation pass writes when a
   // fetch comes back without this item.
-  await patchItem("a5", { status: "dismissed", meta: { calendarId: "c1", autoDismissed: true } });
+  await dismissItem("a5", { threshold: 3, auto: true });
   const revived = await upsertItem({ id: "a5", title: "v1", contentHash: "h1", meta: { calendarId: "c1" } });
   assert.equal(revived.status, "open");
   assert.equal(revived.changed, true, "a revived item should earn the right to be shown again");
-  assert.ok(!revived.meta?.autoDismissed, "the flag itself shouldn't linger once revived");
+  assert.equal(revived.autoDismissed, false, "the flag itself shouldn't linger once revived");
+});
+
+await atest("a sub-threshold manual dismiss also revives once the content genuinely changes", async () => {
+  await upsertItem({ id: "a6", title: "v1", contentHash: "h1" });
+  await dismissItem("a6", { threshold: 3, auto: false });
+  const stillGone = await upsertItem({ id: "a6", title: "v1", contentHash: "h1" });
+  assert.equal(stillGone.status, "dismissed", "unchanged content should not revive a manual dismiss");
+  const revived = await upsertItem({ id: "a6", title: "v2", contentHash: "h2" });
+  assert.equal(revived.status, "open", "an edited item is arguably a different ask and deserves a fresh look");
+});
+
+await atest("dismissStrikes accumulates across repeated dismissals of the same item", async () => {
+  await upsertItem({ id: "a7", title: "v1", contentHash: "h1" });
+  const d1 = await dismissItem("a7", { threshold: 3, auto: true });
+  assert.equal(d1.dismissStrikes, 1);
+  await upsertItem({ id: "a7", title: "v1", contentHash: "h1" }); // revives (autoDismissed)
+  const d2 = await dismissItem("a7", { threshold: 3, auto: true });
+  assert.equal(d2.dismissStrikes, 2, "the strike count should survive the revival in between");
+});
+
+await atest("permanentlySuppressed locks in exactly at the configured threshold, and revival stops", async () => {
+  await upsertItem({ id: "a8", title: "v1", contentHash: "h1" });
+  await dismissItem("a8", { threshold: 3, auto: true });
+  await upsertItem({ id: "a8", title: "v1", contentHash: "h1" }); // strike 1, revives
+  await dismissItem("a8", { threshold: 3, auto: true });
+  await upsertItem({ id: "a8", title: "v1", contentHash: "h1" }); // strike 2, revives
+  const locked = await dismissItem("a8", { threshold: 3, auto: true }); // strike 3 — locks
+  assert.equal(locked.dismissStrikes, 3);
+  assert.equal(locked.permanentlySuppressed, true);
+
+  // Neither an autoDismissed-wrong-guess nor a genuine content change should
+  // revive it anymore — the whole point of the lock.
+  const stillLocked = await upsertItem({ id: "a8", title: "v2", contentHash: "h2" });
+  assert.equal(stillLocked.status, "dismissed");
+  assert.equal(stillLocked.permanentlySuppressed, true);
+});
+
+await atest("suppressPermanently locks in immediately, regardless of prior strike count", async () => {
+  await upsertItem({ id: "a9", title: "v1", contentHash: "h1" });
+  const s = await suppressPermanently("a9");
+  assert.equal(s.status, "dismissed");
+  assert.equal(s.permanentlySuppressed, true);
+  const stillLocked = await upsertItem({ id: "a9", title: "v2", contentHash: "h2" });
+  assert.equal(stillLocked.status, "dismissed", "a content change alone shouldn't undo an explicit permanent suppress");
+});
+
+await atest("'done' is never touched by any revival/strike logic — a content change doesn't un-finish it", async () => {
+  await upsertItem({ id: "a10", title: "v1", contentHash: "h1" });
+  await patchItem("a10", { status: "done" });
+  const changed = await upsertItem({ id: "a10", title: "v2", contentHash: "h2" });
+  assert.equal(changed.status, "done", "finishing a task and then someone editing its description shouldn't un-finish it");
 });
 
 group("prune — same rules as before: closed or dateless, and stale");

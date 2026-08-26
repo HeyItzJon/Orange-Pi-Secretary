@@ -11,7 +11,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import { logger } from "./lib/log.js";
-import { init as initStore, getMeta, patchItem, allItems, portfolioHistory } from "./lib/store.js";
+import { init as initStore, getMeta, patchItem, dismissItem, suppressPermanently, allItems, portfolioHistory } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
 import { buildDisplay } from "./brief/display.js";
@@ -166,23 +166,46 @@ app.post("/api/refresh/:source", async (req, res) => {
   }
 });
 
-/** done | dismiss | snooze | reopen — this is how you teach it to shut up. */
+/**
+ * done | dismiss | suppress | snooze | reopen — this is how you teach it to
+ * shut up.
+ *
+ * dismiss and suppress both go through lib/store.js rather than a plain
+ * patch: no single dismiss — your own click here, or the system's own
+ * automatic guess in sources/calendar.js — is allowed to make an item vanish
+ * forever on the first try (Jon: "you are not to dismiss things permanently,
+ * even me i shouldnt have that kind of power"). dismiss counts a strike and
+ * only locks in for good after config.dismissal.afterCount strikes on the
+ * same item; suppress is the explicit "no really, forever" lever that skips
+ * straight to that locked state when you already know you want it gone now.
+ */
 app.post("/api/items/:id/:action", async (req, res) => {
   const { id, action } = req.params;
-  const map = {
-    done: { status: "done" },
-    dismiss: { status: "dismissed" },
-    reopen: { status: "open", snoozeUntil: null, surfaceCount: 0 },
-  };
 
-  let patch = map[action];
-  if (action === "snooze") {
-    const days = Number(req.body?.days) || 3;
-    patch = { status: "snoozed", snoozeUntil: new Date(Date.now() + days * 86400000).toISOString() };
+  let updated;
+  if (action === "dismiss") {
+    updated = await dismissItem(id, { threshold: config.dismissal?.afterCount ?? 3, auto: false });
+  } else if (action === "suppress") {
+    updated = await suppressPermanently(id);
+  } else {
+    const map = {
+      done: { status: "done" },
+      // A clean slate: reopening should mean reopening, not "reopened but
+      // still one strike away from being suppressed again for no reason."
+      reopen: {
+        status: "open", snoozeUntil: null, surfaceCount: 0,
+        dismissStrikes: 0, permanentlySuppressed: false, autoDismissed: false,
+      },
+    };
+    let patch = map[action];
+    if (action === "snooze") {
+      const days = Number(req.body?.days) || 3;
+      patch = { status: "snoozed", snoozeUntil: new Date(Date.now() + days * 86400000).toISOString() };
+    }
+    if (!patch) return res.status(400).json({ error: `unknown action "${action}"` });
+    updated = await patchItem(id, patch);
   }
-  if (!patch) return res.status(400).json({ error: `unknown action "${action}"` });
 
-  const updated = await patchItem(id, patch);
   if (!updated) return res.status(404).json({ error: "no such item" });
 
   const brief = await buildBrief(config, { narrate: false, markAsSurfaced: false });

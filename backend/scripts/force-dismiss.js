@@ -19,16 +19,19 @@
 // orphan sweep leaves it alone (the calendar it names does exist). This
 // prints exactly which case applies for each match, then dismisses them.
 //
-// IMPORTANT — dismissal is sticky, on purpose: lib/store.js's upsertItem
-// always keeps `prev.status` once an item already exists (status: "done"/
-// "dismissed" surviving a refresh is exactly what makes checking something
-// off stay checked off) — a refresh does NOT revive a dismissed item just
-// because the real event is still on the calendar. Matching too loosely
-// here is a real footgun: "test" as a plain substring also matches "Test 2"
-// and "Test 3", real events, which then stay dismissed forever, not just
-// until the next refresh. Matching defaults to an EXACT title (trimmed,
-// case-insensitive) for that reason — pass --contains to opt into the old
-// substring behaviour when you actually want it.
+// IMPORTANT — this script's dismissal skips straight to permanently
+// suppressed (lib/store.js's suppressPermanently), on purpose: this is the
+// deliberate "I already know I want this specific thing gone now" tool, as
+// opposed to a normal /api/items dismiss or the calendar reconciliation
+// pass's own automatic guess, either of which only strike-counts toward
+// permanence over repeated occurrences (see lib/store.js's dismissItem for
+// that model — no single dismiss is instantly permanent EXCEPT through this
+// script or the API's own explicit "suppress" action). Matching too loosely
+// here is still a real footgun: "test" as a plain substring also matches
+// "Test 2" and "Test 3", real events, which then get permanently suppressed,
+// not just dismissed until the next refresh. Matching defaults to an EXACT
+// title (trimmed, case-insensitive) for that reason — pass --contains to
+// opt into the old substring behaviour when you actually want it.
 //
 // Dismissed something real by mistake? --revive undoes it, using the same
 // shape the app's own /api/items/:id/reopen action uses.
@@ -43,7 +46,7 @@ import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { init, allItems, patchItem } from "../lib/store.js";
+import { init, allItems, patchItem, suppressPermanently } from "../lib/store.js";
 import { getCalendarList, resolveCalendars, normaliseName } from "../lib/google.js";
 import { isEmailLike } from "../lib/classify.js";
 
@@ -82,7 +85,15 @@ if (revive) {
   console.log(`\n${hits.length} match(es) to revive for "${needle}":\n`);
   for (const item of hits) {
     console.log(`  - "${item.title}"  (id: ${item.id}, was: ${item.status})`);
-    if (!dryRun) await patchItem(item.id, { status: "open", snoozeUntil: null, surfaceCount: 0 });
+    // A clean slate, same as the app's own reopen action: reviving should
+    // mean reviving, not "revived but still carrying strikes toward being
+    // suppressed again for no new reason."
+    if (!dryRun) {
+      await patchItem(item.id, {
+        status: "open", snoozeUntil: null, surfaceCount: 0,
+        dismissStrikes: 0, permanentlySuppressed: false, autoDismissed: false,
+      });
+    }
   }
   console.log(dryRun ? "\nDry run — nothing changed." : `\nRevived ${hits.length} item(s) — back to open.`);
   process.exit(0);
@@ -141,11 +152,11 @@ for (const item of hits) {
   }
   console.log("");
 
-  if (!dryRun) await patchItem(item.id, { status: "dismissed" });
+  if (!dryRun) await suppressPermanently(item.id);
 }
 
 console.log(
   dryRun
     ? "Dry run — nothing changed."
-    : `Dismissed ${hits.length} item(s). Remember: this is sticky — a refresh will NOT bring these back even if they're still real events on the calendar. Use --revive if that turns out to be wrong for any of them.`
+    : `Permanently suppressed ${hits.length} item(s). This one skips the usual strike-count grace — a refresh will NOT bring these back even if they're still real events on the calendar. Use --revive if that turns out to be wrong for any of them.`
 );
