@@ -7,8 +7,12 @@
 //   - the access token is cached in memory until ~1 min before it expires,
 //     so a full run costs ONE token exchange instead of one per source
 //   - Gmail messages are fetched with format=metadata and an explicit header
-//     whitelist, not format=full — we only ever needed the headers, and this
-//     is roughly an order of magnitude less data
+//     whitelist, not format=full, for the FIRST pass over everything new —
+//     we only need the headers/snippet to triage, and this is roughly an
+//     order of magnitude less data. format=full (see getMessagesBody) is
+//     used for a SECOND pass, only over whatever survived triage (usually
+//     0-5 messages) — so the number of full fetches stays cheap even
+//     though each one is bigger.
 //   - requests run through a small concurrency pool, not Promise.all
 //   - the calendar list is cached to disk for a day; it changes ~never
 
@@ -168,6 +172,89 @@ export async function getMessagesMetadata(ids, { concurrency = 5 } = {}) {
   });
 
   return results.filter(Boolean);
+}
+
+function decodeBase64Url(data) {
+  if (!data) return "";
+  try {
+    return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * A crude but adequate HTML→text pass for the (common) case a message has
+ * no text/plain part at all — just enough to give the AI classifier real
+ * sentences instead of tag soup. Not meant to render anywhere.
+ */
+function stripHtml(html) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|li)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * Depth-first search through a Gmail message's (possibly multipart) payload
+ * for its body text — text/plain wins if there is one, text/html run
+ * through stripHtml() otherwise. Exported for its own tests; not meant to
+ * be called with anything but a real Gmail `payload` object.
+ */
+export function findBodyText(payload) {
+  if (!payload) return "";
+  const stack = [payload];
+  let plain = "";
+  let html = "";
+  while (stack.length) {
+    const part = stack.pop();
+    if (part.parts) stack.push(...part.parts);
+    if (!plain && part.mimeType === "text/plain" && part.body?.data) {
+      plain = decodeBase64Url(part.body.data);
+    } else if (!html && part.mimeType === "text/html" && part.body?.data) {
+      html = decodeBase64Url(part.body.data);
+    }
+  }
+  if (plain.trim()) return plain.trim();
+  if (html.trim()) return stripHtml(html);
+  return "";
+}
+
+/**
+ * Full body text for a SMALL set of messages — only ever called for
+ * whatever survived triage (see sources/email.js), never the whole
+ * fetched batch. format=full is roughly an order of magnitude more data
+ * per message than the metadata-only fetch above; the cost-control
+ * comment at the top of this file still holds because it's the NUMBER of
+ * full fetches that stays small, not the size of any one of them.
+ * Returns a Map from message id to its plain-text body (empty string if
+ * a particular message has none, or its own fetch failed).
+ */
+export async function getMessagesBody(ids, { concurrency = 5 } = {}) {
+  if (!ids.length) return new Map();
+  const token = await getAccessToken();
+
+  const results = await pool(ids, concurrency, async (id) => {
+    const data = await authed(
+      `https://www.googleapis.com/gmail/v1/users/me/messages/${id}`,
+      { format: "full" },
+      token
+    );
+    return [data.id, findBodyText(data.payload)];
+  });
+
+  return new Map(results.filter(Boolean));
 }
 
 // -------------------------------------------------------------- Calendar

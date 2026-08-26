@@ -15,12 +15,19 @@
 //   4. fetch metadata for the rest     — headers only, bounded concurrency
 //   5. deterministic triage            — newsletters out, your rules in,
 //      anything unscored dropped. Still 0 tokens.
-//   6. ONE batched AI call on whatever survived, usually 0–5 emails.
+//   6. fetch FULL BODY for whatever survived triage — usually 0–5 emails.
+//      This is the one deliberately-not-cheap step: a deadline stated past
+//      the first ~220 characters of the preview (the snippet's own length)
+//      was getting missed entirely, so the AI classifier below reads the
+//      real body text now, not just Gmail's own preview of it.
+//   7. ONE batched AI call on those same 0–5 emails, using that body text.
 //
-// A quiet morning costs three list calls and nothing else.
+// A quiet morning still costs three list calls and nothing else — steps 6
+// and 7 only ever run over whatever's left after triage, never the whole
+// fetched batch.
 
 import { logger } from "../lib/log.js";
-import { listMessageIds, getMessagesMetadata } from "../lib/google.js";
+import { listMessageIds, getMessagesMetadata, getMessagesBody } from "../lib/google.js";
 import { knownMessageIds, rememberMessageIds } from "../lib/store.js";
 import { ask } from "../lib/ai.js";
 import { itemId, contentHash, cacheKey } from "../lib/ids.js";
@@ -176,12 +183,19 @@ Rules:
 - "oneLine": under 90 characters. State what it is and what it wants, in that order — and if it wants nothing beyond "for your information", say that plainly rather than manufacturing a task. Do NOT restate the subject line verbatim — add the information the subject leaves out. Never begin with "This email", "You have", or the sender's name.
 - Return exactly one result per email, in order, using the given "n".`;
 
-function buildClassifyPrompt(candidates, todayISO) {
+// 3000 characters is generous for almost any real email (a deadline, a
+// date, an ask is essentially always stated well before this), while still
+// keeping the prompt's token cost bounded for the rare genuinely long one.
+// Falls back to the snippet only if the full-body fetch itself failed for
+// this particular message — see collectEmail()'s own `bodies.get(...)`.
+const BODY_CHARS = 3000;
+
+export function buildClassifyPrompt(candidates, todayISO) {
   const lines = candidates.map((c, i) =>
     [
       `${i + 1}. From: ${senderName(c.msg.from) || senderAddress(c.msg.from)}`,
       `   Subject: ${c.msg.subject}`,
-      `   Preview: ${(c.msg.snippet || "").slice(0, 220)}`,
+      `   Body: ${(c.body || c.msg.snippet || "").slice(0, BODY_CHARS)}`,
     ].join("\n")
   );
   return `Today is ${todayISO}. Return json for these ${candidates.length} email(s).\n\n${lines.join("\n\n")}`;
@@ -238,7 +252,14 @@ export async function collectEmail(config, { force = false } = {}) {
   log.info(`${candidates.length}/${messages.length} passed triage (min score ${minScore})`);
   if (!candidates.length) return [];
 
-  // --- 6: one AI call for everything that survived ---
+  // --- 6: full body, but ONLY for whatever survived triage above ---
+  // A failed fetch for one message (a transient error, a deleted draft)
+  // just means that one candidate falls back to its own snippet below —
+  // never a reason to drop the whole batch.
+  const bodies = await getMessagesBody(candidates.map((c) => c.msg.id), { concurrency: 5 });
+  for (const c of candidates) c.body = bodies.get(c.msg.id) || "";
+
+  // --- 7: one AI call for everything that survived, using real body text ---
   const todayISO = new Date().toISOString().slice(0, 10);
   const key = cacheKey(
     "email-classify",

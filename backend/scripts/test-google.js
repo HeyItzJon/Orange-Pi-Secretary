@@ -11,7 +11,9 @@
 // Run: node scripts/test-google.js
 
 import assert from "node:assert/strict";
-import { googleErrorMessage } from "../lib/google.js";
+import { googleErrorMessage, findBodyText } from "../lib/google.js";
+
+const b64url = (s) => Buffer.from(s, "utf-8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 let pass = 0, fail = 0;
 const group = (t) => console.log(`\n${t}\n`);
@@ -46,6 +48,59 @@ test("a response with neither known shape falls back to the plain HTTP status", 
 test("no response at all (timeout, DNS failure, offline Pi) falls back to axios's own message", () => {
   const err = { message: "timeout of 15000ms exceeded" };
   assert.equal(googleErrorMessage(err), "timeout of 15000ms exceeded");
+});
+
+group("findBodyText — full-body extraction from a Gmail payload (see getMessagesBody)");
+
+test("a simple single-part text/plain message decodes straight through", () => {
+  const payload = { mimeType: "text/plain", body: { data: b64url("Assignment due Friday at noon.") } };
+  assert.equal(findBodyText(payload), "Assignment due Friday at noon.");
+});
+
+test("a multipart message prefers text/plain over a sibling text/html part", () => {
+  const payload = {
+    mimeType: "multipart/alternative",
+    parts: [
+      { mimeType: "text/html", body: { data: b64url("<p>HTML version</p>") } },
+      { mimeType: "text/plain", body: { data: b64url("Plain version") } },
+    ],
+  };
+  assert.equal(findBodyText(payload), "Plain version");
+});
+
+test("an HTML-only message falls back to text/html, stripped of tags", () => {
+  const payload = {
+    mimeType: "multipart/alternative",
+    parts: [{ mimeType: "text/html", body: { data: b64url("<p>Your <b>invoice</b> is due <br>tomorrow.</p>") } }],
+  };
+  const text = findBodyText(payload);
+  assert.ok(!text.includes("<"), "no raw tags leak through");
+  assert.ok(text.includes("Your"), "keeps the actual words");
+  assert.ok(text.includes("invoice"));
+  assert.ok(text.includes("tomorrow"));
+});
+
+test("nested multipart (a real Gmail shape: mixed > alternative > plain/html) is still found", () => {
+  const payload = {
+    mimeType: "multipart/mixed",
+    parts: [
+      {
+        mimeType: "multipart/alternative",
+        parts: [
+          { mimeType: "text/plain", body: { data: b64url("Nested plain text body.") } },
+          { mimeType: "text/html", body: { data: b64url("<p>Nested html</p>") } },
+        ],
+      },
+      { mimeType: "application/pdf", body: { attachmentId: "abc123" } }, // no inline data — must not crash
+    ],
+  };
+  assert.equal(findBodyText(payload), "Nested plain text body.");
+});
+
+test("a message with no usable body text (attachment-only, or missing payload) returns an empty string, never throws", () => {
+  assert.equal(findBodyText(null), "");
+  assert.equal(findBodyText({ mimeType: "multipart/mixed", parts: [{ mimeType: "application/pdf", body: { attachmentId: "x" } }] }), "");
+  assert.equal(findBodyText({ mimeType: "text/plain", body: {} }), "");
 });
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}\n`);

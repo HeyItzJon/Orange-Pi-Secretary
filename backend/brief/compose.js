@@ -18,6 +18,8 @@ import { collectEmail } from "../sources/email.js";
 import { collectCalendar } from "../sources/calendar.js";
 import { collectMoney } from "../sources/money.js";
 import { buildPriorities } from "./priorities.js";
+import { buildDayContext, buildDeadlinePool } from "./display.js";
+import { refreshInsights } from "./insights.js";
 import { SOURCES } from "../lib/sources.js";
 
 const log = logger("brief");
@@ -130,6 +132,19 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
   // not mean 96 model calls a day — it only re-runs when the work changes.
   const priorities = await buildPriorities(items, { config, now });
 
+  // Same story as priorities: computed here, once per compose cycle, and
+  // cached (see brief/insights.js's own ask() calls) against a hash of the
+  // day's real events/deadlines, never inside buildDisplay() itself — that
+  // function is called on every /api/display poll, and this is the only
+  // reason that route's own comment can still say hitting it every minute
+  // is free. See brief/insights.js's header for what each half degrades to
+  // when the model is off or unavailable.
+  const insights = await refreshInsights({
+    dayContext: buildDayContext(items, config, now),
+    deadlinePool: buildDeadlinePool(items, config, now),
+    config,
+  });
+
   const brief = {
     schema,
     generatedAt: now.toISOString(),
@@ -144,6 +159,7 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
     money: moneySummary,
     priorities: priorities.list,
     prioritiesFrom: priorities.source,
+    insights,
     sources: Object.fromEntries(
       await Promise.all(
         SOURCES.map(async (s) => [s, await getMeta(`lastRun_${s}`, null)])

@@ -201,7 +201,7 @@ function allDayDaysAway(dueAt, now, tz) {
  * the forward carousel's dayStrips, the Week page's per-day badge, and the
  * "next N days" text list all funnel through here now.
  */
-function eventOnDay(e, key, tz) {
+export function eventOnDay(e, key, tz) {
   const startKey = dayKey(e.dueAt, tz);
   if (!e.meta?.allDay || !e.meta?.end) return startKey === key;
   const endKey = dayKey(e.meta.end, tz); // exclusive
@@ -392,6 +392,23 @@ function daySummary(dayEvents, tz) {
     return rank(b) - rank(a);
   })[0];
   return `${timed.length} things on your schedule, including ${lead.title}`;
+}
+
+/**
+ * The Week page's per-day note when brief/insights.js's AI pass hasn't run
+ * (or came back empty) — built from `week.days[n]`'s own aggregate fields
+ * (busyHours/eventCount/allDay/load), since that's all buildDisplay() has
+ * on hand at the point this gets called; it doesn't have that day's raw
+ * event titles the way daySummary() (used for the carousel's own fallback)
+ * does. Deliberately plainer than the AI note — it's the safety net, not
+ * the feature.
+ */
+function fallbackWeekNote(day) {
+  if (!day.eventCount && !day.allDay?.length) return "Nothing scheduled yet.";
+  const parts = [];
+  if (day.eventCount) parts.push(`${day.eventCount} timed event${day.eventCount === 1 ? "" : "s"}`);
+  if (day.allDay?.length) parts.push(`${day.allDay.length} all-day`);
+  return `${parts.join(", ")} — ${day.load}% of the day booked.`;
 }
 
 const CUMULATIVE_DAYS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
@@ -890,17 +907,130 @@ export function buildTasks(live, { now, tz, config = {}, priorities = [] }) {
   return { groups, total: rows.length, counts, urgent: rows.filter((r) => r.daysOut !== null && r.daysOut <= 0).length };
 }
 
-export function buildDisplay({ items = [], money = null, priorities = [], sources = {}, errors = {}, history = [], config = {}, now = new Date() } = {}) {
+/**
+ * The "still relevant right now" filter every page here builds on — done,
+ * dismissed, or snoozed-until-later items never make it into any list.
+ * Exported so brief/insights.js's buildDayContext()/buildDeadlinePool()
+ * (which run separately, at compose time, to feed the AI day-title/
+ * deadline calls) filter to the exact same set buildDisplay() itself does,
+ * without duplicating the three-line rule in two places.
+ */
+export function filterLive(items, now) {
+  return items.filter((i) => {
+    if (i.status === "done" || i.status === "dismissed") return false;
+    if (i.status === "snoozed" && i.snoozeUntil && new Date(i.snoozeUntil) > now) return false;
+    return true;
+  });
+}
+
+/**
+ * The plain-data slice brief/insights.js prompts DeepSeek with — today plus
+ * the next 6 days (matching the Week page's own window), each with its
+ * real timed events (title, start/end clock time, domain) and all-day
+ * titles, plus the same busyness score the Week page shows. Nothing about
+ * layout or rendering — insights.js turns this into a prompt, buildDisplay()
+ * turns the AI's answer back into `hero.title`/`dayStrips[n].title`/
+ * `week.days[n].note`. Kept here rather than duplicated in insights.js
+ * since eventOnDay()/dayKey()/weekForecast() already do this exact
+ * partitioning for the strip/carousel/week page themselves.
+ */
+export function buildDayContext(items, config, now, { days = 7 } = {}) {
+  const tz = config.timezone || "America/Toronto";
+  const live = filterLive(items, now);
+  const events = live
+    .filter((i) => i.source === "calendar" && i.dueAt && i.kind !== "system")
+    .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
+  const week = weekForecast(events, live.filter(isTaskLike), { now, tz, days });
+
+  const out = [];
+  for (let n = 0; n < days; n++) {
+    const d = new Date(now.getTime() + n * DAY);
+    const key = dayKey(d, tz);
+    const dayEvents = events.filter((e) => eventOnDay(e, key, tz));
+    const timed = dayEvents.filter((e) => !e.meta?.allDay);
+    const allDay = dayEvents.filter((e) => e.meta?.allDay);
+
+    out.push({
+      key,
+      label: week.days[n]?.label || (n === 0 ? "Today" : n === 1 ? "Tomorrow" : fmt(d, tz, { weekday: "long" })),
+      dateLabel: week.days[n]?.dateLabel || fmt(d, tz, { month: "short", day: "numeric" }),
+      isToday: n === 0,
+      busyness: week.days[n]?.busyness ?? null,
+      loadPct: week.days[n]?.load ?? null,
+      eventCount: dayEvents.length,
+      timed: timed.map((e) => ({
+        title: e.title,
+        time: clockLabel(e.dueAt, tz),
+        end: e.meta?.end && eventOnDay(e, key, tz) && dayKey(e.meta.end, tz) === key ? clockLabel(e.meta.end, tz) : null,
+        domain: e.domain || "personal",
+      })),
+      allDay: allDay.map((e) => e.title),
+    });
+  }
+  return out;
+}
+
+/**
+ * The upcoming deadlines for today + the next `days - 1` days, bucketed by
+ * calendar day — the pool brief/insights.js's organizeDeadlines() renames
+ * and ranks, and the same pool buildDisplay() falls back to, unchanged,
+ * whenever the model hasn't run yet or came back empty. `importance` here
+ * is a plain, deterministic default (unmissable or a heavy category scores
+ * "high", a light one "low", everything else "medium") — organizeDeadlines()
+ * only ever overrides it, never invents the category itself.
+ */
+export function buildDeadlinePool(items, config, now, { days = 4 } = {}) {
+  const tz = config.timezone || "America/Toronto";
+  const live = filterLive(items, now);
+  const tasks = live.filter(isTaskLike);
+
+  const byDay = {};
+  for (let n = 0; n < days; n++) {
+    byDay[dayKey(new Date(now.getTime() + n * DAY), tz)] = [];
+  }
+
+  for (const it of tasks) {
+    if (!it.dueAt) continue;
+    const key = dayKey(it.dueAt, tz);
+    if (!(key in byDay)) continue;
+    const weight = it.categoryWeight ?? 0;
+    const importance = it.unmissable || weight >= 70 ? "high" : weight < 30 ? "low" : "medium";
+    byDay[key].push({
+      id: it.id,
+      title: it.title,
+      categoryLabel: it.categoryLabel || null,
+      domain: it.domain || "personal",
+      dueAt: it.dueAt,
+      timeLabel: it.meta?.allDay ? "all day" : clockLabel(it.dueAt, tz),
+      importance,
+    });
+  }
+
+  const rank = { high: 2, medium: 1, low: 0 };
+  for (const key of Object.keys(byDay)) {
+    byDay[key].sort((a, b) => rank[b.importance] - rank[a.importance] || new Date(a.dueAt) - new Date(b.dueAt));
+  }
+  return byDay;
+}
+
+export function buildDisplay({ items = [], money = null, priorities = [], sources = {}, errors = {}, history = [], config = {}, now = new Date(), insights = null } = {}) {
   const tz = config.timezone || "America/Toronto";
   const cfg = config.display || {};
   const dayCount = cfg.days ?? 3;
   const maxDeadlines = cfg.maxDeadlines ?? 8;
 
-  const live = items.filter((i) => {
-    if (i.status === "done" || i.status === "dismissed") return false;
-    if (i.status === "snoozed" && i.snoozeUntil && new Date(i.snoozeUntil) > now) return false;
-    return true;
-  });
+  // Already-computed AI content (a one-line day title, a longer Week-page
+  // note, renamed/ranked deadlines) — see brief/insights.js. Generated once
+  // per compose cycle, never in here: this function stays exactly what its
+  // own header comment says, a pure, AI-free, no-network function of
+  // already-collected data. See the `hero`/`dayStrips`/`week` construction
+  // below for where each piece gets merged in, and rawDeadlinePool just
+  // below for the always-available, rule-based fallback when the model
+  // hasn't run yet or came back empty.
+  const insightDays = insights?.days || {};
+  const insightDeadlines = insights?.deadlines || {};
+
+  const live = filterLive(items, now);
 
   const todayKey = dayKey(now, tz);
 
@@ -935,6 +1065,14 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const week = weekForecast(events, live.filter(isTaskLike), {
     now, tz, days: cfg.forecastDays ?? 7,
   });
+  // The Week page's longer, 2-3 sentence note — AI-crafted when available,
+  // a plain deterministic sentence (fallbackWeekNote, below) when it isn't,
+  // so the hover/tap card the Week page shows always has something real in
+  // it rather than sometimes being blank.
+  week.days = week.days.map((day) => ({
+    ...day,
+    note: insightDays[day.key]?.note || fallbackWeekNote(day),
+  }));
 
   // ---------------------------------------------------------------- strip
   // A day-shaped window: 7am to 11pm covers an ordinary day without wasting
@@ -956,6 +1094,14 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   // already `strip` above) and capped at 3 days — this is a glance screen,
   // not a scheduler, and going further out starts answering a question this
   // page was never meant to.
+  // Deepseek's per-day title/deadline rewrite, when it's run — see
+  // brief/insights.js and the `insightDays`/`insightDeadlines`/
+  // `rawDeadlinePool` comment up near `live`. `rawDeadlinePool` is the
+  // always-available, rule-based version: the pool insights.js sent the
+  // model in the first place, so a day whose deadlines the AI hasn't (yet,
+  // or ever) renamed still shows something real rather than nothing.
+  const rawDeadlinePool = buildDeadlinePool(items, config, now, { days: 4 });
+
   const dayStrips = [];
   for (let n = 1; n <= 3; n++) {
     const d = new Date(now.getTime() + n * DAY);
@@ -965,7 +1111,16 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       key,
       label: n === 1 ? "Tomorrow" : fmt(d, tz, { weekday: "long" }),
       dateLabel: fmt(d, tz, { weekday: "long", month: "long", day: "numeric" }),
+      // AI-crafted one-liner when available ("Two shifts and an early
+      // lab") — daySummary()'s plain-rule sentence is the fallback both
+      // when the model hasn't run and, still, always computed, so nothing
+      // here depends on the AI to render at all.
       summary: daySummary(dayEvents, tz),
+      title: insightDays[key]?.title || null,
+      // Only what's due on THIS specific day, per Jon's call — every
+      // slide would otherwise repeat the same running list regardless of
+      // which day you'd paged to.
+      deadlinesToday: insightDeadlines[key] || rawDeadlinePool[key] || [],
       ...buildDayStrip(dayEvents, tz),
       // week.days[n] is the exact same calendar day (see the comment on
       // `week`'s own computation above) — reusing it rather than scoring
@@ -1014,6 +1169,13 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   } else {
     hero = { kind: "clear", lead: "Nothing else scheduled today", sub: "", urgent: false };
   }
+  // AI-crafted whole-day title, same idea as dayStrips' own `title` above
+  // — the frontend prefers this over the NOW/NEXT lead computed just above
+  // when it's present, and falls back to that same NOW/NEXT hero (kind/
+  // lead/sub/urgent, unchanged) when it isn't, so Today never loses its
+  // real-time "what's happening right now" signal just because the model
+  // hasn't run yet.
+  hero.title = insightDays[todayKey]?.title || null;
 
   // ---------------------------------------------------------------- today
   const today = upcoming.map((e) => ({

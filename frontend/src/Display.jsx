@@ -542,21 +542,26 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
           covers "what does Tomorrow/Thursday/Friday look like" (see the
           removed Next-N-days panel below), so this line's job changed from
           "the whole story" to "introduce the detail underneath it" for
-          whichever slide is showing. */}
-      {onToday ? (
+          whichever slide is showing.
+
+          DeepSeek's own descriptive one-liner for the day (see `hero.title`/
+          `dayStrips[n].title` in brief/display.js — "Busy shift day", "Quiet
+          morning, social evening downtown") takes over here when it's
+          present, on EVERY slide including Today's — Jon's call: the day's
+          shape is worth naming before you even get to the live NOW/NEXT
+          state. Today falls back to the real-time NOW/NEXT read (unchanged)
+          when the model hasn't produced a title yet; a future slide falls
+          back to daySummary()'s plain-rule sentence the exact same way. */}
+      {onToday && !d.hero.title ? (
         <div className={`hero${d.hero.urgent ? "" : " calm"}`}>
           <span className="lbl">{d.hero.urgent ? "NOW" : "NEXT"}</span>
           <span className="big">{d.hero.lead}</span>
           {d.hero.sub && <span className="sub">{d.hero.sub}</span>}
         </div>
       ) : (
-        // Paged off Today: there's no "NOW"/"NEXT" to show for a day that
-        // hasn't happened yet, so this swaps in a plain-language summary of
-        // that day instead (see daySummary() in brief/display.js) — reusing
-        // the same calm hero styling rather than introducing a new block.
         <div className="hero calm">
-          <span className="lbl">{slide.label.toUpperCase()}</span>
-          <span className="big">{slide.summary}</span>
+          <span className="lbl">{onToday ? "TODAY" : slide.label.toUpperCase()}</span>
+          <span className="big">{onToday ? d.hero.title : (slide.title || slide.summary)}</span>
         </div>
       )}
 
@@ -615,7 +620,52 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
           )}
         </section>
       </div>
+
+      {/* Only on a paged-off slide — Jon's call: what's due TODAY is already
+          folded into today's own event/deadline lists elsewhere (the Tasks
+          page, and `d.deadlines`), so repeating it here would just be the
+          same information twice. Renamed/ranked by DeepSeek when it's run
+          (see brief/insights.js's organizeDeadlines), the same rule-based
+          pool underneath either way (buildDeadlinePool in brief/display.js)
+          — every field this reads (`domain`/`categoryLabel`/`timeLabel`)
+          survives that rename untouched (see refreshInsights' own comment),
+          so the dot colour and meta line never go blank just because the
+          model didn't run. */}
+      {!onToday && <DeadlinesZone label={slide.label} items={slide.deadlinesToday} />}
     </>
+  );
+}
+
+/**
+ * "Deadlines — {day}" — everything task-like actually due on the one day the
+ * carousel is currently showing, never a running list (see buildDeadlinePool
+ * in brief/display.js: it's already bucketed per calendar day, and
+ * dayStrips[n].deadlinesToday is already filtered to this slide's own key).
+ * Reuses the Tasks page's own `.dot.d-{domain}` palette so a deadline reads
+ * as the same category colour wherever it shows up.
+ */
+function DeadlinesZone({ label, items }) {
+  return (
+    <div className="cols dl-zone">
+      <section className="zone">
+        <h2>Deadlines — {label}</h2>
+        {!items || items.length === 0 ? (
+          <p className="empty">Nothing due {label}.</p>
+        ) : (
+          items.map((x) => (
+            <div className={`dlrow${x.importance ? ` imp-${x.importance}` : ""}`} key={x.id}>
+              <span className={`dot d-${x.domain || "personal"}`} />
+              <span className="dlbody">
+                <span className="title">{x.title}</span>
+                <span className="meta">
+                  {[x.categoryLabel, x.timeLabel].filter(Boolean).join(" · ")}
+                </span>
+              </span>
+            </div>
+          ))
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -1126,7 +1176,60 @@ function WeekPage({ d, onGoToDay }) {
   const [farNotice, setFarNotice] = useState(false);
   const farTimer = useRef(null);
 
+  // The per-day insight note (see `week.days[n].note` in brief/display.js —
+  // DeepSeek's 2-3 sentence elaboration when it's run, a plain deterministic
+  // sentence otherwise) — Jon's call: hover reveals it passively on a
+  // pointer device without fighting the card's own click-to-navigate;
+  // there's no hover on touch, so `openNoteId` is a dedicated tap target
+  // (the small ⓘ button below) that toggles the same popover instead, using
+  // stopPropagation so tapping it never also triggers the card's own
+  // navigate/"too far" click handler. Same openId/hoverId-with-a-portal
+  // shape as Strip's own metadata card above, for the same reason: a
+  // grid of cards clips overflow, so the popover has to escape via
+  // document.body to never get cut off by a neighbouring row.
+  const [openNoteId, setOpenNoteId] = useState(null);
+  const [hoverNoteId, setHoverNoteId] = useState(null);
+  const activeNoteId = openNoteId ?? hoverNoteId;
+  const cardRefs = useRef(new Map());
+  const noteRef = useRef(null);
+  const [notePos, setNotePos] = useState(null);
+
   useEffect(() => () => { if (farTimer.current) clearTimeout(farTimer.current); }, []);
+
+  useEffect(() => {
+    if (openNoteId == null) return;
+    const close = () => setOpenNoteId(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [openNoteId]);
+
+  useLayoutEffect(() => {
+    if (activeNoteId == null) { setNotePos(null); return; }
+    const anchor = cardRefs.current.get(activeNoteId);
+    const card = noteRef.current;
+    if (!anchor || !card) { setNotePos(null); return; }
+    const ar = anchor.getBoundingClientRect();
+    const cw = card.offsetWidth;
+    const ch = card.offsetHeight;
+    const GAP = 9;
+    const PAD = 8;
+
+    let left = ar.left;
+    if (left + cw > window.innerWidth - PAD) left = Math.max(PAD, window.innerWidth - PAD - cw);
+    left = Math.max(PAD, left);
+
+    let top = ar.bottom + GAP;
+    if (top + ch > window.innerHeight - PAD) top = Math.max(PAD, ar.top - GAP - ch);
+
+    setNotePos({ top, left });
+  }, [activeNoteId, w]);
+
+  useEffect(() => {
+    if (activeNoteId == null) return;
+    const closeAll = () => { setOpenNoteId(null); setHoverNoteId(null); };
+    window.addEventListener("resize", closeAll);
+    return () => window.removeEventListener("resize", closeAll);
+  }, [activeNoteId]);
 
   if (!w) return null;
 
@@ -1150,6 +1253,8 @@ function WeekPage({ d, onGoToDay }) {
     }
   };
 
+  const activeNoteDay = activeNoteId != null ? w.days.find((dd) => dd.key === activeNoteId) : null;
+
   return (
     <div className="page-week">
       <div className="fchead">
@@ -1166,7 +1271,13 @@ function WeekPage({ d, onGoToDay }) {
           <div
             className={`fcday${i < clickableCount ? " clickable" : ""}`}
             key={day.key}
+            ref={(el) => {
+              if (el) cardRefs.current.set(day.key, el);
+              else cardRefs.current.delete(day.key);
+            }}
             onClick={() => onCardClick(i)}
+            onMouseEnter={() => setHoverNoteId(day.key)}
+            onMouseLeave={() => setHoverNoteId((cur) => (cur === day.key ? null : cur))}
             role={onGoToDay ? "button" : undefined}
             tabIndex={onGoToDay ? 0 : undefined}
           >
@@ -1178,6 +1289,24 @@ function WeekPage({ d, onGoToDay }) {
                 <span className={`fcdname${i < clickableCount ? " fcd-live" : " fcd-far"}`}>{day.label}</span>
                 <span className="fcddate">{day.dateLabel}</span>
               </span>
+              {/* Hover reveals `day.note` passively on a pointer device (see
+                  onMouseEnter/onMouseLeave on the card above); a touch
+                  screen has no hover, so this is the dedicated tap target —
+                  stopPropagation keeps a tap here from also triggering the
+                  card's own navigate/"too far" click. */}
+              {day.note && (
+                <button
+                  className="fcnote-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenNoteId((cur) => (cur === day.key ? null : day.key));
+                  }}
+                  aria-label={`${day.label}'s insight`}
+                  title="Day insight"
+                >
+                  ⓘ
+                </button>
+              )}
               {/* A day with nothing timed on it can still carry a deadline —
                   the busy/free bar below has no way to say that (see
                   weekForecast's own comment on why it doesn't guess a
@@ -1260,6 +1389,25 @@ function WeekPage({ d, onGoToDay }) {
           ))
         )}
       </section>
+
+      {/* Portaled to document.body for the same reason Strip's own
+          metadata card is (see that component's comment): .fcgrid and its
+          row of cards clip overflow to keep the grid honest, so a child
+          popover can't escape that clip no matter what position scheme it
+          uses. Positioned from the anchor card's own getBoundingClientRect()
+          (see the useLayoutEffect above), flipping to open upward if there
+          isn't room below. */}
+      {activeNoteDay?.note && createPortal(
+        <div
+          ref={noteRef}
+          className="fcnote"
+          style={notePos ? { top: notePos.top, left: notePos.left } : { top: -9999, left: -9999, visibility: "hidden" }}
+        >
+          <span className="fcnote-day">{activeNoteDay.label}</span>
+          <p>{activeNoteDay.note}</p>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

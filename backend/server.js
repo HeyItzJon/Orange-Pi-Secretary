@@ -81,10 +81,13 @@ app.get("/api/display", async (_req, res) => {
     ]);
     const sources = Object.fromEntries(names.map((s, i) => [s, runs[i]]));
     const errors = Object.fromEntries(names.map((s, i) => [s, errs[i]]));
-    // Priorities are computed during compose (cached on a hash of the open
-    // work) rather than here, so hitting this endpoint every minute is free.
+    // Priorities and insights (day titles, the Week page's notes, renamed
+    // deadlines — see brief/insights.js) are both computed during compose
+    // (cached on a hash of the open work) rather than here, so hitting this
+    // endpoint every minute is still free.
     const priorities = brief?.priorities || [];
-    res.json(buildDisplay({ items, money, priorities, sources, errors, history, config, now: new Date() }));
+    const insights = brief?.insights || null;
+    res.json(buildDisplay({ items, money, priorities, sources, errors, history, config, now: new Date(), insights }));
   } catch (err) {
     log.error(err.message);
     res.status(500).json({ error: err.message });

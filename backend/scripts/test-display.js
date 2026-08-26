@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import {
   buildDisplay, hourOfDay, distanceLabel, chunkFor, priorityWord, durationLabel, freshness,
   isTaskLike, buildTasks, updatedLabel, dayKey, weekForecast,
+  filterLive, buildDayContext, buildDeadlinePool,
 } from "../brief/display.js";
 
 const TZ = "America/Toronto";
@@ -1165,6 +1166,185 @@ test("a multi-day all-day event appears in the 'next N days' text list on every 
   const items = [ev({ id: "conf", title: "Conference", dueAt: TODAY_STR, meta: { allDay: true, end: FRIDAY_STR } })];
   const d = buildDisplay({ items, config, now: NOW });
   assert.ok(d.days[0].items.some((i) => i.title === "Conference"), "tomorrow's day card");
+});
+
+// ====================================================================
+group("filterLive — the shared done/dismissed/snoozed rule");
+
+test("done and dismissed items are dropped, open items pass", () => {
+  const items = [
+    task({ id: "a", status: "done" }),
+    task({ id: "b", status: "dismissed" }),
+    task({ id: "c", status: "open" }),
+  ];
+  assert.deepEqual(filterLive(items, NOW).map((i) => i.id), ["c"]);
+});
+
+test("a snoozed item is dropped only while its snooze is still in the future", () => {
+  const items = [
+    task({ id: "still-snoozed", status: "snoozed", snoozeUntil: dayAt(2, 9) }),
+    task({ id: "snooze-expired", status: "snoozed", snoozeUntil: dayAt(-2, 9) }),
+    task({ id: "snoozed-no-date", status: "snoozed" }),
+  ];
+  assert.deepEqual(
+    filterLive(items, NOW).map((i) => i.id).sort(),
+    ["snooze-expired", "snoozed-no-date"].sort(),
+    "no snoozeUntil at all means nothing to wait out"
+  );
+});
+
+// ====================================================================
+group("buildDayContext — the AI day-title/note prompt input");
+
+test("today plus the next N-1 days, in order, each carrying its own real events", () => {
+  const items = [
+    ev({ id: "shift1", title: "Shift", dueAt: at(9), meta: { end: at(17) } }),
+    ev({ id: "lab", title: "Lab", dueAt: dayAt(1, 10), meta: { end: dayAt(1, 12) }, domain: "school" }),
+    ev({ id: "trip", title: "Trip", dueAt: TODAY_STR, meta: { allDay: true, end: THURS_STR } }),
+  ];
+  const days = buildDayContext(items, config, NOW, { days: 3 });
+  assert.equal(days.length, 3);
+  assert.equal(days[0].key, TODAY_STR);
+  assert.equal(days[0].isToday, true);
+  assert.equal(days[1].isToday, false);
+  assert.deepEqual(days[0].timed.map((e) => e.title), ["Shift"]);
+  assert.equal(days[0].timed[0].domain, "personal");
+  assert.deepEqual(days[0].allDay, ["Trip"], "an all-day item shows on today");
+  assert.deepEqual(days[1].timed.map((e) => e.title), ["Lab"]);
+  assert.equal(days[1].timed[0].domain, "school");
+  assert.equal(typeof days[0].busyness, "number", "reuses weekForecast's own busyness score");
+  assert.equal(typeof days[0].loadPct, "number");
+});
+
+test("an empty day still comes back with a real shape, just nothing in it", () => {
+  const days = buildDayContext([], config, NOW, { days: 1 });
+  assert.equal(days.length, 1);
+  assert.deepEqual(days[0].timed, []);
+  assert.deepEqual(days[0].allDay, []);
+  assert.equal(days[0].eventCount, 0);
+});
+
+test("done/dismissed/snoozed items never reach the prompt", () => {
+  const items = [
+    ev({ id: "gone", title: "Should not appear", dueAt: at(9), status: "done" }),
+  ];
+  const days = buildDayContext(items, config, NOW, { days: 1 });
+  assert.deepEqual(days[0].timed, []);
+});
+
+// ====================================================================
+group("buildDeadlinePool — the rule-based fallback organizeDeadlines() renames");
+
+test("buckets task-like items by their own calendar day", () => {
+  const items = [
+    task({ id: "hw", source: "calendar", meta: { allDay: true }, title: "Assignment due", dueAt: TODAY_STR, categoryWeight: 40 }),
+    task({ id: "quiz", source: "calendar", meta: { allDay: true }, title: "Quiz", dueAt: THURS_STR, categoryWeight: 80, unmissable: true }),
+  ];
+  const pool = buildDeadlinePool(items, config, NOW, { days: 4 });
+  assert.deepEqual(pool[TODAY_STR].map((i) => i.id), ["hw"]);
+  assert.deepEqual(pool[THURS_STR].map((i) => i.id), ["quiz"]);
+});
+
+test("importance defaults: unmissable or heavy weight is high, light weight is low, everything else medium", () => {
+  const items = [
+    task({ id: "hi-un", source: "calendar", meta: { allDay: true }, title: "A", dueAt: TODAY_STR, categoryWeight: 10, unmissable: true }),
+    task({ id: "hi-wt", source: "calendar", meta: { allDay: true }, title: "B", dueAt: TODAY_STR, categoryWeight: 70 }),
+    task({ id: "lo", source: "calendar", meta: { allDay: true }, title: "C", dueAt: TODAY_STR, categoryWeight: 10 }),
+    task({ id: "med", source: "calendar", meta: { allDay: true }, title: "D", dueAt: TODAY_STR, categoryWeight: 40 }),
+  ];
+  const pool = buildDeadlinePool(items, config, NOW, { days: 1 });
+  const byId = Object.fromEntries(pool[TODAY_STR].map((i) => [i.id, i.importance]));
+  assert.equal(byId["hi-un"], "high");
+  assert.equal(byId["hi-wt"], "high");
+  assert.equal(byId["lo"], "low");
+  assert.equal(byId["med"], "medium");
+});
+
+test("within a day, sorted highest importance first, soonest-due breaking ties", () => {
+  const items = [
+    task({ id: "low", source: "calendar", meta: { allDay: true }, title: "C", dueAt: TODAY_STR, categoryWeight: 5 }),
+    task({ id: "sooner-high", source: "calendar", meta: { allDay: true }, title: "B", dueAt: TODAY_STR, categoryWeight: 80 }),
+  ];
+  const pool = buildDeadlinePool(items, config, NOW, { days: 4 });
+  assert.deepEqual(pool[TODAY_STR].map((i) => i.id), ["sooner-high", "low"], "high importance leads a lower one on the same day");
+});
+
+test("an item outside the day window is left out entirely, not dumped in the last bucket", () => {
+  const items = [
+    task({ id: "far", source: "calendar", meta: { allDay: true }, title: "Far off", dueAt: "2026-09-30", categoryWeight: 80 }),
+  ];
+  const pool = buildDeadlinePool(items, config, NOW, { days: 4 });
+  assert.deepEqual(Object.values(pool).flat(), []);
+});
+
+test("events that aren't task-like (a plain meeting) never enter the pool", () => {
+  const items = [ev({ id: "meet", title: "1:1", dueAt: at(9), meta: { end: at(10) } })];
+  const pool = buildDeadlinePool(items, config, NOW, { days: 4 });
+  assert.deepEqual(Object.values(pool).flat(), []);
+});
+
+// ====================================================================
+group("insights merge — AI titles/notes/deadlines over rule-based fallbacks");
+
+test("hero.title is null without insights, and the AI title when present", () => {
+  const items = [ev({ id: "a", dueAt: at(14), meta: { end: at(15) } })];
+  const bare = buildDisplay({ items, config, now: NOW });
+  assert.equal(bare.hero.title, null);
+  assert.equal(bare.hero.kind, "soon", "the NOW/NEXT hero still computes underneath");
+
+  const insights = { days: { [TODAY_STR]: { title: "Busy shift day", note: "n/a" } } };
+  const withAi = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(withAi.hero.title, "Busy shift day");
+  assert.equal(withAi.hero.kind, "soon", "the underlying NOW/NEXT hero is untouched — the frontend chooses");
+});
+
+test("dayStrips[n].title comes from insights.days, keyed per day, else stays null", () => {
+  const items = [ev({ id: "a", dueAt: dayAt(1, 10), meta: { end: dayAt(1, 12) } })];
+  const insights = { days: { [THURS_STR]: { title: "Early lab tomorrow", note: "n/a" } } };
+  const d = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(d.dayStrips[0].key, THURS_STR);
+  assert.equal(d.dayStrips[0].title, "Early lab tomorrow");
+  assert.equal(d.dayStrips[1].title, null, "a day with no AI entry gets no title, not a guess");
+  assert.ok(d.dayStrips[0].summary, "the plain-rule summary is still always there underneath");
+});
+
+test("dayStrips[n].deadlinesToday prefers the AI-renamed list, falls back to the raw pool, and is never just absent", () => {
+  const items = [
+    task({ id: "due1", source: "calendar", meta: { allDay: true }, title: "Lab report due", dueAt: THURS_STR, categoryWeight: 40 }),
+  ];
+  const bare = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(bare.dayStrips[0].deadlinesToday.map((i) => i.id), ["due1"], "raw pool fallback");
+  assert.equal(bare.dayStrips[0].deadlinesToday[0].title, "Lab report due");
+
+  const insights = { deadlines: { [THURS_STR]: [{ id: "due1", title: "Submit lab report", importance: "high" }] } };
+  const withAi = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(withAi.dayStrips[0].deadlinesToday[0].title, "Submit lab report");
+});
+
+test("dayStrips[n].deadlinesToday only shows deadlines due on that specific day, not a running list", () => {
+  const items = [
+    task({ id: "d1", source: "calendar", meta: { allDay: true }, title: "Due tomorrow", dueAt: THURS_STR, categoryWeight: 40 }),
+    task({ id: "d2", source: "calendar", meta: { allDay: true }, title: "Due Friday", dueAt: FRIDAY_STR, categoryWeight: 40 }),
+  ];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(d.dayStrips[0].deadlinesToday.map((i) => i.id), ["d1"]);
+  assert.deepEqual(d.dayStrips[1].deadlinesToday.map((i) => i.id), ["d2"]);
+});
+
+test("week.days[n].note is the AI note when present, else the deterministic fallback", () => {
+  const items = [ev({ id: "a", dueAt: at(9), meta: { end: at(17) } })];
+  const bare = buildDisplay({ items, config, now: NOW });
+  assert.ok(bare.week.days[0].note, "always something, never blank");
+  assert.equal(bare.week.days[0].note, "1 timed event — " + bare.week.days[0].load + "% of the day booked.");
+
+  const insights = { days: { [TODAY_STR]: { title: "t", note: "Get ahead before Friday's test." } } };
+  const withAi = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(withAi.week.days[0].note, "Get ahead before Friday's test.");
+});
+
+test("a genuinely empty week day falls back to a plain 'nothing scheduled' note", () => {
+  const d = buildDisplay({ items: [], config, now: NOW });
+  assert.equal(d.week.days[0].note, "Nothing scheduled yet.");
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);
