@@ -1065,13 +1065,30 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const week = weekForecast(events, live.filter(isTaskLike), {
     now, tz, days: cfg.forecastDays ?? 7,
   });
+
+  // Deepseek's renamed/ranked deadlines, when it's run — see
+  // brief/insights.js and the `insightDays`/`insightDeadlines` comment up
+  // near `live`. `rawDeadlinePool` is the always-available, rule-based
+  // version: the pool insights.js sent the model in the first place, so a
+  // day whose deadlines the AI hasn't (yet, or ever) renamed still shows
+  // something real rather than nothing. Widened to the full 7-day week
+  // (was 4) so the Week page's per-day deadline count and the Today page's
+  // own deadlines section can both read the same window the Week page
+  // already shows, rather than the carousel's narrower 4-day slice.
+  const rawDeadlinePool = buildDeadlinePool(items, config, now, { days: 7 });
+
   // The Week page's longer, 2-3 sentence note — AI-crafted when available,
   // a plain deterministic sentence (fallbackWeekNote, below) when it isn't,
   // so the hover/tap card the Week page shows always has something real in
-  // it rather than sometimes being blank.
+  // it rather than sometimes being blank. `deadlineCount` is that same
+  // day's slot in the deadline pool above — AI-renamed count when
+  // available, the rule-based pool's count otherwise; renaming never
+  // changes how many deadlines land on a day, only what they're called, so
+  // either source gives the same number.
   week.days = week.days.map((day) => ({
     ...day,
     note: insightDays[day.key]?.note || fallbackWeekNote(day),
+    deadlineCount: (insightDeadlines[day.key] || rawDeadlinePool[day.key] || []).length,
   }));
 
   // ---------------------------------------------------------------- strip
@@ -1094,14 +1111,9 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   // already `strip` above) and capped at 3 days — this is a glance screen,
   // not a scheduler, and going further out starts answering a question this
   // page was never meant to.
-  // Deepseek's per-day title/deadline rewrite, when it's run — see
+  // Deepseek's per-day title/note/deadline rewrite, when it's run — see
   // brief/insights.js and the `insightDays`/`insightDeadlines`/
-  // `rawDeadlinePool` comment up near `live`. `rawDeadlinePool` is the
-  // always-available, rule-based version: the pool insights.js sent the
-  // model in the first place, so a day whose deadlines the AI hasn't (yet,
-  // or ever) renamed still shows something real rather than nothing.
-  const rawDeadlinePool = buildDeadlinePool(items, config, now, { days: 4 });
-
+  // `rawDeadlinePool` comment above, near `week`.
   const dayStrips = [];
   for (let n = 1; n <= 3; n++) {
     const d = new Date(now.getTime() + n * DAY);
@@ -1117,6 +1129,13 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       // here depends on the AI to render at all.
       summary: daySummary(dayEvents, tz),
       title: insightDays[key]?.title || null,
+      // Same AI-crafted note the Week page's own card shows for this day
+      // (see `week.days[n].note` above), surfaced here too so the forward
+      // carousel's slides carry the same smart summary rather than only
+      // the one-line title — falls back to the same fallbackWeekNote()
+      // sentence when the model hasn't run, using this day's own
+      // week.days[n] entry so both readings of the same day always agree.
+      note: insightDays[key]?.note || fallbackWeekNote(week.days[n]),
       // Only what's due on THIS specific day, per Jon's call — every
       // slide would otherwise repeat the same running list regardless of
       // which day you'd paged to.
@@ -1176,6 +1195,10 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   // real-time "what's happening right now" signal just because the model
   // hasn't run yet.
   hero.title = insightDays[todayKey]?.title || null;
+  // Same smart-summary note as every dayStrips slide (see there for the
+  // full comment) — Today's own copy, using week.days[0] (today's own
+  // entry) for the fallback so all four carousel slides read the same way.
+  hero.note = insightDays[todayKey]?.note || fallbackWeekNote(week.days[0]);
 
   // ---------------------------------------------------------------- today
   const today = upcoming.map((e) => ({
@@ -1384,6 +1407,11 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       busynessWhy: week.days[0]?.busynessWhy ?? [],
     },
     dayStrips,
+    // Today's own slot in the same deadline pool dayStrips' own
+    // `deadlinesToday` reads from (see rawDeadlinePool's comment above) —
+    // so the Today page's own slide can show a "Deadlines — Today" section
+    // the same way the other 3 carousel slides already do.
+    deadlinesToday: insightDeadlines[todayKey] || rawDeadlinePool[todayKey] || [],
     today,
     days,
 

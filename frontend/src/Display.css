@@ -225,22 +225,39 @@
 .hero.calm .lbl { color: var(--muted); }
 .hero.calm .big { color: var(--ink-2); font-weight: 560; }
 
+/* Busy Score's new home (Jon's call: "put that busy score now below the
+   title and above the AI summary, just so it flows better, make it nice
+   and bigger") — moved out of the carousel's own header row (see
+   .daycar-head above) to sit right under the hero title on every slide,
+   Today's own NOW/NEXT state included. Reuses .fcscore's colour bands
+   (see the base rule below) but at roughly double the Week page card's
+   own size — this is the one place Jon asked for it bigger, same as the
+   old .daycar-busy override it replaces. */
+.hero-busy { display: flex; align-items: center; gap: 9px; padding: 2px 0 14px; flex-shrink: 0; }
+.hero-busy-label { font-size: 13px; color: var(--faint); font-weight: 560; }
+.hero-busy-score { width: 40px; height: 40px; font-size: 17px; }
+/* DeepSeek's longer note for this day (see hero.note/dayStrips[n].note in
+   brief/display.js) — sits under the Busy Score, above the events list,
+   same quiet weight as the rest of the page's body copy rather than
+   competing with the title above it. */
+.hero-note { font-size: 14.5px; line-height: 1.45; color: var(--ink-2); margin: 0 0 18px; max-width: 62ch; }
+
 /* The forward-day pager — Today plus the next 3 days, same strip graphic,
    one page at a time (see DayCarousel in Display.jsx). Forward only: no
    arrow ever goes earlier than Today, since there's nothing behind it to
    preview. */
 .daycar { flex-shrink: 0; }
-/* Three columns, the outer two equal (1fr each) so .daycar-nav in the middle
-   stays visually centered in the row regardless of how wide .daycar-busy
-   ends up being — the alternative (flex + justify-content: space-between)
-   would drag the nav off-center toward the empty side. The first column is
-   just a spacer; nothing is ever rendered into it. */
+/* Used to be a 3-column grid so .daycar-nav could stay centered against
+   .daycar-busy's variable width on the other side — the Busy Score badge
+   moved down into the hero itself (see .hero-busy above; Jon's call), so
+   .daycar-nav is the row's only content now and a simple centered flex
+   does the same job with one less moving part. */
 /* margin-bottom bumped 10px → 20px — Jon's call: the nav row and the
    timeline graphic below it were reading crowded together, same "give it
    room to breathe" ask as the hero padding bump above. The compact-kiosk
    breakpoint keeps a smaller value (see max-height:620 below). */
-.daycar-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 20px; }
-.daycar-nav { grid-column: 2; display: flex; align-items: center; justify-content: center; gap: 20px; }
+.daycar-head { display: flex; justify-content: center; align-items: center; margin-bottom: 20px; }
+.daycar-nav { display: flex; align-items: center; justify-content: center; gap: 20px; }
 /* Bigger and a touch bolder than before — Jon wanted the day-paging
    controls more obvious at a glance, not just functional. Bumped again
    (34px/19px → 44px/25px) — still not big enough the first time. */
@@ -274,16 +291,6 @@
    with the arrows above, same "make the whole nav row read bigger" ask. */
 .daycar-name { font-size: 18px; font-weight: 660; }
 .daycar-date { font-size: 14px; color: var(--faint); }
-/* Whichever day the carousel is showing right now — Today itself or one of
-   the Looking-ahead slides (see the comment in Display.jsx) — right-aligned
-   in the grid's third column, level with the nav above the timeline. Reuses
-   .fcscore as-is (see Display.css's own comment on that class) so this reads
-   as the same badge the Week page shows for the same day — just scaled up a
-   size here (see the .daycar-busy .fcscore override below), since this is
-   the one place Jon asked for it bigger, not the Week page's own cards. */
-.daycar-busy { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
-.daycar-busy-label { font-size: 14px; color: var(--faint); white-space: nowrap; }
-.daycar-busy .fcscore { width: 28px; height: 28px; font-size: 13.5px; }
 
 .daycar-viewport { overflow: hidden; }
 /* "This whole thing moves to the side" — a fresh slide, keyed by offset so
@@ -795,13 +802,14 @@
 .fcgrid {
   /* 110px let exactly 7 columns land in a mobile-landscape-width row (each
      card just over the floor) — tight enough that the day name/date and the
-     "N all-day" badge in .fcdhead no longer both fit on one line, and since
-     neither had any truncation, the name's text just overflowed its own box
-     and visually overlapped the badge instead of being pushed aside. 132px
-     forces fewer, wider columns at that width (wrapping the rest of the week
-     onto a second row) instead of cramming all 7 into one; the wrap/ellipsis
-     rules on .fcdhead/.fcdname/.fcddate below are the second, independent
-     safety net in case a width ever lands right at the edge again. */
+     info icon in .fcdhead no longer both fit on one line, and since the name
+     had no truncation, its text just overflowed its own box and visually
+     overlapped the icon instead of being pushed aside. 132px forces fewer,
+     wider columns at that width (wrapping the rest of the week onto a second
+     row) instead of cramming all 7 into one; the ellipsis rule on .fcdname
+     below is the second, independent safety net in case a width ever lands
+     right at the edge again. The all-day badge no longer lives in this row
+     at all (see .fcallday-row below), so it's out of this squeeze entirely. */
   display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 10px; flex-shrink: 0;
 }
@@ -822,15 +830,20 @@
   flex-shrink: 0; margin-bottom: 4px; padding: 8px 12px; border-radius: 7px;
   background: rgba(237,161,0,.14); color: var(--accent); font-size: 13px; font-weight: 560;
 }
-/* flex-wrap so a card too narrow to fit the day name AND the all-day badge
-   on one line drops the badge to its own line below instead of the two
-   overlapping — the name/date's own ellipsis truncation just below is the
-   first line of defence, this is the fallback if it still doesn't fit. */
-.fcdhead { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 3px 6px; }
+/* Just the day name/date and the info icon share this row now — the
+   all-day badge moved to its own row just above the bar (see
+   .fcallday-row below), so this row only ever has (at most) two things in
+   it: .fcdnamewrap and .fcnote-btn. justify-content: space-between alone
+   is enough to pin the icon to the far right regardless of how long the
+   day name is, so a long name can never push it around — it just
+   ellipsizes instead (see .fcdname below), never wraps or shoves a
+   neighbour, and this row no longer needs the flex-wrap fallback the old
+   three-way squeeze (name + icon + badge) used to require. */
+.fcdhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
 .fcdnamewrap { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 /* Bounded so a long day/month name can never spill past its own column and
-   visually overlap the all-day badge beside it (see .fcdhead above) — it
-   ellipsizes instead. */
+   push the info icon beside it (see .fcdhead above) — it ellipsizes
+   instead. */
 .fcdname { font-size: 13.5px; font-weight: 620; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Jon's visual cue for which cards the carousel can actually jump to: the
    clickable ones (today + the next `clickableCount`-1 days, matching
@@ -868,11 +881,15 @@
    it. Amber, same family as the now-marker and an imminent deadline, since
    it's the same kind of "don't miss this" flag. Hover/tap for which — plain
    title attribute, nothing fancier needed for a count this small. */
+/* Its own row now, right above the bar it's describing — Jon's call: "I
+   would like the all day to be close to the timeline for all of them,
+   right aligned." Right-aligned via justify-content on the row rather than
+   the badge's own margin, since it's the row's only child. Small negative
+   margin-top tucks it snug against the bar right below it rather than
+   reading as a third evenly-spaced row in the card's own flex gap. */
+.fcallday-row { display: flex; justify-content: flex-end; margin-top: -2px; }
 .fcallday {
-  /* margin-left: auto so that if .fcdhead's wrap kicks in (see above), this
-     drops to its own line still pinned to the right, rather than starting
-     back at the left edge under the day name. */
-  flex-shrink: 0; margin-left: auto; font-size: 10px; font-weight: 700; line-height: 1;
+  flex-shrink: 0; font-size: 10px; font-weight: 700; line-height: 1;
   padding: 3px 6px; border-radius: 8px;
   background: rgba(237,161,0,.16); color: var(--accent);
 }
@@ -911,22 +928,28 @@
 .fcbar i.d-admin        { background: #40566d; }
 .fcbar i.d-appointment  { background: #276f83; }
 .fcbar i.d-personal     { background: #767322; }
+/* Two-ended instead of just the free half — Jon's call: "maybe we could do
+   like a left aligned XXh Used and a right aligned XXh Free like we have."
+   Free stays the brighter, heavier of the two (same styling as before this
+   split) since how much room is LEFT is the more actionable of the two
+   numbers; used sits at the same size but a quieter colour so the row
+   reads as one pair, not two competing headlines. */
+.fcusedfree { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.fcused { font-size: 14px; font-weight: 560; color: var(--muted); font-variant-numeric: tabular-nums; }
 .fcfree { font-size: 14px; font-weight: 620; color: var(--ink); font-variant-numeric: tabular-nums; }
 .fccount { font-size: 11px; color: var(--faint); }
+/* Same line treatment as .fccount right above it — Jon's ask: "right below
+   the x events text we could have another similar line with x deadlines."
+   Reads `day.deadlineCount` (see brief/display.js's buildDeadlinePool) —
+   the exact same pool the Today page's own Deadlines section is built
+   from, so this number and that list always agree. */
+.fcdlcount { font-size: 11px; color: var(--faint); }
 
-.page-week .zone { flex: none; margin-top: 20px; overflow-y: auto; min-height: 0; }
-
-/* Looming, regrouped by day (see groupLooming in Display.jsx) — Jon's
-   complaint was a flat list repeating "in 3 days · Thu Aug 27" on every
-   single row until it was unreadable. One header per day instead, the
-   individual items underneath it plain. */
-.lgroup + .lgroup { margin-top: 14px; }
-.lghead {
-  display: flex; align-items: baseline; gap: 8px; padding-bottom: 4px;
-  border-bottom: 1px solid var(--rule); margin-bottom: 4px;
-}
-.lgin { font-size: 13px; font-weight: 700; color: var(--ink); text-transform: uppercase; letter-spacing: .02em; }
-.lgdate { font-size: 12px; color: var(--faint); }
+/* The "Looming" list (regrouped by day) that used to render below the
+   fcgrid is gone (Jon's call: "they were never that useful we will add
+   things later" — see WeekPage in Display.jsx). .page-week .zone and the
+   .lgroup/.lghead/.lgin/.lgdate rules that styled it are removed with it —
+   nothing else in this file uses them. */
 
 /* ========================================================== page: world */
 
@@ -1246,11 +1269,6 @@
      the date text next to it. */
   .aclock-face { width: 86px; height: 86px; }
   .daycar-arrow { width: 48px; height: 48px; font-size: 26px; }
-  /* The nav plus a text label plus a badge no longer fit on one line at this
-     width — stack the busy score under the nav instead of squeezing the grid,
-     still right-aligned to match the desktop layout's intent. */
-  .daycar-head { display: flex; flex-direction: column; gap: 6px; }
-  .daycar-nav { width: 100%; }
   /* The desktop fixed-width reservation (330px, see the base rule) is
      sized for the arrows/gaps a wide panel has room for — a phone this
      narrow doesn't have 330px to spare next to two 48px arrows, so this
@@ -1258,10 +1276,11 @@
      squeeze here. Jon didn't ask for pixel-perfect arrow spacing on a
      phone specifically, and a flexible box beats a broken layout. */
   .daycar-label { width: auto; min-width: 0; flex-shrink: 1; overflow: visible; white-space: normal; }
-  .daycar-busy { width: 100%; justify-content: flex-end; }
   .hero { flex-wrap: wrap; gap: 6px; }
   .hero .big { font-size: 21px; white-space: normal; }
   .hero .sub { white-space: normal; }
+  .hero-busy { padding-bottom: 10px; }
+  .hero-note { max-width: none; }
   /* Every side-by-side pair collapses to one column here. `.cols` was the one
      that got missed, and it left Today's two lists overlapping each other. */
   .cols, .page-tasks, .mcols, .days { display: flex; flex-direction: column; gap: 16px; }

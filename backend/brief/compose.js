@@ -141,7 +141,11 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
   // when the model is off or unavailable.
   const insights = await refreshInsights({
     dayContext: buildDayContext(items, config, now),
-    deadlinePool: buildDeadlinePool(items, config, now),
+    // Same 7-day window buildDisplay() itself now uses for rawDeadlinePool
+    // (was 4 — the old carousel-only window) — see that file's own comment
+    // for why: the Week page's per-day deadline count and Today's own
+    // deadlines section both need the full week the AI pass covers here.
+    deadlinePool: buildDeadlinePool(items, config, now, { days: 7 }),
     config,
   });
 

@@ -15,7 +15,11 @@
 //      CATEGORY grouping itself stays whatever the rules already decided
 //      (see buildDeadlinePool in display.js) — same principle lib/ai.js's
 //      own header comment states for the email classifier: the model
-//      reads and writes, rules decide what a thing IS.
+//      reads and writes, rules decide what a thing IS. The one deliberate
+//      exception: the model also flags whether an item is a genuine
+//      deadline at all (isDeadline), since no existing rule can tell a
+//      real due date apart from a purely informational item like a
+//      payday — refreshInsights() drops anything explicitly flagged false.
 //
 // Both degrade to null on any failure (missing key, provider down, a
 // malformed response) — buildDisplay() already has a real, rule-based
@@ -103,11 +107,12 @@ export async function craftDayInsights(days, config) {
 const DEADLINE_SYSTEM = `You help a university student who also works part-time see their upcoming deadlines clearly. For each numbered item you receive, decide how to present it.
 
 Return json with this exact shape:
-{"results":[{"n":1,"title":"...","importance":"high"}]}
+{"results":[{"n":1,"title":"...","importance":"high","isDeadline":true}]}
 
 Rules:
 - "title": a short, clear, actionable rewrite — say what it is and what's due, in plain language, under 60 characters. If the original is already a clean action, you can leave it close to as-is; don't invent detail that isn't given.
 - "importance": "high" for anything genuinely bad to miss (a graded test, a payment, a hard deadline with real consequences), "low" for optional or soft items, "medium" for everything else.
+- "isDeadline": true if this is a genuine deadline — something actually due or requiring action by that date (an assignment, a payment owed, a bill, a form to submit). false if it's merely informational and nothing is due or owed — a payday, a birthday, an anniversary, a reminder that something merely happened or will happen with no action required. When genuinely unsure, use true.
 - Return exactly one result per item, in order, using the given "n".`;
 
 function fmtDeadlineForPrompt(item, i) {
@@ -121,8 +126,12 @@ function fmtDeadlineForPrompt(item, i) {
 /**
  * One DeepSeek call across every deadline in `pool` (however
  * buildDeadlinePool() in display.js bucketed them by day) — returns a
- * flat Map keyed by item id, `{title, importance}`, so the caller can
- * re-merge each result back onto whichever day bucket its id came from.
+ * flat Map keyed by item id, `{title, importance, isDeadline}`, so the
+ * caller can re-merge each result back onto whichever day bucket its id
+ * came from. `isDeadline` is `false` only when the model explicitly says
+ * this item isn't a real deadline (e.g. a payday) — `null`/undefined
+ * means the model didn't answer for this item at all, which
+ * refreshInsights() treats as "keep it" rather than "drop it".
  * Null if `pool` is empty or the model didn't answer.
  */
 export async function organizeDeadlines(pool, config) {
@@ -150,7 +159,8 @@ export async function organizeDeadlines(pool, config) {
     if (!r) return;
     const title = typeof r.title === "string" && r.title.trim() ? r.title.trim().slice(0, 80) : null;
     const importance = ["high", "medium", "low"].includes(r.importance) ? r.importance : null;
-    if (title || importance) out.set(item.id, { title, importance });
+    const isDeadline = typeof r.isDeadline === "boolean" ? r.isDeadline : null;
+    if (title || importance || isDeadline !== null) out.set(item.id, { title, importance, isDeadline });
   });
   return out;
 }
@@ -175,6 +185,12 @@ export async function organizeDeadlines(pool, config) {
  * title/importance rather than being dropped from the list — the AI half
  * of this feature should only ever ADD polish on top of the real pool,
  * never subtract a genuine deadline from it.
+ *
+ * The one deliberate exception: an item the model explicitly marked
+ * `isDeadline: false` (e.g. a payday, a birthday — informational, nothing
+ * actually due) is dropped from the day's deadline list entirely. An item
+ * the model didn't answer for at all still keeps the "never drop more
+ * than necessary" behavior above — only an explicit false removes it.
  */
 export async function refreshInsights({ dayContext, deadlinePool, config }) {
   const [days, renamed] = await Promise.all([
@@ -186,14 +202,17 @@ export async function refreshInsights({ dayContext, deadlinePool, config }) {
   if (renamed) {
     deadlines = {};
     for (const [dayKeyStr, items] of Object.entries(deadlinePool || {})) {
-      deadlines[dayKeyStr] = items.map((it) => {
-        const r = renamed.get(it.id);
-        return {
-          ...it,
-          title: r?.title || it.title,
-          importance: r?.importance || it.importance,
-        };
-      });
+      deadlines[dayKeyStr] = items
+        .map((it) => {
+          const r = renamed.get(it.id);
+          if (r && r.isDeadline === false) return null;
+          return {
+            ...it,
+            title: r?.title || it.title,
+            importance: r?.importance || it.importance,
+          };
+        })
+        .filter(Boolean);
     }
   }
 

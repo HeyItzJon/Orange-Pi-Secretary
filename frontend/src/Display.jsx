@@ -260,26 +260,11 @@ function DayCarousel({ slides, offset, onOffset }) {
           </span>
           <button className="daycar-arrow" disabled={offset === max} onClick={() => goTo(offset + 1)} aria-label="Next day">›</button>
         </div>
-        {/* Whichever day the carousel is currently showing — Today itself or
-            one of the Looking-ahead slides — reusing the exact same number
-            brief/display.js already attached to this slide's own strip (see
-            `busyness`/`busynessWhy` on `d.strip`/`d.dayStrips`), the same
-            score the Week page's card for this same day shows. Right-aligned
-            in its own grid column (see Display.css) so the nav above stays
-            centered regardless of this column's width. */}
-        {typeof slide.busyness === "number" && (
-          <span
-            className="daycar-busy"
-            title={
-              slide.busynessWhy?.length
-                ? `Busy Score ${slide.busyness}/10 — ${slide.busynessWhy.join(", ")}`
-                : `Busy Score ${slide.busyness}/10 — nothing scheduled`
-            }
-          >
-            <span className="daycar-busy-label">Busy Score:</span>
-            <span className={`fcscore b-${busynessBucket(slide.busyness)}`}>{slide.busyness}</span>
-          </span>
-        )}
+        {/* Busy Score used to live here, right-aligned next to the nav —
+            Jon's call to move it: it now sits below the day's title and
+            above the AI note instead (see TodayPage), bigger than it was
+            here, so it "flows better" with the rest of the page's body
+            instead of competing with the nav row for space. */}
       </div>
       <div className="daycar-viewport" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div key={offset} className={`daycar-slide${dir > 0 ? " fwd" : " back"}`}>
@@ -565,6 +550,39 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
         </div>
       )}
 
+      {/* Busy Score — moved here from the carousel's own header row (Jon's
+          call: "put that busy score now below the title and above the AI
+          summary, just so it flows better... make it nice and bigger"),
+          on every slide including Today's own NOW/NEXT state, for the same
+          structural reason dayStrips' own title/note fall back the same
+          way on every slide. Reads the exact same busyness/busynessWhy
+          every slide already carries (`d.strip`/`d.dayStrips[n]`, see
+          weekForecast in brief/display.js) — the same score the Week
+          page's own card for this exact day shows, not a second
+          calculation. */}
+      {typeof slide.busyness === "number" && (
+        <div
+          className="hero-busy"
+          title={
+            slide.busynessWhy?.length
+              ? `Busy Score ${slide.busyness}/10 — ${slide.busynessWhy.join(", ")}`
+              : `Busy Score ${slide.busyness}/10 — nothing scheduled`
+          }
+        >
+          <span className="hero-busy-label">Busy Score</span>
+          <span className={`fcscore hero-busy-score b-${busynessBucket(slide.busyness)}`}>{slide.busyness}</span>
+        </div>
+      )}
+
+      {/* DeepSeek's longer, 1-3 sentence note for this day (see
+          `hero.note`/`dayStrips[n].note` in brief/display.js) — the same
+          smart summary the Week page's hover card already shows for this
+          day, now surfaced here too. Falls back to a plain deterministic
+          sentence when the model hasn't run, so this is never blank. */}
+      {(onToday ? d.hero.note : slide.note) && (
+        <p className="hero-note">{onToday ? d.hero.note : slide.note}</p>
+      )}
+
       {/* All-day items for whichever day the carousel is currently showing
           — used to sit right above the hour strip; Jon's call to move it
           below the (now-relocated) title instead, as the first thing in the
@@ -621,17 +639,20 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
         </section>
       </div>
 
-      {/* Only on a paged-off slide — Jon's call: what's due TODAY is already
-          folded into today's own event/deadline lists elsewhere (the Tasks
-          page, and `d.deadlines`), so repeating it here would just be the
-          same information twice. Renamed/ranked by DeepSeek when it's run
+      {/* Now on every slide, Today's own included — Jon's call: deadlines
+          due today belong on Today's slide too, not only the 3
+          Looking-ahead ones. Today reads `d.deadlinesToday` (see
+          brief/display.js — the exact same pool/rename logic as
+          `dayStrips[n].deadlinesToday`, just today's own bucket of it) so
+          it never repeats `d.deadlines`' running list, only what's due
+          today specifically. Renamed/ranked by DeepSeek when it's run
           (see brief/insights.js's organizeDeadlines), the same rule-based
           pool underneath either way (buildDeadlinePool in brief/display.js)
           — every field this reads (`domain`/`categoryLabel`/`timeLabel`)
           survives that rename untouched (see refreshInsights' own comment),
           so the dot colour and meta line never go blank just because the
           model didn't run. */}
-      {!onToday && <DeadlinesZone label={slide.label} items={slide.deadlinesToday} />}
+      <DeadlinesZone label={onToday ? "Today" : slide.label} items={onToday ? d.deadlinesToday : slide.deadlinesToday} />
     </>
   );
 }
@@ -1158,19 +1179,6 @@ function busynessBucket(score) {
  * rather than re-sorting anything) turns that into a handful of headers,
  * each with its own short list underneath.
  */
-function groupLooming(items) {
-  const order = [];
-  const byDate = new Map();
-  for (const it of items) {
-    if (!byDate.has(it.dateLabel)) {
-      byDate.set(it.dateLabel, { dateLabel: it.dateLabel, in: it.in, items: [] });
-      order.push(it.dateLabel);
-    }
-    byDate.get(it.dateLabel).items.push(it);
-  }
-  return order.map((k) => byDate.get(k));
-}
-
 function WeekPage({ d, onGoToDay }) {
   const w = d.week;
   const [farNotice, setFarNotice] = useState(false);
@@ -1281,6 +1289,15 @@ function WeekPage({ d, onGoToDay }) {
             role={onGoToDay ? "button" : undefined}
             tabIndex={onGoToDay ? 0 : undefined}
           >
+            {/* Just the day name/date and the info icon here now — Jon's
+                bug report: on a narrow screen the all-day badge used to
+                share this row too, and whichever of the three was longest
+                that day (a long day name, "3 all-day") pushed the others
+                around. The icon is pinned top-right always (see
+                .fcnote-btn's margin-left:auto in Display.css), so it can
+                never be displaced by a long day name — and the all-day
+                badge has moved out of this row entirely, onto its own row
+                just above the busy bar below. */}
             <div className="fcdhead">
               <span className="fcdnamewrap">
                 {/* Bright for the 4 days a click actually goes somewhere,
@@ -1307,17 +1324,19 @@ function WeekPage({ d, onGoToDay }) {
                   ⓘ
                 </button>
               )}
-              {/* A day with nothing timed on it can still carry a deadline —
-                  the busy/free bar below has no way to say that (see
-                  weekForecast's own comment on why it doesn't guess a
-                  duration for these), so this badge is what actually flags
-                  it. Hover/tap for which — see title below. */}
-              {day.allDay?.length > 0 && (
+            </div>
+            {/* All-day badge's new home — its own row, right-aligned, sitting
+                close to the timeline it's describing rather than up in the
+                header competing with the day name for space (Jon's call).
+                Only rendered when the day actually has one, same as before —
+                a day with nothing all-day just skips straight to the bar. */}
+            {day.allDay?.length > 0 && (
+              <div className="fcallday-row">
                 <span className="fcallday" title={day.allDay.map((a) => a.title).join(", ")}>
                   {day.allDay.length} all-day
                 </span>
-              )}
-            </div>
+              </div>
+            )}
             {/* Coloured by calendar swatch, same family the day strip itself
                 uses — roughly sized and positioned, nothing to hover, no
                 label of its own. Whatever's left grey (the bar's own
@@ -1335,9 +1354,26 @@ function WeekPage({ d, onGoToDay }) {
                 />
               ))}
             </div>
-            <span className="fcfree">{day.freeHours}h free</span>
+            {/* Two-ended row instead of just the free half — Jon's call:
+                seeing how much is USED, not just what's left, tells the
+                same story the bar above does but in words a screen reader
+                (or a glance) can take in without measuring pixel widths. */}
+            <div className="fcusedfree">
+              <span className="fcused">{day.busyHours}h used</span>
+              <span className="fcfree">{day.freeHours}h free</span>
+            </div>
             {day.eventCount > 0 && (
               <span className="fccount">{day.eventCount} event{day.eventCount === 1 ? "" : "s"}</span>
+            )}
+            {/* Same idea as the events line right above, one row down —
+                Jon's ask: a day can look clear on the events line and still
+                be quietly carrying something due. `deadlineCount` is the
+                same pool dayStrips[n].deadlinesToday/deadlinesToday read
+                from (see buildDeadlinePool in brief/display.js), so this
+                number and what actually shows up on the Today page's own
+                Deadlines section for this day always agree. */}
+            {day.deadlineCount > 0 && (
+              <span className="fcdlcount">{day.deadlineCount} deadline{day.deadlineCount === 1 ? "" : "s"}</span>
             )}
             {/* Pinned to the bottom right (see .fcbusy-row's margin-top:auto)
                 rather than up in the header — Jon's call, so it reads as a
@@ -1366,29 +1402,11 @@ function WeekPage({ d, onGoToDay }) {
         ))}
       </div>
 
-      <section className="zone">
-        <h2 className="spaced">Looming</h2>
-        {w.looming.length === 0 ? (
-          <p className="empty">Nothing due in this window.</p>
-        ) : (
-          groupLooming(w.looming).map((group) => (
-            <div className="lgroup" key={group.dateLabel}>
-              <div className="lghead">
-                <span className="lgin">{group.in}</span>
-                <span className="lgdate">{group.dateLabel}</span>
-              </div>
-              {group.items.map((it) => (
-                <div className="trow" key={it.id}>
-                  <span className="body">
-                    <span className="title">{it.title}</span>
-                    {it.note && <span className="pri">{it.note}</span>}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ))
-        )}
-      </section>
+      {/* The "Looming" list that used to sit here — a plain restatement of
+          w.looming — is gone on purpose (Jon's call: "they were never that
+          useful we will add things later"). brief/display.js still computes
+          `week.looming`, this page simply no longer renders it, so nothing
+          downstream that might still read it breaks. */}
 
       {/* Portaled to document.body for the same reason Strip's own
           metadata card is (see that component's comment): .fcgrid and its

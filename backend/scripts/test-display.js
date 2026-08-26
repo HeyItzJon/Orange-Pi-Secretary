@@ -1347,4 +1347,72 @@ test("a genuinely empty week day falls back to a plain 'nothing scheduled' note"
   assert.equal(d.week.days[0].note, "Nothing scheduled yet.");
 });
 
+test("dayStrips[n].note is the AI note when present, else the same deterministic fallback week.days[n] itself uses", () => {
+  const items = [ev({ id: "a", dueAt: dayAt(1, 9), meta: { end: dayAt(1, 17) } })];
+  const bare = buildDisplay({ items, config, now: NOW });
+  assert.equal(bare.dayStrips[0].key, THURS_STR);
+  assert.ok(bare.dayStrips[0].note, "always something, never blank");
+  assert.equal(bare.dayStrips[0].note, bare.week.days[1].note, "same day, same fallback sentence as the Week page's own card");
+
+  const insights = { days: { [THURS_STR]: { title: "t", note: "One shift, otherwise open." } } };
+  const withAi = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(withAi.dayStrips[0].note, "One shift, otherwise open.");
+});
+
+test("hero.note is the AI note when present, else the deterministic fallback for today", () => {
+  const items = [ev({ id: "a", dueAt: at(9), meta: { end: at(17) } })];
+  const bare = buildDisplay({ items, config, now: NOW });
+  assert.ok(bare.hero.note, "always something, never blank");
+  assert.equal(bare.hero.note, bare.week.days[0].note, "today's hero note matches today's own week card fallback");
+
+  const insights = { days: { [TODAY_STR]: { title: "t", note: "Nothing until the shift tonight." } } };
+  const withAi = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(withAi.hero.note, "Nothing until the shift tonight.");
+});
+
+test("week.days[n].deadlineCount reads the same widened (7-day) pool deadlinesToday/dayStrips read from, AI-renamed count when present", () => {
+  const items = [
+    task({ id: "due1", source: "calendar", meta: { allDay: true }, title: "Lab report due", dueAt: THURS_STR, categoryWeight: 40 }),
+  ];
+  const bare = buildDisplay({ items, config, now: NOW });
+  assert.equal(bare.week.days[0].deadlineCount, 0, "nothing due today");
+  assert.equal(bare.week.days[1].deadlineCount, 1, "one thing due tomorrow — the raw-pool fallback count");
+
+  // Renaming an item doesn't change how many landed on the day — the count
+  // must stay 1 whether or not the AI pass renamed it.
+  const insights = { deadlines: { [THURS_STR]: [{ id: "due1", title: "Submit lab report", importance: "high" }] } };
+  const withAi = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(withAi.week.days[1].deadlineCount, 1);
+});
+
+test("the deadline pool now covers the full 7-day week (was 4) — a day 6 out is no longer silently dropped", () => {
+  const sixOut = "2026-08-25"; // NOW is Aug 19 — 6 calendar days out, inside the widened window
+  const items = [
+    task({ id: "far", source: "calendar", meta: { allDay: true }, title: "Due in 6 days", dueAt: sixOut, categoryWeight: 40 }),
+  ];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.equal(d.week.days[6].key, sixOut);
+  assert.equal(d.week.days[6].deadlineCount, 1, "the widened 7-day pool now reaches this far, where the old 4-day window would not have");
+});
+
+group("deadlinesToday — top-level field, extends the deadlines list to Today's own carousel slide");
+
+test("deadlinesToday prefers the AI-renamed list, falls back to the raw pool, mirrors dayStrips[n].deadlinesToday's own behavior but for today", () => {
+  const items = [
+    task({ id: "due1", source: "calendar", meta: { allDay: true }, title: "Lab report due", dueAt: TODAY_STR, categoryWeight: 40 }),
+  ];
+  const bare = buildDisplay({ items, config, now: NOW });
+  assert.deepEqual(bare.deadlinesToday.map((i) => i.id), ["due1"], "raw pool fallback");
+  assert.equal(bare.deadlinesToday[0].title, "Lab report due");
+
+  const insights = { deadlines: { [TODAY_STR]: [{ id: "due1", title: "Submit lab report", importance: "high" }] } };
+  const withAi = buildDisplay({ items, config, now: NOW, insights });
+  assert.equal(withAi.deadlinesToday[0].title, "Submit lab report");
+});
+
+test("deadlinesToday is empty (not absent) on a day with nothing due", () => {
+  const d = buildDisplay({ items: [], config, now: NOW });
+  assert.deepEqual(d.deadlinesToday, []);
+});
+
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);

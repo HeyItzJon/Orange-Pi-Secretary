@@ -140,8 +140,8 @@ await test("renames and ranks each item by its own id", async () => {
     ],
   });
   const renamed = await organizeDeadlines(pool, OFF);
-  assert.deepEqual(renamed.get("a1"), { title: "Submit MSE 3401 lab report", importance: "high" });
-  assert.deepEqual(renamed.get("a2"), { title: "Rent payment", importance: "high" });
+  assert.deepEqual(renamed.get("a1"), { title: "Submit MSE 3401 lab report", importance: "high", isDeadline: null });
+  assert.deepEqual(renamed.get("a2"), { title: "Rent payment", importance: "high", isDeadline: null });
 });
 
 await test("an invalid importance value is dropped rather than trusted verbatim", async () => {
@@ -197,6 +197,59 @@ await test("when organizeDeadlines itself comes back null, refreshInsights.deadl
   const result = await refreshInsights({ dayContext, deadlinePool, config: OFF });
   assert.equal(result.deadlines, null);
   assert.ok(result.days, "the day-titles half still succeeded independently");
+});
+
+// ====================================================================
+group("organizeDeadlines / refreshInsights — isDeadline filtering (payday etc.)");
+
+await test("organizeDeadlines stores isDeadline alongside title/importance", async () => {
+  const pool = { "2026-08-30": [deadlineItem({ id: "payday", title: "Payday" })] };
+  await cacheSet(deadlinesKey(pool), {
+    results: [{ n: 1, title: "Payday", importance: "low", isDeadline: false }],
+  });
+  const renamed = await organizeDeadlines(pool, OFF);
+  assert.deepEqual(renamed.get("payday"), { title: "Payday", importance: "low", isDeadline: false });
+});
+
+await test("a missing/non-boolean isDeadline is stored as null, not coerced", async () => {
+  const pool = { "2026-08-30": [deadlineItem({ id: "no-flag" })] };
+  await cacheSet(deadlinesKey(pool), { results: [{ n: 1, title: "Renamed", importance: "medium" }] });
+  const renamed = await organizeDeadlines(pool, OFF);
+  assert.equal(renamed.get("no-flag").isDeadline, null);
+});
+
+await test("refreshInsights drops an item the model explicitly marked isDeadline:false (e.g. payday)", async () => {
+  const dayContext = [day({ key: "2026-08-30" })];
+  const real = deadlineItem({ id: "lab", title: "Lab report due" });
+  const payday = deadlineItem({ id: "payday", title: "Payday", domain: "finance" });
+  const deadlinePool = { "2026-08-30": [real, payday] };
+  await cacheSet(dayInsightsKey(dayContext), { days: [{ n: 1, title: "t", note: "n" }] });
+  await cacheSet(deadlinesKey(deadlinePool), {
+    results: [
+      { n: 1, title: "Submit lab report", importance: "high", isDeadline: true },
+      { n: 2, title: "Payday", importance: "low", isDeadline: false },
+    ],
+  });
+
+  const result = await refreshInsights({ dayContext, deadlinePool, config: OFF });
+  const ids = result.deadlines["2026-08-30"].map((i) => i.id);
+  assert.deepEqual(ids, ["lab"], "payday was dropped, the real deadline stayed");
+});
+
+await test("refreshInsights keeps an item the model didn't answer for at all, even though other items in the same batch were filtered", async () => {
+  const dayContext = [day({ key: "2026-08-31" })];
+  const filtered = deadlineItem({ id: "birthday", title: "Mom's birthday" });
+  const unanswered = deadlineItem({ id: "unanswered", title: "Something due", domain: "school" });
+  const deadlinePool = { "2026-08-31": [filtered, unanswered] };
+  await cacheSet(dayInsightsKey(dayContext), { days: [{ n: 1, title: "t", note: "n" }] });
+  // Only ONE of the two items gets a result — the other is untouched by the model entirely.
+  await cacheSet(deadlinesKey(deadlinePool), {
+    results: [{ n: 1, title: "Mom's birthday", importance: "low", isDeadline: false }],
+  });
+
+  const result = await refreshInsights({ dayContext, deadlinePool, config: OFF });
+  const ids = result.deadlines["2026-08-31"].map((i) => i.id);
+  assert.deepEqual(ids, ["unanswered"], "the explicitly-flagged item was dropped, the unanswered one was kept");
 });
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}\n`);
