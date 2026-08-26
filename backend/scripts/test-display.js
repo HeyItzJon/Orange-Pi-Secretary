@@ -152,6 +152,30 @@ test("chunks are labelled, not clock ticks", () => {
   assert.deepEqual(strip.chunks.map((c) => c.label), ["Morning", "Afternoon", "Evening", "Night"]);
 });
 
+test("every hour gets a thin, unlabeled half-hour tick between it and the next", () => {
+  const { strip } = buildDisplay({ items: [], config, now: NOW });
+  const wholeHours = strip.ticks.filter((t) => !t.half);
+  const halves = strip.ticks.filter((t) => t.half);
+  // One half-hour mark for every whole-hour tick except the very last —
+  // there's no "next hour" to sit between after the window closes.
+  assert.equal(halves.length, wholeHours.length - 1);
+  for (const h of halves) {
+    assert.equal(h.hour % 1, 0.5, "a half-hour tick's own hour value should land on the half");
+    assert.equal(h.label, "", "half-hour ticks are deliberately unlabeled");
+    assert.equal(h.major, false);
+  }
+});
+
+test("half-hour ticks land at the right spot on the strip, same pct() math as the hour ticks", () => {
+  const { strip } = buildDisplay({ items: [], config, now: NOW });
+  const nineAM = strip.ticks.find((t) => t.hour === 9);
+  const nineThirty = strip.ticks.find((t) => t.hour === 9.5);
+  const tenAM = strip.ticks.find((t) => t.hour === 10);
+  assert.ok(nineAM && nineThirty && tenAM, "expected ticks at 9, 9:30 and 10");
+  // 9:30 should sit exactly halfway between the 9 and 10 o'clock marks.
+  assert.equal(nineThirty.left, (nineAM.left + tenAM.left) / 2);
+});
+
 test("all-day events never become blocks", () => {
   const items = [ev({ id: "a", title: "Weekend", dueAt: at(0), meta: { allDay: true } })];
   const { strip } = buildDisplay({ items, config, now: NOW });

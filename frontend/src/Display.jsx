@@ -417,7 +417,7 @@ function Strip({ strip }) {
       <div className="strip-wrap">
         <div className="strip">
           {(strip.ticks || []).map((t) => (
-            <div key={t.hour} className={`tick${t.major ? " major" : ""}`} style={{ left: `${t.left}%` }} />
+            <div key={t.hour} className={`tick${t.major ? " major" : t.half ? " half" : ""}`} style={{ left: `${t.left}%` }} />
           ))}
           {strip.chunks.map((c) => (
             <div key={c.label} className="chunk-sep" style={{ left: `${c.left}%` }} />

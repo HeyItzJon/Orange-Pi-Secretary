@@ -333,6 +333,14 @@ function buildDayStrip(dayEvents, tz, { now = null } = {}) {
       major,
       label: major && h < endHour ? (h === 12 ? "12" : h > 12 ? `${h - 12}` : `${h}`) : "",
     });
+    // A thin, unlabeled half-hour mark between this hour and the next —
+    // enough for the strip to read as a real ruler rather than just hour
+    // blocks, without doubling the label count. Only added when the
+    // half-hour itself still falls inside the visible window (skipped
+    // after the very last hour tick).
+    if (h < endHour) {
+      ticks.push({ hour: h + 0.5, left: pct(h + 0.5), major: false, half: true, label: "" });
+    }
   }
 
   const chunks = CHUNKS.filter((c) => c.to > startHour && c.from < endHour).map((c) => ({
