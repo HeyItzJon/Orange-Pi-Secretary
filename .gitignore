@@ -2,30 +2,22 @@
 .env
 *.env
 !.env.example
+*.env.bak
 client_secret.json
 *credentials*.json
 *token*.json
 
 # --- your personal configuration ------------------------------------------
-# config.json (real names, calendars, vault path) and config/portfolio.json
-# (holdings) are now tracked on purpose, so `git pull` on any machine — the
-# Pi included — brings a working setup without a manual copy every time.
-# Still your call whether that's right for a given machine; this just means
-# git is willing to carry them.
+# config.json holds real names, calendars and your vault path. The tracked
+# file is config.example.json — copy it to config.json and edit that.
+backend/config.json
 
 # --- your data -------------------------------------------------------------
-# NOTE: gitignore does not treat "pattern  # comment" as pattern-plus-comment
-# — everything after the pattern is part of it, so keep comments on their
-# own line above the pattern, not trailing it.
-# The item store: emails, events, prices. Regenerates on its own from the
-# sources above — never worth committing, machine to machine.
-backend/data/
+backend/data/          # the item store: emails, events, prices
+backend/config/        # portfolio.json — your holdings and share counts
 
-# --- retired / unused code, staged for deletion -----------------------------
-# Everything here is confirmed unreferenced by the running app. Delete the
-# whole folder whenever you like.
+# --- retired v1 code (kept locally for reference, not published) -----------
 _v1_removed/
-_to_delete/
 
 # --- build output and dependencies ----------------------------------------
 node_modules/

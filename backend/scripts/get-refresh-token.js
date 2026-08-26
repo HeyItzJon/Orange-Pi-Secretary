@@ -12,7 +12,14 @@
 //
 // Walks the standard "installed app" OAuth flow: prints a Google consent
 // URL, catches the redirect on a short-lived local server, exchanges the
-// code for a refresh token, and prints it.
+// code for a refresh token, and — this is the part that changed — writes
+// it straight into backend/.env itself instead of printing it for a manual
+// copy-paste. That copy-paste step is exactly where this went wrong the
+// first time it was needed: a long token line-wraps in a terminal, and
+// however it got copied (partial selection, a stray newline from pasting
+// into nano) landed a mangled value in .env that Google's token endpoint
+// rejected as a plain "Bad Request" — not even a recognizable token, just
+// malformed. Writing it directly removes that whole failure mode.
 //
 //   node scripts/get-refresh-token.js
 //
@@ -21,18 +28,28 @@
 // If the OAuth client itself was deleted in Cloud Console you'll need a
 // new client id/secret from there first; this script can't create one.
 //
-// Run this on whichever machine has a browser handy and is signed into
-// the right Google account — it doesn't have to be the Pi. The redirect
-// has to land back on the SAME machine this is running on (it's a plain
+// Run this ON WHICHEVER MACHINE SHOULD END UP WITH THE NEW TOKEN — it
+// writes to THIS machine's own backend/.env, not any other machine's. The
+// redirect also has to land back on this same machine (it's a plain
 // localhost server), so if you're SSH'd into a headless Pi with no
-// browser, run this on your laptop instead (copy the two .env values
-// over, or just clone the repo there) and paste the printed token into
-// the Pi's .env over SSH afterward.
+// browser, run this on your laptop instead (against a clone of the repo
+// there) and copy the token from that machine's .env to the Pi's over SSH
+// — that's the one case a manual copy is still unavoidable, so take it
+// slowly: select the whole value with a triple-click or your terminal's
+// "select line" shortcut, not a click-drag that can silently drop the
+// wrapped tail end.
 
 import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
 import http from "http";
 import { URL } from "url";
 import axios from "axios";
+import { getAccessToken } from "../lib/google.js";
+import { writeEnvValue } from "../lib/envfile.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ENV_PATH = path.join(__dirname, "..", ".env");
 
 const { GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET } = process.env;
 if (!GMAIL_CLIENT_ID || !GMAIL_CLIENT_SECRET) {
@@ -106,11 +123,27 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    console.log("\nNew refresh token — paste this into backend/.env as GMAIL_REFRESH_TOKEN");
-    console.log("(replacing the old value), then restart the service:\n");
-    console.log(data.refresh_token);
-    console.log();
-    process.exit(0);
+    await writeEnvValue(ENV_PATH, "GMAIL_REFRESH_TOKEN", data.refresh_token);
+    console.log("\nSaved — GMAIL_REFRESH_TOKEN in backend/.env now holds the new token.");
+    console.log("(The previous .env was backed up to .env.bak, just in case.)");
+
+    // Prove it actually works right now, on THIS run, rather than leaving
+    // that to a separate `npm run doctor` — updating process.env directly
+    // since dotenv already loaded the OLD value before this script wrote
+    // the new one to disk.
+    process.env.GMAIL_REFRESH_TOKEN = data.refresh_token;
+    try {
+      await getAccessToken();
+      console.log("\nVerified — Google accepted the new token. Restart the service to pick it");
+      console.log("up everywhere:\n");
+      console.log("  sudo systemctl restart pi-secretary\n");
+      process.exit(0);
+    } catch (verifyErr) {
+      console.error(`\nSaved it, but a live check still failed: ${verifyErr.message}`);
+      console.error("That's unexpected right after minting a fresh token — worth investigating");
+      console.error("before restarting the service on it.\n");
+      process.exit(1);
+    }
   } catch (err) {
     res.end("Token exchange failed — check the terminal.");
     console.error(`\nToken exchange failed: ${err.response?.data?.error_description || err.message}\n`);
