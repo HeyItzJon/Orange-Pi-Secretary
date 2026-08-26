@@ -1190,7 +1190,12 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     // the same year-progress percent already shown big on that page's own
     // header, so it wasn't telling you anything new either.
     pages: [
-      { id: "today", label: "Today", badge: today.length || null },
+      // `todays` (every event on today's date, all-day and timed alike,
+      // regardless of whether it's already happened) — not `today` just
+      // below, which is only what's still upcoming. Jon's call: the tab
+      // number should read as "how much is on today", not "how much is
+      // left", so it shouldn't shrink as the day goes on.
+      { id: "today", label: "Today", badge: todays.length || null },
       { id: "week", label: "Week", badge: null },
       { id: "tasks", label: "Tasks", badge: tasks.urgent || null },
       { id: "money", label: "Finances", badge: null },

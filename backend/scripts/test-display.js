@@ -670,6 +670,16 @@ test("the display model carries the tasks page and a badge count", () => {
   assert.equal(d.pages.find((p) => p.id === "tasks").badge, 1);
 });
 
+test("the Today tab's badge counts every one of today's events — all-day and timed, already-finished and still-to-come — not just what's left", () => {
+  const items = [
+    ev({ id: "done", title: "Standup", dueAt: at(9), meta: { end: at(9, 30) } }), // already past NOW (12:20)
+    ev({ id: "later", title: "Gym", dueAt: at(18), meta: { end: at(19) } }),
+    ev({ id: "allday", title: "Payday", dueAt: at(0), meta: { allDay: true } }),
+  ];
+  const d = buildDisplay({ items, config, now: NOW });
+  assert.equal(d.pages.find((p) => p.id === "today").badge, 3, "all 3 of today's events, not just the 2 still upcoming");
+});
+
 test("the menu reads Today, Week, Tasks, Finances, Year — Money's tab is labelled Finances", () => {
   const d = buildDisplay({ items: [], config, now: NOW });
   assert.deepEqual(d.pages.map((p) => p.label), ["Today", "Week", "Tasks", "Finances", "Year"]);

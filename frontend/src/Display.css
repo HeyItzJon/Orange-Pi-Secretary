@@ -210,8 +210,12 @@
 /* line-height was tight enough (1.08) that a descender — the g in "Nothing
    until Gym, 3:30 PM", say — got clipped by its own line box before the
    timeline strip even starts. 1.25 gives it room; the extra padding-bottom
-   keeps that room from just moving the crowding down onto the strip. */
-.hero { display: flex; align-items: baseline; gap: 13px; padding-top: 3px; padding-bottom: 20px; flex-shrink: 0; }
+   keeps that room from just moving the crowding down onto the strip.
+   padding-top/bottom bumped again (3px/20px → 16px/32px) — Jon's call: the
+   hero needed more air both above (between it and the carousel above) and
+   below (between it and the all-day pills/strip beneath) than the
+   descender fix alone was solving for. */
+.hero { display: flex; align-items: baseline; gap: 13px; padding-top: 16px; padding-bottom: 32px; flex-shrink: 0; }
 .hero .lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; color: var(--accent); flex-shrink: 0; }
 .hero .big {
   font-size: 33px; font-weight: 620; letter-spacing: -.014em; line-height: 1.25;
@@ -232,28 +236,34 @@
    would drag the nav off-center toward the empty side. The first column is
    just a spacer; nothing is ever rendered into it. */
 .daycar-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 10px; }
-.daycar-nav { grid-column: 2; display: flex; align-items: center; justify-content: center; gap: 18px; }
+.daycar-nav { grid-column: 2; display: flex; align-items: center; justify-content: center; gap: 20px; }
 /* Bigger and a touch bolder than before — Jon wanted the day-paging
-   controls more obvious at a glance, not just functional. */
+   controls more obvious at a glance, not just functional. Bumped again
+   (34px/19px → 44px/25px) — still not big enough the first time. */
 .daycar-arrow {
   appearance: none; border: 1.5px solid var(--rule); background: var(--raise);
-  color: var(--ink-2); cursor: pointer; border-radius: 8px;
-  width: 34px; height: 34px; font-size: 19px; line-height: 1; flex-shrink: 0;
+  color: var(--ink-2); cursor: pointer; border-radius: 9px;
+  width: 44px; height: 44px; font-size: 25px; line-height: 1; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   transition: color .12s, border-color .12s;
 }
 .daycar-arrow:hover:not(:disabled) { color: var(--ink); border-color: var(--muted); }
 .daycar-arrow:disabled { opacity: .3; cursor: default; }
-.daycar-label { display: flex; align-items: baseline; gap: 8px; min-width: 12em; justify-content: center; }
-.daycar-name { font-size: 14px; font-weight: 640; }
-.daycar-date { font-size: 12px; color: var(--faint); }
+.daycar-label { display: flex; align-items: baseline; gap: 9px; min-width: 12em; justify-content: center; }
+/* "Today", "Tuesday, August 25" — bumped up (14px/12px → 18px/14px) along
+   with the arrows above, same "make the whole nav row read bigger" ask. */
+.daycar-name { font-size: 18px; font-weight: 660; }
+.daycar-date { font-size: 14px; color: var(--faint); }
 /* Whichever day the carousel is showing right now — Today itself or one of
    the Looking-ahead slides (see the comment in Display.jsx) — right-aligned
    in the grid's third column, level with the nav above the timeline. Reuses
    .fcscore as-is (see Display.css's own comment on that class) so this reads
-   as the same badge the Week page shows for the same day. */
-.daycar-busy { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-.daycar-busy-label { font-size: 12px; color: var(--faint); white-space: nowrap; }
+   as the same badge the Week page shows for the same day — just scaled up a
+   size here (see the .daycar-busy .fcscore override below), since this is
+   the one place Jon asked for it bigger, not the Week page's own cards. */
+.daycar-busy { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.daycar-busy-label { font-size: 14px; color: var(--faint); white-space: nowrap; }
+.daycar-busy .fcscore { width: 28px; height: 28px; font-size: 13.5px; }
 
 .daycar-viewport { overflow: hidden; }
 /* "This whole thing moves to the side" — a fresh slide, keyed by offset so
@@ -299,10 +309,6 @@
   color: var(--muted); flex-shrink: 0;
 }
 .aday-chips { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
-/* The plain-language form underneath the pills — Jon: "in pill form and in
-   written form in the body" — same joined-names phrasing brief/display.js's
-   own daySummary() uses for an all-day-only day. */
-.aday-text { font-size: 14px; color: var(--ink-2); margin: 8px 0 0; }
 /* No fixed max-width/ellipsis truncation any more — Jon's call: a pill
    should be exactly as wide as its own text needs, not clipped to a fixed
    box. `width: fit-content` sizes it to its content; `max-width: 100%` (plus
@@ -715,7 +721,16 @@
 .fchead .sub { display: block; font-size: 14px; color: var(--muted); margin-top: 3px; }
 
 .fcgrid {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  /* 110px let exactly 7 columns land in a mobile-landscape-width row (each
+     card just over the floor) — tight enough that the day name/date and the
+     "N all-day" badge in .fcdhead no longer both fit on one line, and since
+     neither had any truncation, the name's text just overflowed its own box
+     and visually overlapped the badge instead of being pushed aside. 132px
+     forces fewer, wider columns at that width (wrapping the rest of the week
+     onto a second row) instead of cramming all 7 into one; the wrap/ellipsis
+     rules on .fcdhead/.fcdname/.fcddate below are the second, independent
+     safety net in case a width ever lands right at the edge again. */
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 10px; flex-shrink: 0;
 }
 .fcday {
@@ -735,16 +750,23 @@
   flex-shrink: 0; margin-bottom: 4px; padding: 8px 12px; border-radius: 7px;
   background: rgba(237,161,0,.14); color: var(--accent); font-size: 13px; font-weight: 560;
 }
-.fcdhead { display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between; gap: 6px; }
-.fcdnamewrap { display: flex; flex-direction: column; min-width: 0; }
-.fcdname { font-size: 13.5px; font-weight: 620; color: var(--ink-2); }
+/* flex-wrap so a card too narrow to fit the day name AND the all-day badge
+   on one line drops the badge to its own line below instead of the two
+   overlapping — the name/date's own ellipsis truncation just below is the
+   first line of defence, this is the fallback if it still doesn't fit. */
+.fcdhead { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 3px 6px; }
+.fcdnamewrap { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+/* Bounded so a long day/month name can never spill past its own column and
+   visually overlap the all-day badge beside it (see .fcdhead above) — it
+   ellipsizes instead. */
+.fcdname { font-size: 13.5px; font-weight: 620; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Jon's visual cue for which cards the carousel can actually jump to: the
    clickable ones (today + the next `clickableCount`-1 days, matching
    dayStrips in brief/display.js) get the brightest possible title; the rest
    of the week fades toward the background instead. */
 .fcdname.fcd-live { color: var(--ink); }
 .fcdname.fcd-far { color: var(--faint); }
-.fcddate { font-size: 11px; color: var(--faint); }
+.fcddate { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The 1-10 busyness read (see busynessScore() in brief/display.js) — one
    fixed size for every card (Jon's call: the colour and number already
    carry the score, a size that also changed was one signal too many), five
@@ -775,7 +797,10 @@
    it's the same kind of "don't miss this" flag. Hover/tap for which — plain
    title attribute, nothing fancier needed for a count this small. */
 .fcallday {
-  flex-shrink: 0; font-size: 10px; font-weight: 700; line-height: 1;
+  /* margin-left: auto so that if .fcdhead's wrap kicks in (see above), this
+     drops to its own line still pinned to the right, rather than starting
+     back at the left edge under the day name. */
+  flex-shrink: 0; margin-left: auto; font-size: 10px; font-weight: 700; line-height: 1;
   padding: 3px 6px; border-radius: 8px;
   background: rgba(237,161,0,.16); color: var(--accent);
 }
@@ -913,6 +938,10 @@
      the short-kiosk-panel breakpoint, where a full-size doubled face would
      eat too much of the limited vertical room. */
   .aclock-face { width: 74px; height: 74px; }
+  /* The general hero padding bump (see .hero above) is sized for a normal
+     panel; this is the actual physical kiosk's tight height budget, so it
+     gets a smaller bump instead of the full one. */
+  .hero { padding-top: 6px; padding-bottom: 18px; }
   .hero .big { font-size: 25px; }
   .strip { height: 40px; }
   .nowline { top: -7px; height: 54px; }
@@ -925,7 +954,7 @@
      dots and extra breathing room added elsewhere would eat into an
      already-tight budget here, so this breakpoint gets its own smaller,
      but still slightly bigger-than-before, values. */
-  .daycar-arrow { width: 28px; height: 28px; font-size: 16px; }
+  .daycar-arrow { width: 34px; height: 34px; font-size: 19px; }
   .daycar-dots { gap: 8px; margin-top: 8px; }
   .daycar-dot { width: 7px; height: 7px; }
   .aday-row { margin-bottom: 8px; }
@@ -1108,7 +1137,7 @@
      — phone width is tight enough that a full-size doubled face would crowd
      the date text next to it. */
   .aclock-face { width: 86px; height: 86px; }
-  .daycar-arrow { width: 38px; height: 38px; font-size: 20px; }
+  .daycar-arrow { width: 48px; height: 48px; font-size: 26px; }
   /* The nav plus a text label plus a badge no longer fit on one line at this
      width — stack the busy score under the nav instead of squeezing the grid,
      still right-aligned to match the desktop layout's intent. */

@@ -303,32 +303,19 @@ function DayCarousel({ slides, offset, onOffset }) {
 }
 
 /**
- * Two names joined the way a person would say them out loud: "a and b", or
- * "a, b and c" — never an Oxford comma before that last "and". Same shape
- * brief/display.js's own daySummary() already uses for an all-day-only day;
- * kept here too since this is now the one place still building a sentence
- * out of a list of titles client-side.
- */
-function joinNames(names) {
-  if (names.length === 0) return "";
-  if (names.length === 1) return names[0];
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
-
-/**
  * All-day events, for whichever day the carousel above is currently showing.
  * Used to sit right above the hour-by-hour strip (there's no hour to plot
  * them at) — Jon's call to move it: it now reads as part of the page's own
  * body, below the title, rather than bolted onto the timeline. Pill form
  * (same chips as before — same real calendar colour when there's one on
- * record, the .d-{swatch} palette as the fallback) plus a plain-language
- * sentence underneath, since a screen reader — or a glance too quick to
- * read six pills — still needs a way to take this in. Order comes pre-sorted
- * from the backend (see sortAllDay in brief/display.js) — can't-miss first,
- * then flagged, then alphabetical — so nothing here has to re-decide it.
- * Renders nothing on a day with no all-day items — no timeline above it to
- * keep a fixed height against anymore, so there's nothing to reserve space
- * for.
+ * record, the .d-{swatch} palette as the fallback) — no sentence underneath
+ * repeating the same titles in prose anymore (Jon's call: the pills alone
+ * already say it, a second line saying it again was just noise). Order
+ * comes pre-sorted from the backend (see sortAllDay in brief/display.js) —
+ * can't-miss first, then flagged, then alphabetical — so nothing here has
+ * to re-decide it. Renders nothing on a day with no all-day items — no
+ * timeline above it to keep a fixed height against anymore, so there's
+ * nothing to reserve space for.
  */
 function AllDayZone({ items }) {
   if (!items || !items.length) return null;
@@ -349,7 +336,6 @@ function AllDayZone({ items }) {
           ))}
         </div>
       </div>
-      <p className="aday-text">{joinNames(items.map((c) => c.title))}</p>
     </div>
   );
 }
