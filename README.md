@@ -52,6 +52,17 @@ npm run build       # REQUIRED — the server serves frontend/dist
 It tells you in plain language which credential is missing, which calendar
 name doesn't match Google, and whether the frontend is built.
 
+**If Gmail and Calendar both start failing with the exact same error**
+(and Money keeps working), it's almost always `GMAIL_REFRESH_TOKEN` —
+expired, revoked, or the client secret got rotated in Cloud Console. Both
+sources share one call to get an access token (see `lib/google.js`'s
+`getAccessToken`), so they die together the moment that one token does;
+Money never touches Google at all, which is why it's unaffected. Run
+`npm run doctor` (or check the Sources panel) for the specific reason —
+Google's own error text now surfaces there instead of a generic "Request
+failed with status code 400" — then `npm run get-refresh-token` to mint a
+replacement (see that script's own comments for the full walkthrough).
+
 ---
 
 ## Running in production (the Orange Pi)
