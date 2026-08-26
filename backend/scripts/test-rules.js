@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { selectForBrief, urgency, isQuiet, isNew, SCHEMA } from "../brief/rules.js";
 import { triage, isDistinctive, buildBoostQueries } from "../sources/email.js";
-import { usefulNote } from "../sources/calendar.js";
+import { usefulNote, fullDescription } from "../sources/calendar.js";
 import {
   categorise, deriveDomain, isEmphasised, looksLikeCourseCode, isEmailLike,
   calendarSwatch, urgencyBoost, rankItem, durationLabel,
@@ -285,6 +285,30 @@ test("long notes are truncated, not dumped", () => {
   const note = usefulNote("x".repeat(300));
   assert.ok(note.length <= 96, `got ${note.length}`);
   assert.ok(note.endsWith("…"));
+});
+
+// ====================================================================
+group("fullDescription — every real line, not just the first (brief/detail.js's prompt input)");
+
+test("keeps every human line, not just usefulNote's first one", () => {
+  const desc = "https://meet.google.com/abc-defg\n---\nBring the revised airframe drawings\nAlso loop in the TA beforehand";
+  assert.equal(fullDescription(desc), "Bring the revised airframe drawings Also loop in the TA beforehand");
+});
+
+test("still strips HTML and boilerplate the same way usefulNote does", () => {
+  assert.equal(fullDescription("<p>Bring your lab notebook</p><br>"), "Bring your lab notebook");
+});
+
+test("an empty or boilerplate-only description yields null, same as usefulNote", () => {
+  assert.equal(fullDescription(""), null);
+  assert.equal(fullDescription("<br><br>"), null);
+  assert.equal(fullDescription("https://zoom.us/j/123"), null);
+});
+
+test("truncates at a much higher cap than usefulNote's 96 chars, since this isn't squeezed into a row", () => {
+  const long = fullDescription("word ".repeat(400));
+  assert.ok(long.length <= 1200, `got ${long.length}`);
+  assert.ok(long.endsWith("…"));
 });
 
 test("durations read the way a person would say them", () => {

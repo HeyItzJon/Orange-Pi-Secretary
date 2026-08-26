@@ -41,10 +41,15 @@ export function timeLabel(date, timeZone) {
 
 /**
  * Google descriptions arrive as HTML with boilerplate (Meet links, "view your
- * event at..."). Pull the first line that's actually a human note.
+ * event at..."). Strips the markup and drops noise lines (a join link, a
+ * dial-in, "view your event at..."), returning whatever real human-written
+ * lines are left, in order. Shared by usefulNote() (just the first line, for
+ * the row's own detail string) and fullDescription() (every line, for the
+ * on-demand AI detail feature — see brief/detail.js) so the two never
+ * disagree about what counts as noise.
  */
-export function usefulNote(description, { maxLength = 96 } = {}) {
-  if (!description) return null;
+function cleanDescriptionLines(description) {
+  if (!description) return [];
   const text = String(description)
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|li)>/gi, "\n")
@@ -56,14 +61,38 @@ export function usefulNote(description, { maxLength = 96 } = {}) {
 
   const noise = /^(https?:\/\/|-{3,}|_{3,}|join |dial |meeting id|passcode|view your event|this invitation|do not edit)/i;
 
+  const lines = [];
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.replace(/\s+/g, " ").trim();
     if (line.length < 3) continue;
     if (noise.test(line)) continue;
     if (/^[\W_]+$/.test(line)) continue;
-    return line.length > maxLength ? `${line.slice(0, maxLength - 1).trimEnd()}…` : line;
+    lines.push(line);
   }
-  return null;
+  return lines;
+}
+
+/** The first real human-written line of a Google event description. */
+export function usefulNote(description, { maxLength = 96 } = {}) {
+  const [line] = cleanDescriptionLines(description);
+  if (!line) return null;
+  return line.length > maxLength ? `${line.slice(0, maxLength - 1).trimEnd()}…` : line;
+}
+
+/**
+ * Every real line of a Google event description, joined — the fuller
+ * version usefulNote()'s single line only ever hints at. Used by the
+ * on-demand AI detail feature (brief/detail.js) to build a real prompt from
+ * an event's actual notes, not just the row's own one-line teaser. A much
+ * higher cap than usefulNote's 96 chars, since this isn't squeezed into a
+ * list row — still bounded so a genuinely long description doesn't blow out
+ * the prompt.
+ */
+export function fullDescription(description, { maxLength = 1200 } = {}) {
+  const lines = cleanDescriptionLines(description);
+  if (!lines.length) return null;
+  const joined = lines.join(" ");
+  return joined.length > maxLength ? `${joined.slice(0, maxLength - 1).trimEnd()}…` : joined;
 }
 
 export async function collectCalendar(config, { force = false } = {}) {
@@ -168,6 +197,13 @@ export async function collectCalendar(config, { force = false } = {}) {
         attendees: e.attendees,
         recurring: Boolean(e.recurringEventId),
         needsPrep: Boolean(note) || e.attendees > 1,
+        // Full (untruncated) versions of what `detail` above only ever
+        // shows a clipped fragment of — free to store, since e.location/
+        // e.description are already fetched for every event regardless.
+        // Read by the on-demand AI detail feature (brief/detail.js) when
+        // this event gets clicked; nothing else in this file reads them.
+        location: e.location || null,
+        description: fullDescription(e.description),
       },
     });
   }

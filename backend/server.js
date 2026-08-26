@@ -11,10 +11,11 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import { logger } from "./lib/log.js";
-import { init as initStore, getMeta, patchItem, dismissItem, suppressPermanently, allItems, portfolioHistory } from "./lib/store.js";
+import { init as initStore, getMeta, getItem, patchItem, dismissItem, suppressPermanently, allItems, portfolioHistory } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
 import { buildDisplay } from "./brief/display.js";
+import { buildItemDetail } from "./brief/detail.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -123,6 +124,28 @@ app.get("/api/items", async (req, res) => {
   const items = await allItems();
   const status = req.query.status;
   res.json(status ? items.filter((i) => i.status === status) : items);
+});
+
+/**
+ * On-demand AI detail for exactly one item — a full summary, an actionable
+ * next step — never generated during compose/poll (see brief/detail.js's
+ * own header for why). Only ever called when a person actually taps an
+ * item on the Today page, so a screen nobody interacts with never spends
+ * a token on it. `?kind=event|deadline|allday` is an optional hint from
+ * the frontend saying which list the click came from (an item can appear
+ * in more than one — see brief/detail.js's inferKind() comment); anything
+ * else falls back to the server's own best guess.
+ */
+app.get("/api/items/:id/detail", async (req, res) => {
+  try {
+    const item = await getItem(req.params.id);
+    if (!item) return res.status(404).json({ error: "no such item" });
+    const detail = await buildItemDetail(item, config, { hintKind: req.query.kind });
+    res.json(detail);
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/usage", async (_req, res) => {

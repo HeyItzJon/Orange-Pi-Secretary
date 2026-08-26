@@ -302,7 +302,7 @@ function DayCarousel({ slides, offset, onOffset }) {
  * timeline above it to keep a fixed height against anymore, so there's
  * nothing to reserve space for.
  */
-function AllDayZone({ items }) {
+function AllDayZone({ items, onSelect }) {
   if (!items || !items.length) return null;
   return (
     <div className="aday-zone">
@@ -312,9 +312,12 @@ function AllDayZone({ items }) {
           {items.map((c) => (
             <span
               key={c.id}
-              className={`aday-chip d-${c.swatch}`}
+              className={`aday-chip d-${c.swatch}${onSelect ? " clickable" : ""}`}
               style={blockStyle(c.color) || {}}
               title={[c.title, c.priority].filter(Boolean).join(" — ")}
+              onClick={onSelect ? () => onSelect(c.id) : undefined}
+              role={onSelect ? "button" : undefined}
+              tabIndex={onSelect ? 0 : undefined}
             >
               {c.title}
             </span>
@@ -517,6 +520,18 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
   const onToday = offset === 0;
   const slide = slides[offset];
 
+  // On-demand AI detail for one tapped item (see ItemDetailModal below) —
+  // `{id, kind}` of whichever row is currently open, or null. Jon's own
+  // scoping call for this round: only Today's own rows (onToday) ever set
+  // this — the infrastructure (the modal, the endpoint, the kind-per-list
+  // wiring) is general, but the click handlers below are deliberately only
+  // attached on Today's slide for now, so no API call happens for the 3
+  // Looking-ahead days yet. Reset whenever the carousel pages to a
+  // different slide, so paging away from Today doesn't leave a stale
+  // modal open behind the new slide.
+  const [detail, setDetail] = useState(null);
+  useEffect(() => { setDetail(null); }, [offset]);
+
   return (
     <>
       <TodayHeader dateLabel={d.dateLabel} timeZone={d.timezone} daysAhead={onToday ? 0 : offset} />
@@ -588,7 +603,7 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
           below the (now-relocated) title instead, as the first thing in the
           page's own body, in both pill and written form. See AllDayZone's
           own comment. */}
-      <AllDayZone items={slide.allDay} />
+      <AllDayZone items={slide.allDay} onSelect={onToday ? (id) => setDetail({ id, kind: "allday" }) : null} />
 
       {/* The old second column here — a text restatement of Tomorrow/
           Thursday/Friday — is gone on purpose: the carousel above already
@@ -612,11 +627,25 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
       <div className="cols">
         <section className="zone">
           <h2>{onToday ? "Today's events" : `${slide.label}'s events`}</h2>
+          {/* Clickable on Today's slide only for now (Jon's own scope-down:
+              "only set up the API calls for today") — each row opens
+              ItemDetailModal below with a location/attendee summary and
+              DeepSeek's own take on what to do about it, cached per item
+              after the first click (see brief/detail.js). The 3
+              Looking-ahead slides get the same treatment once this proves
+              out; onToday alone gates it rather than a separate flag, so
+              turning it on for them later is a one-line change here. */}
           {!slide.events || slide.events.length === 0 ? (
             <p className="empty">{onToday ? "Nothing timed today." : "Nothing timed that day."}</p>
           ) : (
             slide.events.map((t) => (
-              <div className={`trow${t.past ? " past" : ""}`} key={t.id}>
+              <div
+                className={`trow${t.past ? " past" : ""}${onToday ? " clickable" : ""}`}
+                key={t.id}
+                onClick={onToday ? () => setDetail({ id: t.id, kind: "event" }) : undefined}
+                role={onToday ? "button" : undefined}
+                tabIndex={onToday ? 0 : undefined}
+              >
                 {/* Orange, same family as the day strip's own now-marker —
                     walks down the list on its own as `now` moves past each
                     event, since `running` is recomputed fresh every pull.
@@ -652,7 +681,17 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
           survives that rename untouched (see refreshInsights' own comment),
           so the dot colour and meta line never go blank just because the
           model didn't run. */}
-      <DeadlinesZone label={onToday ? "Today" : slide.label} items={onToday ? d.deadlinesToday : slide.deadlinesToday} />
+      <DeadlinesZone
+        label={onToday ? "Today" : slide.label}
+        items={onToday ? d.deadlinesToday : slide.deadlinesToday}
+        onSelect={onToday ? (id) => setDetail({ id, kind: "deadline" }) : null}
+      />
+
+      {/* Renders nothing while `detail` is null — see ItemDetailModal's own
+          comment for why this is a real network request (cached after the
+          first click) rather than the passive hover cards Strip/WeekPage
+          use elsewhere in this file. */}
+      <ItemDetailModal detail={detail} onClose={() => setDetail(null)} />
     </>
   );
 }
@@ -665,7 +704,7 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
  * Reuses the Tasks page's own `.dot.d-{domain}` palette so a deadline reads
  * as the same category colour wherever it shows up.
  */
-function DeadlinesZone({ label, items }) {
+function DeadlinesZone({ label, items, onSelect }) {
   return (
     <div className="cols dl-zone">
       <section className="zone">
@@ -674,7 +713,13 @@ function DeadlinesZone({ label, items }) {
           <p className="empty">Nothing due {label}.</p>
         ) : (
           items.map((x) => (
-            <div className={`dlrow${x.importance ? ` imp-${x.importance}` : ""}`} key={x.id}>
+            <div
+              className={`dlrow${x.importance ? ` imp-${x.importance}` : ""}${onSelect ? " clickable" : ""}`}
+              key={x.id}
+              onClick={onSelect ? () => onSelect(x.id) : undefined}
+              role={onSelect ? "button" : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+            >
               <span className={`dot d-${x.domain || "personal"}`} />
               <span className="dlbody">
                 <span className="title">{x.title}</span>
@@ -687,6 +732,100 @@ function DeadlinesZone({ label, items }) {
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * On-demand AI detail for one tapped item — a full plain-English summary
+ * and DeepSeek's own next-step suggestion, on top of the plain facts
+ * (when, where, who it's from, current status) that are always there even
+ * on a bad AI day. Deliberately NOT the same lightweight hover-card
+ * pattern Strip/WeekPage use elsewhere in this file (see their own
+ * comments): those are passive, pointer-events:none glances at data
+ * already sitting in memory; this is a real network request per open
+ * (`GET /api/items/:id/detail`, see server.js and brief/detail.js) —
+ * cached server-side after the first click, but still a fetch with its
+ * own loading/error state, so it needs an actual close affordance rather
+ * than "move the mouse away".
+ *
+ * `detail` is `{id, kind}` or null (see TodayPage's own `detail` state) —
+ * `kind` is one of "event"/"deadline"/"allday", telling the backend which
+ * of the three lists this click came from (an item can appear in more
+ * than one — see brief/detail.js's inferKind() comment), sent through as
+ * `?kind=`.
+ */
+function ItemDetailModal({ detail, onClose }) {
+  const [state, setState] = useState({ loading: true, data: null, error: null });
+  const id = detail?.id;
+  const kind = detail?.kind;
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    setState({ loading: true, data: null, error: null });
+    fetch(`/api/items/${encodeURIComponent(id)}/detail?kind=${encodeURIComponent(kind || "")}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        return res.json();
+      })
+      .then((data) => { if (!cancelled) setState({ loading: false, data, error: null }); })
+      .catch((e) => { if (!cancelled) setState({ loading: false, data: null, error: e.message }); });
+    return () => { cancelled = true; };
+  }, [id, kind]);
+
+  useEffect(() => {
+    if (!id) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [id, onClose]);
+
+  if (!id) return null;
+
+  const { loading, data, error } = state;
+  const facts = data?.facts;
+
+  return createPortal(
+    <div className="item-modal-backdrop" onClick={onClose}>
+      <div className="item-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button className="item-modal-close" onClick={onClose} aria-label="Close">×</button>
+        {loading && <p className="item-modal-loading">Loading…</p>}
+        {error && <p className="item-modal-error">Couldn't load detail — {error}</p>}
+        {facts && (
+          <>
+            <div className="item-modal-head">
+              <span className={`dot d-${facts.domain}`} />
+              <h3>{facts.title}</h3>
+            </div>
+            <div className="item-modal-facts">
+              {facts.when && (
+                <span>{facts.when}{facts.duration ? ` · ${facts.duration}` : ""}</span>
+              )}
+              {facts.where && <span>{facts.where}</span>}
+              {facts.attendees && <span>{facts.attendees} people</span>}
+              {facts.categoryLabel && <span>{facts.categoryLabel}</span>}
+              {facts.from && <span>From {facts.from}</span>}
+              <span>{facts.sourceLabel}</span>
+              {facts.status === "done" && <span className="item-modal-done">Marked done</span>}
+            </div>
+            {data.ai ? (
+              <>
+                <p className="item-modal-summary">{data.ai.summary}</p>
+                {data.ai.action && <p className="item-modal-action"><b>Next:</b> {data.ai.action}</p>}
+              </>
+            ) : (
+              <p className="item-modal-summary muted">AI summary isn't available right now — the facts above are still real.</p>
+            )}
+            {facts.url && (
+              <a className="item-modal-link" href={facts.url} target="_blank" rel="noreferrer">
+                Open in {facts.sourceLabel}
+              </a>
+            )}
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
   );
 }
 

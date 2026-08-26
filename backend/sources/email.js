@@ -317,7 +317,20 @@ export async function collectEmail(config, { force = false } = {}) {
       tier: c.tier || "personal",
       reasons: c.reasons,
       contentHash: contentHash({ s: c.msg.subject, n: title, d: due, r: needsReply }),
-      meta: { from: who, address: senderAddress(c.msg.from), subject: c.msg.subject, needsReply },
+      meta: {
+        from: who, address: senderAddress(c.msg.from), subject: c.msg.subject, needsReply,
+        // Free to keep: c.body was already fetched above (step 6) to build
+        // the classify prompt itself, so persisting it here costs nothing
+        // extra in Gmail calls. Read by the on-demand AI detail feature
+        // (brief/detail.js) when this item gets clicked, so a deadline's
+        // "full summary of the email" doesn't need a second body fetch —
+        // capped the same as the classify prompt itself (BODY_CHARS) since
+        // that's already the length DeepSeek reads for this exact message.
+        // threadId lets a future round jump straight to a live re-fetch
+        // (the `url` field only carries it embedded in a URL fragment).
+        body: c.body ? c.body.slice(0, BODY_CHARS) : null,
+        threadId: c.msg.threadId,
+      },
     };
   });
 }
