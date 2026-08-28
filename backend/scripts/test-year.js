@@ -22,27 +22,31 @@ test("a missing or NaN value is no data, never a guess", () => {
 });
 
 test("the dead band around zero reads as flat, not a faint colour", () => {
-  // Widened from ±0.15 to ±0.2 — Jon's own call: "it's probably a few
-  // hundred dollars for now", not worth a colour at all.
+  // Re-tuned to ±0.15 — Jon's own round numbers for the new four-tier
+  // scheme (flat / light / darker / darkest), replacing the old ±0.2 dead
+  // band.
   assert.equal(colorBucket(0), "flat");
-  assert.equal(colorBucket(0.2), "flat");
-  assert.equal(colorBucket(-0.2), "flat");
+  assert.equal(colorBucket(0.14), "flat");
+  assert.equal(colorBucket(-0.14), "flat");
 });
 
 test("red deepens as the loss grows", () => {
+  assert.equal(colorBucket(-0.15), "r1");   // the light band starts right at 0.15
   assert.equal(colorBucket(-0.3), "r1");
-  assert.equal(colorBucket(-1), "r2");
-  // The "dark dark" cutoff moved in from ±2 to ±1.5 (Jon's own words:
-  // "one or one point five, maybe even two percent... is your dark dark
-  // days" — 1.5 was the middle of that range).
-  assert.equal(colorBucket(-1.5), "r3");
+  assert.equal(colorBucket(-0.35), "r2");   // the darker band starts right at 0.35
+  assert.equal(colorBucket(-0.7), "r2");
+  assert.equal(colorBucket(-1), "r2");      // exactly 1% is still "darker", not darkest
+  assert.equal(colorBucket(-1.01), "r3");   // past 1% is the darkest shade
   assert.equal(colorBucket(-5), "r3");
 });
 
-test("green deepens as the gain grows", () => {
+test("green deepens as the gain grows, mirroring red exactly by magnitude", () => {
+  assert.equal(colorBucket(0.15), "g1");
   assert.equal(colorBucket(0.3), "g1");
+  assert.equal(colorBucket(0.35), "g2");
+  assert.equal(colorBucket(0.7), "g2");
   assert.equal(colorBucket(1), "g2");
-  assert.equal(colorBucket(1.5), "g3");
+  assert.equal(colorBucket(1.01), "g3");
   assert.equal(colorBucket(5), "g3");
 });
 
