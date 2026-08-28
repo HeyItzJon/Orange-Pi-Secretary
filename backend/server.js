@@ -11,7 +11,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 import { logger } from "./lib/log.js";
-import { init as initStore, getMeta, getItem, patchItem, dismissItem, suppressPermanently, allItems, portfolioHistory } from "./lib/store.js";
+import { init as initStore, getMeta, getItem, patchItem, dismissItem, suppressPermanently, triageItem, resolveTrackedItem, snoozeItem, allItems, portfolioHistory } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
 import { buildDisplay } from "./brief/display.js";
@@ -193,8 +193,9 @@ app.post("/api/refresh/:source", async (req, res) => {
 });
 
 /**
- * done | dismiss | suppress | snooze | reopen — this is how you teach it to
- * shut up.
+ * done | dismiss | suppress | snooze | reopen | priority | not-priority |
+ * wontdo | wrong — this is how you teach it to shut up, and (new, see the
+ * Tasks-page plan) how you triage and resolve.
  *
  * dismiss and suppress both go through lib/store.js rather than a plain
  * patch: no single dismiss — your own click here, or the system's own
@@ -204,6 +205,13 @@ app.post("/api/refresh/:source", async (req, res) => {
  * only locks in for good after config.dismissal.afterCount strikes on the
  * same item; suppress is the explicit "no really, forever" lever that skips
  * straight to that locked state when you already know you want it gone now.
+ *
+ * priority | not-priority (Inbox → Tracked or filed away) and wontdo | wrong
+ * (a Tracked item's own resolution) are the new Tasks-page triage actions —
+ * see triageItem()/resolveTrackedItem() in lib/store.js for why these are
+ * deliberately NOT routed through dismiss's strike-counting: a triage
+ * decision or a Tracked resolution is final on the first try, not something
+ * that earns three strikes before it sticks.
  */
 app.post("/api/items/:id/:action", async (req, res) => {
   const { id, action } = req.params;
@@ -213,21 +221,30 @@ app.post("/api/items/:id/:action", async (req, res) => {
     updated = await dismissItem(id, { threshold: config.dismissal?.afterCount ?? 3, auto: false });
   } else if (action === "suppress") {
     updated = await suppressPermanently(id);
+  } else if (action === "priority" || action === "not-priority") {
+    updated = await triageItem(id, action);
+  } else if (action === "wontdo" || action === "wrong") {
+    updated = await resolveTrackedItem(id, { outcome: "dismissed", reason: action });
+  } else if (action === "snooze") {
+    // `until` (an explicit ISO date/time — what the Tasks page's own date
+    // picker sends, see the plan's answer on this) takes priority over the
+    // older `days` shortcut. See snoozeItem() in lib/store.js.
+    updated = await snoozeItem(id, { until: req.body?.until || null, days: req.body?.days });
   } else {
     const map = {
-      done: { status: "done" },
+      done: { status: "done", resolvedAt: new Date().toISOString() },
       // A clean slate: reopening should mean reopening, not "reopened but
       // still one strike away from being suppressed again for no reason."
+      // Triage/resolution state resets too, for the same reason — a
+      // reopened item lands back in the Inbox, undecided, rather than
+      // stuck oddly still "Tracked" or still carrying an old wontdo/wrong.
       reopen: {
         status: "open", snoozeUntil: null, surfaceCount: 0,
         dismissStrikes: 0, permanentlySuppressed: false, autoDismissed: false,
+        triage: null, resolutionReason: null, resolvedAt: null,
       },
     };
-    let patch = map[action];
-    if (action === "snooze") {
-      const days = Number(req.body?.days) || 3;
-      patch = { status: "snoozed", snoozeUntil: new Date(Date.now() + days * 86400000).toISOString() };
-    }
+    const patch = map[action];
     if (!patch) return res.status(400).json({ error: `unknown action "${action}"` });
     updated = await patchItem(id, patch);
   }

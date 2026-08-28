@@ -19,7 +19,7 @@
 
 import { logger } from "./log.js";
 import { runSources, buildBrief } from "../brief/compose.js";
-import { getMeta, setMeta, prune } from "./store.js";
+import { getMeta, setMeta, prune, bumpRemindCounts } from "./store.js";
 import { SOURCES } from "./sources.js";
 
 const log = logger("scheduler");
@@ -83,6 +83,11 @@ export function startScheduler(config) {
           brightspaceMaxPastDays: config.brightspace?.maxPastDays ?? 14,
         });
         if (removed) log.info(`daily prune: removed ${removed} stale item(s)`);
+        // Once-a-day reminder bump for Tracked items — see lib/store.js's
+        // bumpRemindCounts() for why this lives here (once a day, not on
+        // every page read) rather than inside buildTracked() itself.
+        const bumped = await bumpRemindCounts(day);
+        if (bumped) log.info(`daily remind bump: ${bumped} tracked item(s)`);
       }
     } catch (err) {
       log.error(`tick failed: ${err.message}`);

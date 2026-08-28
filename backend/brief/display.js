@@ -22,7 +22,8 @@
 //
 // Pure function. No network, no store, no AI.
 
-import { unscheduledCount } from "./brightspace.js";
+import { unscheduledCount, matchedIds } from "./brightspace.js";
+import { rankFallback } from "./priorities.js";
 
 const DAY = 86400000;
 
@@ -364,7 +365,7 @@ function buildDayStrip(dayEvents, tz, { now = null } = {}) {
  * chunk labels, never a guess: an empty day says exactly that, a single
  * event just names itself, and a busy day names whichever one the existing
  * priority rules (unmissable, then flagged) already say matters most —
- * same rule buildTasks()/weekForecast() use, not a new judgment invented
+ * same rule priorityWord()/weekForecast() use, not a new judgment invented
  * here. All-day items are described only when there's nothing timed that
  * day; otherwise they're left to their own chip row above the strip rather
  * than repeated in this sentence too.
@@ -820,108 +821,165 @@ export function weekForecast(events, tasks, { now, tz, days = 7, wakeStart = 7, 
 }
 
 /**
- * Buckets, not a flat sorted list. "In 9 days" and "in 40 days" are the same
- * thought — later — and reading two numbers to work that out is exactly the
- * friction this page exists to remove.
+ * Shared row shape for every Tasks-page list (Inbox, Tracked, and the
+ * simpler Filed away / Resolved ones build their own leaner shape — see
+ * below). One place that turns a raw item into what the frontend actually
+ * renders, so Inbox and Tracked can't quietly drift into showing different
+ * facts about the same kind of row.
  */
-export function buildTasks(live, { now, tz, config = {}, priorities = [] }) {
-  const cfg = config.display || {};
-  const picks = new Map(priorities.map((p) => [p.id, p]));
-  const rows = [];
-
-  for (const item of live) {
-    if (!isTaskLike(item)) continue;
-    if (item.kind === "system") continue;
-
-    {
-      const dueAt = item.dueAt || null;
-      const daysOut = dueAt
-        ? (item.meta?.allDay ? allDayDaysAway(dueAt, now, tz) : Math.floor((new Date(dueAt) - now) / DAY))
-        : null;
-      const pick = picks.get(item.id) || null;
-      rows.push({
-        id: item.id,
-        title: item.title,
-        // The model's next-physical-action line, when it chose this one.
-        // This is the difference between a list you read and a list you act on.
-        do: pick?.do || null,
-        why: pick?.why || null,
-        top: Boolean(pick),
-        origin: item.source,
-        originLabel: ORIGIN_LABELS[item.source] || item.source,
-        domain: item.domain || "personal",
-        context: item.meta?.note || item.categoryLabel || null,
-        age: item.meta?.age ?? null,
-        dueAt,
-        daysOut,
-        due: dueAt
-          ? daysOut < 0 ? "overdue"
-            : daysOut === 0 ? (item.meta?.allDay ? "today" : clockLabel(dueAt, tz))
-            : daysOut === 1 ? "tomorrow"
-            : `${daysOut} days`
-          : null,
-        dateLabel: dueAt ? fmt(dueAt, tz, { weekday: "short", month: "short", day: "numeric" }) : null,
-        priority: priorityWord(item),
-        weight: item.categoryWeight ?? 0,
-        unmissable: Boolean(item.unmissable || item.emphasised),
-      });
-    }
-  }
-
-  // Dated first and soonest-first inside that; undated ordered by how much the
-  // rules already decided they matter.
-  const cmp = (a, b) => {
-    if (a.top !== b.top) return b.top - a.top;   // what the model flagged, first
-    if (a.dueAt && b.dueAt) return new Date(a.dueAt) - new Date(b.dueAt);
-    if (a.dueAt) return -1;
-    if (b.dueAt) return 1;
-    return b.weight - a.weight;
-  };
-
-  const bucket = (r) => {
-    if (r.daysOut === null) return "someday";
-    if (r.daysOut < 0) return "overdue";
-    if (r.daysOut === 0) return "today";
-    if (r.daysOut <= 7) return "week";
-    return "later";
-  };
-
-  const defs = [
-    { key: "overdue", label: "Overdue", urgent: true },
-    { key: "today", label: "Due today", urgent: true },
-    { key: "week", label: "This week", urgent: false },
-    { key: "later", label: "Further out", urgent: false },
-    { key: "someday", label: "No date on it", urgent: false },
-  ];
-
-  const groups = defs
-    .map((d) => ({ ...d, items: rows.filter((r) => bucket(r) === d.key).sort(cmp) }))
-    .filter((g) => g.items.length);
-
-  // A cap per group rather than overall, so a pile of undated, low-priority
-  // items can't bury the two things actually due this week.
-  const perGroup = cfg.maxTasksPerGroup ?? 8;
-  for (const g of groups) {
-    g.hidden = Math.max(0, g.items.length - perGroup);
-    g.items = g.items.slice(0, perGroup);
-  }
-
-  const counts = Object.fromEntries(
-    Object.keys(ORIGIN_LABELS).map((k) => [k, rows.filter((r) => r.origin === k).length])
-  );
-
-  // How many upcoming Brightspace deadlines aren't on the calendar yet — see
-  // brief/brightspace.js's own header for why this is a plain, cheap,
-  // uncached comparison rather than anything AI-assisted. `live` here (not
-  // `rows`, which is already filtered to isTaskLike()) is deliberate:
-  // unscheduledCount() needs the calendar side of `live` too, to actually
-  // check for a match, not just the task-like Brightspace half of it.
-  const unscheduledBrightspaceCount = unscheduledCount(live, config, now);
-
+function taskRow(item, { now, tz, pick = null } = {}) {
+  const dueAt = item.dueAt || null;
+  const daysOut = dueAt
+    ? (item.meta?.allDay ? allDayDaysAway(dueAt, now, tz) : Math.floor((new Date(dueAt) - now) / DAY))
+    : null;
   return {
-    groups, total: rows.length, counts, unscheduledBrightspaceCount,
-    urgent: rows.filter((r) => r.daysOut !== null && r.daysOut <= 0).length,
+    id: item.id,
+    title: item.title,
+    // The model's next-physical-action line, when it chose this one. This
+    // is the difference between a list you read and a list you act on.
+    do: pick?.do || null,
+    why: pick?.why || null,
+    top: Boolean(pick),
+    origin: item.source,
+    originLabel: ORIGIN_LABELS[item.source] || item.source,
+    domain: item.domain || "personal",
+    context: item.meta?.note || item.categoryLabel || null,
+    age: item.meta?.age ?? null,
+    dueAt,
+    daysOut,
+    due: dueAt
+      ? daysOut < 0 ? "overdue"
+        : daysOut === 0 ? (item.meta?.allDay ? "today" : clockLabel(dueAt, tz))
+        : daysOut === 1 ? "tomorrow"
+        : `${daysOut} days`
+      : null,
+    dateLabel: dueAt ? fmt(dueAt, tz, { weekday: "short", month: "short", day: "numeric" }) : null,
+    priority: priorityWord(item),
+    weight: item.categoryWeight ?? 0,
+    unmissable: Boolean(item.unmissable || item.emphasised),
   };
+}
+
+/**
+ * INBOX — anything task-like the system found that hasn't been triaged yet
+ * (see the Tasks-page plan's §2). Ordered by the exact same urgency math
+ * priorities.js's own AI-picker fallback uses (rankFallback), with the
+ * model's own top picks bubbling to the very front of that — this IS "Start
+ * here" now, not a separate section repeating the same handful of items a
+ * second time (plan §1/§6).
+ *
+ * A Brightspace item only appears here once it's actually matched to
+ * something on the real calendar (plan §5) — matchedIds() below is the
+ * per-item version of unscheduledCount()'s aggregate safety-net count.
+ * Deliberately NOT folded into isTaskLike() itself: that function is used
+ * well beyond the Tasks page (weekForecast's looming list, the Deadlines
+ * panel, busyness scoring), and an unmatched Brightspace deadline should
+ * keep showing up in all of those — it just shouldn't be forced into a
+ * Priority/Not priority/Remind-me-later decision until it's really on the
+ * calendar.
+ */
+export function buildInbox(live, { now, tz, config = {}, priorities = [] }) {
+  const picks = new Map(priorities.map((p) => [p.id, p]));
+  const bsMatched = matchedIds(live, config);
+
+  const eligible = live.filter((item) => {
+    if (!isTaskLike(item)) return false;
+    if (item.kind === "system") return false;
+    if (item.triage) return false; // already decided — Tracked or filed away
+    if (item.source === "brightspace" && !bsMatched.has(item.id)) return false;
+    return true;
+  });
+
+  const ranked = rankFallback(eligible, now);
+  // Stable re-sort: the model's own top picks float to the very front,
+  // urgency order preserved within each group (top vs. not) — Array.sort is
+  // stable, so this can't scramble rankFallback's own ordering.
+  ranked.sort((a, b) => (picks.has(b.id) ? 1 : 0) - (picks.has(a.id) ? 1 : 0));
+
+  const rows = ranked.map((item) => taskRow(item, { now, tz, pick: picks.get(item.id) }));
+  const cap = config.display?.maxInbox ?? 40;
+  return { items: rows.slice(0, cap), hidden: Math.max(0, rows.length - cap), total: rows.length };
+}
+
+/**
+ * TRACKED — things you've said matter (triage: "priority"). Sorted by due
+ * date, soonest first, undated ones after by the same weight rankFallback
+ * would use — no sub-buckets, no "Overdue" section: a late one just reads
+ * that way in its own row (see taskRow's own `due`/`daysOut`), a fact about
+ * the row rather than a category (plan §2).
+ *
+ * remindCount/trackedSinceLabel are the literal "I've reminded you a couple
+ * times on this" Jon asked for — see lib/store.js's bumpRemindCounts()
+ * (called once a day from the scheduler, never here — this stays a pure
+ * read) and triageItem()'s own firstTrackedAt stamp.
+ */
+export function buildTracked(live, { now, tz }) {
+  const eligible = live.filter((item) => {
+    if (!isTaskLike(item)) return false;
+    if (item.kind === "system") return false;
+    return item.triage === "priority";
+  });
+
+  const rows = eligible
+    .map((item) => ({
+      ...taskRow(item, { now, tz }),
+      remindCount: item.remindCount || 0,
+      trackedSinceLabel: item.firstTrackedAt ? fmt(item.firstTrackedAt, tz, { month: "short", day: "numeric" }) : null,
+    }))
+    .sort((a, b) => {
+      if (a.dueAt && b.dueAt) return new Date(a.dueAt) - new Date(b.dueAt);
+      if (a.dueAt) return -1;
+      if (b.dueAt) return 1;
+      return b.weight - a.weight;
+    });
+
+  return { items: rows, total: rows.length };
+}
+
+/**
+ * NOT PRIORITY — filed away (triage: "not-priority"), not deleted. Still
+ * technically `status: "open"` (triage is a separate axis from status — see
+ * lib/store.js's own comment on why), so it's read from `live` the same as
+ * Inbox/Tracked. Kept deliberately lean: this list is for occasionally
+ * glancing at what got filed away, not for acting on again (plan §2).
+ */
+export function buildFiledAway(live, { tz }) {
+  const rows = live
+    .filter((item) => item.triage === "not-priority")
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      originLabel: ORIGIN_LABELS[item.source] || item.source,
+      dateLabel: item.dueAt ? fmt(item.dueAt, tz, { month: "short", day: "numeric" }) : null,
+    }));
+  return { items: rows, total: rows.length };
+}
+
+/**
+ * RESOLVED — a Tracked item's outcome: done, won't do, or wrong (plan §2).
+ * Only items that actually WENT THROUGH Tracked (firstTrackedAt is set) —
+ * finishing a plain calendar event or clearing an email doesn't belong in
+ * a history of decisions you made on this page. Reads from the full,
+ * unfiltered `items` (not `live`) because filterLive() excludes done/
+ * dismissed items by design; this is the one list on the page that's
+ * specifically about items in that state. Capped and most-recent-first: this
+ * is a place to notice a pattern (plan §2's "we can kinda learn from it"),
+ * not a growing permanent log — lib/store.js's prune() still eventually
+ * clears these out on the usual retainDays clock.
+ */
+export function buildResolved(items, { tz }) {
+  const rows = items
+    .filter((item) => item.firstTrackedAt && (item.status === "done" || item.status === "dismissed"))
+    .sort((a, b) => new Date(b.resolvedAt || b.lastSeen || 0) - new Date(a.resolvedAt || a.lastSeen || 0))
+    .slice(0, 30)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      originLabel: ORIGIN_LABELS[item.source] || item.source,
+      outcome: item.status === "done" ? "done" : (item.resolutionReason || "dismissed"),
+      resolvedLabel: item.resolvedAt ? fmt(item.resolvedAt, tz, { month: "short", day: "numeric" }) : null,
+    }));
+  return { items: rows, total: rows.length };
 }
 
 /**
@@ -1084,7 +1142,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const todays = events.filter((e) => eventOnDay(e, todayKey, tz));
 
   // Computed here — earlier than it used to sit — rather than down near
-  // buildTasks(), so its per-day busyness score (week.days[n].busyness) can
+  // buildInbox()/buildTracked(), so its per-day busyness score (week.days[n].busyness) can
   // be attached to `strip` and `dayStrips` below. Same array index, same
   // date arithmetic (`now + n * DAY`) as the loops that build both of
   // those, so Today's carousel and the Week page report the identical
@@ -1375,7 +1433,26 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     .slice(0, cfg.maxMoneyAlerts ?? 5)
     .map((i) => ({ id: i.id, title: i.title, detail: i.detail || null, kind: i.kind }));
 
-  const tasks = buildTasks(live, { now, tz, config, priorities });
+  // See buildInbox()/buildTracked()/buildFiledAway()/buildResolved() above
+  // for the three-state Tasks-page model this replaces the old bucketed
+  // buildTasks() with. `items` (not `live`) for buildResolved() specifically
+  // — see that function's own comment on why it needs the unfiltered list.
+  const inbox = buildInbox(live, { now, tz, config, priorities });
+  const tracked = buildTracked(live, { now, tz });
+  const filedAway = buildFiledAway(live, { tz });
+  const resolved = buildResolved(items, { tz });
+  // Origins panel counts — every task-like live item regardless of triage
+  // state, same "how many is this app currently tracking from each source"
+  // semantic the old buildTasks() counted.
+  const taskLike = live.filter(isTaskLike);
+  const taskCounts = Object.fromEntries(
+    Object.keys(ORIGIN_LABELS).map((k) => [k, taskLike.filter((r) => r.source === k).length])
+  );
+  // How many upcoming Brightspace deadlines aren't on the calendar yet — see
+  // brief/brightspace.js's own header for why this is a plain, cheap,
+  // uncached comparison rather than anything AI-assisted.
+  const unscheduledBrightspaceCount = unscheduledCount(live, config, now);
+  const tasks = { inbox, tracked, filedAway, resolved, counts: taskCounts, unscheduledBrightspaceCount };
 
   // `week` itself (the busy-vs-free forecast plus the looming list it's
   // meant to be read against — see weekForecast()'s own comment for why the
@@ -1418,7 +1495,10 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
       // left", so it shouldn't shrink as the day goes on.
       { id: "today", label: "Today", badge: todays.length || null },
       { id: "week", label: "Week", badge: null },
-      { id: "tasks", label: "Tasks", badge: tasks.urgent || null },
+      // The Inbox count, not the old "overdue + due today" tally — this is
+      // "how many things are waiting on a decision from you", which is the
+      // actual queue this page is now built around (plan §2).
+      { id: "tasks", label: "Tasks", badge: tasks.inbox.total || null },
       { id: "money", label: "Finances", badge: null },
       { id: "year", label: "Year", badge: null },
     ],

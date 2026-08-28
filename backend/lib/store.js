@@ -76,6 +76,17 @@ export async function upsertItem(incoming) {
       surfaceCount: 0,
       lastSurfaced: null,
       snoozeUntil: null,
+      // Tasks-page triage state (see triageItem()/resolveTrackedItem() below)
+      // — null/0 defaults on a brand-new item, same reasoning as
+      // surfaceCount/snoozeUntil above: downstream code (buildInbox(),
+      // buildTracked()) can assume these fields always exist rather than
+      // guarding every read with `?? null`.
+      triage: null,
+      resolutionReason: null,
+      remindCount: 0,
+      firstTrackedAt: null,
+      resolvedAt: null,
+      lastRemindedOn: null,
       ...incoming,
       firstSeen: now,
       lastSeen: now,
@@ -120,6 +131,22 @@ export async function upsertItem(incoming) {
       // flag can't misattribute some later, separate dismissal (the user's
       // own, say) as another wrong guess.
       autoDismissed: false,
+      // Same reasoning as dismissStrikes/permanentlySuppressed just above:
+      // a re-collected item (the source saw it again on this pull) carries
+      // none of these keys on `incoming`, so `{...prev, ...incoming}` alone
+      // would already preserve them — but that's an accident of collectors
+      // never happening to set these keys, not a guarantee. Spelling them
+      // out here is the same defensive explicitness this file already
+      // insists on elsewhere: a triage decision, a remind count, a
+      // resolution reason are persistent memory that must survive every
+      // future refresh regardless of what that refresh's own `incoming`
+      // happens to carry.
+      triage: prev.triage ?? null,
+      resolutionReason: prev.resolutionReason ?? null,
+      remindCount: prev.remindCount || 0,
+      firstTrackedAt: prev.firstTrackedAt || null,
+      resolvedAt: prev.resolvedAt || null,
+      lastRemindedOn: prev.lastRemindedOn || null,
       // A changed item earns the right to be shown again — same as a
       // revived one: either way, this is new information worth resurfacing.
       changed: contentChanged || prev.changed || revive,
@@ -170,6 +197,105 @@ export async function suppressPermanently(id) {
   const item = { ...prev, status: "dismissed", permanentlySuppressed: true, autoDismissed: false };
   writeItem(dbc, id, item);
   return item;
+}
+
+/**
+ * The Tasks-page triage decision — "priority" moves an item from Inbox into
+ * Tracked, "not-priority" files it away. The one-time nature of this is the
+ * whole redesign: once set, an item never asks again (see brief/display.js's
+ * buildInbox(), which excludes anything with a non-null triage).
+ *
+ * firstTrackedAt is stamped the FIRST time an item becomes "priority", never
+ * overwritten on a later re-triage — it's "when did I first say this
+ * mattered", the anchor a Tracked row's "reminded you N times since <date>"
+ * text reads off (see buildTracked()). Re-triaging back to "not-priority"
+ * and then to "priority" again deliberately does NOT reset it — that would
+ * make the reminder history lie about how long this has actually been sitting.
+ */
+export async function triageItem(id, decision) {
+  const dbc = getDb();
+  const prev = readItem(dbc, id);
+  if (!prev) return null;
+  const item = {
+    ...prev,
+    triage: decision,
+    firstTrackedAt: decision === "priority" && !prev.firstTrackedAt ? nowIso() : prev.firstTrackedAt,
+  };
+  writeItem(dbc, id, item);
+  return item;
+}
+
+/**
+ * Resolving a Tracked item — done, won't do, or wrong (see the Tasks-page
+ * plan's three-state model). Deliberately NOT routed through dismissItem()'s
+ * strike-counting: that machinery exists for a different problem (a
+ * calendar/email item that keeps reappearing — how many times before the
+ * system stops nagging about it), not for a Tracked item you've already
+ * looked at once and made a deliberate, final call on. A "won't do" or
+ * "wrong" verdict is permanent on the first try, the same as
+ * suppressPermanently() — Jon's own item content changing later shouldn't
+ * silently revive something he already resolved.
+ */
+export async function resolveTrackedItem(id, { outcome, reason = null } = {}) {
+  const dbc = getDb();
+  const prev = readItem(dbc, id);
+  if (!prev) return null;
+  const item = {
+    ...prev,
+    status: outcome,
+    resolutionReason: outcome === "dismissed" ? reason : null,
+    permanentlySuppressed: outcome === "dismissed" ? true : prev.permanentlySuppressed,
+    resolvedAt: nowIso(),
+  };
+  writeItem(dbc, id, item);
+  return item;
+}
+
+/**
+ * Remind-me-later, for both Inbox and Tracked rows — a plain status change,
+ * same shape as every other action here. `until` (an explicit ISO date/time,
+ * what you actually pick each time — see the Tasks-page plan's own answer on
+ * this) takes priority over `days` (the older day-count shortcut, kept for
+ * anything that still wants a quick "3 days from now" rather than a picked
+ * date). filterLive() already treats a snoozed item whose date has passed as
+ * live again — see that function's own comment — so nothing here needs to
+ * "wake it up"; the date passing is the wake-up.
+ */
+export async function snoozeItem(id, { until = null, days = null } = {}) {
+  const dbc = getDb();
+  const prev = readItem(dbc, id);
+  if (!prev) return null;
+  const snoozeUntil = until
+    ? new Date(until).toISOString()
+    : new Date(Date.now() + (Number(days) || 3) * 86400000).toISOString();
+  const item = { ...prev, status: "snoozed", snoozeUntil };
+  writeItem(dbc, id, item);
+  return item;
+}
+
+/**
+ * Once-a-day reminder bump for Tracked items — see lib/scheduler.js, which
+ * calls this alongside its own once-daily prune(), never on a plain page
+ * read. `today` is the caller's own local-timezone day string (scheduler.js
+ * already computes one for its own briefDue check) so a Tracked item reads
+ * "reminded you 3 times" rather than inflating every time the display is
+ * polled — polling this page every 15 minutes must never look like the
+ * app nagging 40 times before lunch. lastRemindedOn is the guard: an item
+ * already bumped today is left alone even if this somehow runs twice in
+ * one day.
+ */
+export async function bumpRemindCounts(today) {
+  const dbc = getDb();
+  const rows = dbc.prepare("SELECT id, data FROM items WHERE status = 'open'").all();
+  let bumped = 0;
+  for (const r of rows) {
+    const item = JSON.parse(r.data);
+    if (item.triage !== "priority") continue;
+    if (item.lastRemindedOn === today) continue;
+    writeItem(dbc, r.id, { ...item, remindCount: (item.remindCount || 0) + 1, lastRemindedOn: today });
+    bumped++;
+  }
+  return bumped;
 }
 
 export async function upsertMany(items) {

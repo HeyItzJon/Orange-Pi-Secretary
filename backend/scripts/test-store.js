@@ -19,6 +19,7 @@ const {
   knownMessageIds, rememberMessageIds, cacheGet, cacheSet, getMeta, setMeta, addUsage,
   recordPortfolioDay, portfolioHistory, recordHoldingDay, holdingHistory,
   getHoldings, setHoldings, dismissItem, suppressPermanently,
+  triageItem, resolveTrackedItem, snoozeItem, bumpRemindCounts,
 } = await import("../lib/store.js");
 
 let pass = 0, fail = 0;
@@ -191,6 +192,115 @@ await atest("an old, still-open Brightspace item is pruned even though 'open' it
   assert.ok(removed >= 1);
   assert.equal(await getItem("p3"), null, "an old open Brightspace item should be gone");
   assert.ok(await getItem("p4"), "an old open calendar item should NOT be touched by the Brightspace-specific rule");
+});
+
+group("triageItem — Inbox decisions (priority / not-priority)");
+
+await atest("triaging 'priority' sets triage and stamps firstTrackedAt", async () => {
+  await upsertItem({ id: "tr1", contentHash: "x", title: "Do the thing" });
+  const t = await triageItem("tr1", "priority");
+  assert.equal(t.triage, "priority");
+  assert.ok(t.firstTrackedAt, "the moment it first became Tracked should be recorded");
+});
+
+await atest("triaging 'not-priority' sets triage, but does NOT stamp firstTrackedAt", async () => {
+  await upsertItem({ id: "tr2", contentHash: "x", title: "Filed away" });
+  const t = await triageItem("tr2", "not-priority");
+  assert.equal(t.triage, "not-priority");
+  assert.equal(t.firstTrackedAt, null, "only becoming Tracked earns a firstTrackedAt stamp");
+});
+
+await atest("re-triaging back to priority a second time does NOT reset firstTrackedAt — the reminder history shouldn't lie about how long this has been sitting", async () => {
+  await upsertItem({ id: "tr3", contentHash: "x", title: "Back and forth" });
+  const first = await triageItem("tr3", "priority");
+  const firstStamp = first.firstTrackedAt;
+  await triageItem("tr3", "not-priority");
+  const again = await triageItem("tr3", "priority");
+  assert.equal(again.firstTrackedAt, firstStamp);
+});
+
+await atest("triaging an item that doesn't exist returns null, not a crash", async () => {
+  assert.equal(await triageItem("nope-tr", "priority"), null);
+});
+
+group("resolveTrackedItem — a Tracked item's own final verdict");
+
+await atest("'done' clears any resolutionReason and stamps resolvedAt", async () => {
+  await upsertItem({ id: "rt1", contentHash: "x", title: "Ship it" });
+  const r = await resolveTrackedItem("rt1", { outcome: "done" });
+  assert.equal(r.status, "done");
+  assert.equal(r.resolutionReason, null);
+  assert.ok(r.resolvedAt);
+});
+
+await atest("'dismissed' with reason 'wontdo' is permanent on the first try — no strikes, unlike dismissItem()", async () => {
+  await upsertItem({ id: "rt2", contentHash: "x", title: "Nah" });
+  const r = await resolveTrackedItem("rt2", { outcome: "dismissed", reason: "wontdo" });
+  assert.equal(r.status, "dismissed");
+  assert.equal(r.resolutionReason, "wontdo");
+  assert.equal(r.permanentlySuppressed, true, "final on the first try, not one of three strikes");
+});
+
+await atest("a permanently-resolved item does NOT get revived by a later content change — upsertItem's revive check respects it", async () => {
+  await upsertItem({ id: "rt3", contentHash: "h1", title: "Wrong call" });
+  await resolveTrackedItem("rt3", { outcome: "dismissed", reason: "wrong" });
+  const revived = await upsertItem({ id: "rt3", contentHash: "h2", title: "Wrong call, edited" });
+  assert.equal(revived.status, "dismissed", "a deliberate 'wrong' verdict should stick even if the source item's content changes later");
+});
+
+group("snoozeItem — remind me later, on a date you actually pick");
+
+await atest("an explicit `until` date wins over the day-count shortcut", async () => {
+  await upsertItem({ id: "sn1", contentHash: "x", title: "Later" });
+  const until = "2026-09-02T09:00:00.000Z";
+  const s = await snoozeItem("sn1", { until, days: 3 });
+  assert.equal(s.status, "snoozed");
+  assert.equal(s.snoozeUntil, until);
+});
+
+await atest("no `until` falls back to the day-count shortcut, default 3 days", async () => {
+  await upsertItem({ id: "sn2", contentHash: "x", title: "Later" });
+  const before = Date.now();
+  const s = await snoozeItem("sn2", {});
+  const gotMs = new Date(s.snoozeUntil).getTime();
+  assert.ok(gotMs > before + 2.9 * 86400000 && gotMs < before + 3.1 * 86400000, "roughly 3 days out");
+});
+
+group("bumpRemindCounts — the once-a-day reminder tally");
+
+await atest("a Tracked (priority) item gets its remindCount bumped once for 'today'", async () => {
+  await upsertItem({ id: "bc1", contentHash: "x", title: "Reminded" });
+  await triageItem("bc1", "priority");
+  const bumped = await bumpRemindCounts("2026-08-28");
+  assert.ok(bumped >= 1);
+  const item = await getItem("bc1");
+  assert.equal(item.remindCount, 1);
+  assert.equal(item.lastRemindedOn, "2026-08-28");
+});
+
+await atest("calling it again for the SAME day does not double-bump", async () => {
+  await upsertItem({ id: "bc2", contentHash: "x", title: "Reminded once" });
+  await triageItem("bc2", "priority");
+  await bumpRemindCounts("2026-08-28");
+  await bumpRemindCounts("2026-08-28");
+  const item = await getItem("bc2");
+  assert.equal(item.remindCount, 1, "polling the display 40 times in one day must not read as 40 reminders");
+});
+
+await atest("calling it on a NEW day bumps again", async () => {
+  await upsertItem({ id: "bc3", contentHash: "x", title: "Reminded twice" });
+  await triageItem("bc3", "priority");
+  await bumpRemindCounts("2026-08-28");
+  await bumpRemindCounts("2026-08-29");
+  const item = await getItem("bc3");
+  assert.equal(item.remindCount, 2);
+});
+
+await atest("an Inbox (untriaged) item is never bumped — only Tracked items accrue reminders", async () => {
+  await upsertItem({ id: "bc4", contentHash: "x", title: "Still undecided" });
+  await bumpRemindCounts("2026-08-28");
+  const item = await getItem("bc4");
+  assert.equal(item.remindCount, 0);
 });
 
 group("gmail message id dedup");

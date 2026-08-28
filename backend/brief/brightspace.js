@@ -67,6 +67,30 @@ function hasCalendarMatch(bsItem, calendarItems, matchWindowMs) {
  * ahead of you. A one-day grace lets something due earlier today still
  * count, matching how the rest of the app treats "due today" as current.
  */
+/**
+ * The per-item complement to unscheduledCount() above — which of `live`'s
+ * Brightspace items actually HAVE a calendar match, as a Set of ids. Built
+ * for the Tasks-page redesign's own gating rule (see the plan's §5): a
+ * Brightspace deadline only becomes Inbox-eligible once it's matched to
+ * something on the real calendar, so brief/display.js's buildInbox() needs
+ * to ask "is THIS one matched" per item, not just "how many aren't". No
+ * audit-window cutoff here, deliberately — unscheduledCount()'s window
+ * exists to keep the safety-net NOTE from flagging something not due soon
+ * enough to act on yet; Inbox-eligibility just needs "is it actually on your
+ * calendar", full stop, regardless of how far out it is.
+ */
+export function matchedIds(live, config) {
+  const cfg = config.brightspace || {};
+  const matchWindowMs = (cfg.courseCodeMatchWindowDays ?? 2) * DAY;
+  const bsItems = live.filter((i) => i.source === "brightspace" && i.dueAt);
+  const calendarItems = live.filter((i) => i.source === "calendar" && i.dueAt);
+  const matched = new Set();
+  for (const bs of bsItems) {
+    if (hasCalendarMatch(bs, calendarItems, matchWindowMs)) matched.add(bs.id);
+  }
+  return matched;
+}
+
 export function unscheduledCount(live, config, now = new Date()) {
   const cfg = config.brightspace || {};
   const auditWindowMs = (cfg.auditWindowDays ?? 14) * DAY;

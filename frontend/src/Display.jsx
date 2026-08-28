@@ -10,7 +10,7 @@
 // dashboard that can't tell you it stopped talking to Gmail is worse than no
 // dashboard, because you trust it.
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./Display.css";
 
@@ -871,32 +871,94 @@ function ItemDetailModal({ detail, onClose }) {
 }
 
 /**
- * What you owe. Two things make this different from the list it replaces:
+ * A one-time date picker, anchored to whichever "Remind later" button opened
+ * it — same portal-plus-getBoundingClientRect positioning as Strip's own
+ * metadata card and WeekPage's day-note popover (see their comments for why
+ * a portal is required: .tcol clips its own overflow to run the masonry
+ * fade at its bottom edge, see .tcol in Display.css, so a child popover
+ * can't escape that clip no matter what position scheme it uses).
  *
- *   - Every row can be answered. Done, or not-for-me — and answering one is
- *     instant, not a wait for a network round trip, so the list actually
- *     gets shorter as you clear it instead of lagging behind you.
- *   - The rows the model picked out carry a next action, not a restatement.
- *     "Email CPRT about an Altium seat" beats "Resolve Altium licensing".
+ * Unlike those two, this one is interactive (a real <input type="date"> plus
+ * two buttons), not a passive glance — so it does NOT set pointer-events:
+ * none, and it owns a real onConfirm/onCancel rather than just closing on
+ * the next click anywhere (see TasksPage's own outside-click handler, which
+ * still closes it that way when you click away without choosing a date).
  */
-function TasksPage({ d, onAct }) {
-  const { tasks, deadlines, priorities } = d;
-  const [busy, setBusy] = useState(null);
-  // Anything in "Start here" is already on the page. Repeating it in the
-  // buckets below was the exact clutter this page is supposed to remove.
-  const promoted = new Set((priorities || []).map((p) => p.id));
+function SnoozePopover({ anchorEl, onConfirm, onCancel }) {
+  const [dateStr, setDateStr] = useState("");
+  const popRef = useRef(null);
+  const [pos, setPos] = useState(null);
 
-  const act = async (id, action) => {
-    setBusy(id);
-    await onAct(id, action);
-    setBusy(null);
-  };
+  useLayoutEffect(() => {
+    const anchor = anchorEl;
+    const card = popRef.current;
+    if (!anchor || !card) { setPos(null); return; }
+    const ar = anchor.getBoundingClientRect();
+    const cw = card.offsetWidth;
+    const ch = card.offsetHeight;
+    const GAP = 9;
+    const PAD = 8;
 
-  const Row = ({ t }) => (
-    <div className={`task${t.unmissable ? " must" : ""}${t.top ? " top" : ""}${busy === t.id ? " busy" : ""}`}>
+    let left = ar.left;
+    if (left + cw > window.innerWidth - PAD) left = Math.max(PAD, window.innerWidth - PAD - cw);
+    left = Math.max(PAD, left);
+
+    let top = ar.bottom + GAP;
+    if (top + ch > window.innerHeight - PAD) top = Math.max(PAD, ar.top - GAP - ch);
+
+    setPos({ top, left });
+  }, [anchorEl]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onCancel(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  // Tomorrow is the earliest sane "later" — snoozing to today or the past
+  // isn't a real choice here.
+  const minDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+  return createPortal(
+    <div
+      ref={popRef}
+      className="snooze-pop"
+      style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999, visibility: "hidden" }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="snooze-pop-label">Remind me on</span>
+      <input
+        type="date"
+        value={dateStr}
+        min={minDate}
+        autoFocus
+        onChange={(e) => setDateStr(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter" && dateStr) onConfirm(dateStr); }}
+      />
+      <span className="snooze-pop-acts">
+        <button className="snooze-pop-cancel" onClick={onCancel}>Cancel</button>
+        <button className="snooze-pop-go" disabled={!dateStr} onClick={() => onConfirm(dateStr)}>Set</button>
+      </span>
+    </div>,
+    document.body
+  );
+}
+
+/**
+ * INBOX — anything the system found that hasn't been triaged yet, ordered by
+ * urgency (buildInbox() on the backend already did the ranking and floated
+ * the model's own top picks to the front — see that function's own comment
+ * for why this replaces "Start here" outright rather than living next to
+ * it). Three buttons, always visible rather than hover-revealed like the
+ * old ✓/✕ pair: this page's entire reason to exist is deciding on these
+ * rows, so hiding the decision behind a hover state — which doesn't even
+ * exist on the touch screen this is meant to work on — would be backwards.
+ */
+function InboxRow({ t, busy, onAct, snoozeOpen, onToggleSnooze, snoozeRef }) {
+  return (
+    <div className={`task inbox-row${t.unmissable ? " must" : ""}${t.top ? " top" : ""}${busy ? " busy" : ""}`}>
       <span className={`dot d-${t.domain}`} />
       <span className="tbody">
-        {/* The action first when there is one — that's the line you act on. */}
         <span className="title">{t.do || t.title}</span>
         {t.do && <span className="from">{t.title}</span>}
         <span className="meta">
@@ -910,71 +972,250 @@ function TasksPage({ d, onAct }) {
       {t.due && (
         <span className={`when${t.daysOut !== null && t.daysOut <= 1 ? " soon" : ""}`}>{t.due}</span>
       )}
-      {/* Teaching it to shut up is the whole point: dismissed things stop
-          coming back, and done ones stop counting. */}
-      <span className="acts">
-        <button className="act ok" title="done" onClick={() => act(t.id, "done")}>✓</button>
-        <button className="act no" title="not relevant" onClick={() => act(t.id, "dismiss")}>✕</button>
+      <span className="triage-acts">
+        <button className="act ok" disabled={busy} onClick={() => onAct(t.id, "priority")}>Priority</button>
+        <button className="act no" disabled={busy} onClick={() => onAct(t.id, "not-priority")}>Not priority</button>
+        <button
+          ref={snoozeRef}
+          className={`act later${snoozeOpen ? " open" : ""}`}
+          disabled={busy}
+          onClick={(e) => { e.stopPropagation(); onToggleSnooze(t.id); }}
+        >
+          Remind later
+        </button>
       </span>
     </div>
   );
+}
+
+/**
+ * TRACKED — things marked Priority. Sorted by the backend already (soonest
+ * due first, undated after); a late one just reads that way in its own
+ * `due` text ("overdue") rather than living in a separate section. The
+ * remind-count line is the literal "I've reminded you N times" — see
+ * lib/store.js's bumpRemindCounts() for how it's incremented (once a day,
+ * not once a page-load).
+ */
+function TrackedRow({ t, busy, onAct, snoozeOpen, onToggleSnooze, snoozeRef }) {
+  return (
+    <div className={`task tracked-row${t.unmissable ? " must" : ""}${busy ? " busy" : ""}`}>
+      <span className={`dot d-${t.domain}`} />
+      <span className="tbody">
+        <span className="title">{t.do || t.title}</span>
+        {t.do && <span className="from">{t.title}</span>}
+        <span className="meta">
+          <span className="origin">{t.originLabel}</span>
+          {t.context && <> · {t.context}</>}
+          {t.dateLabel && <> · {t.dateLabel}</>}
+        </span>
+        {(t.remindCount > 0 || t.trackedSinceLabel) && (
+          <span className="remind-line">
+            {t.trackedSinceLabel && <>Tracked since {t.trackedSinceLabel}</>}
+            {t.remindCount > 0 && <> · reminded {t.remindCount}×</>}
+          </span>
+        )}
+      </span>
+      {t.due && (
+        <span className={`when${t.daysOut !== null && t.daysOut <= 1 ? " soon" : ""}`}>{t.due}</span>
+      )}
+      <span className="tracked-acts">
+        <button className="act ok" disabled={busy} onClick={() => onAct(t.id, "done")}>Done</button>
+        <button className="act no" disabled={busy} onClick={() => onAct(t.id, "wontdo")}>Won't do</button>
+        <button className="act wrong" disabled={busy} onClick={() => onAct(t.id, "wrong")}>Wrong</button>
+        <button
+          ref={snoozeRef}
+          className={`act later${snoozeOpen ? " open" : ""}`}
+          disabled={busy}
+          onClick={(e) => { e.stopPropagation(); onToggleSnooze(t.id); }}
+        >
+          Remind later
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** One line each — Filed away and Resolved are for an occasional glance and
+ *  the odd correction, not for acting on again (plan §2). `onReopen` — when
+ *  passed — resets triage and status back to a clean slate (the same
+ *  `reopen` action the App-level act() already exposes, see server.js's own
+ *  comment on why reopen resets triage/resolutionReason too), landing the
+ *  item back in Inbox, undecided, exactly like reopening a done/dismissed
+ *  item everywhere else in this app already does. */
+function LeanRow({ title, metaText, onReopen, busy }) {
+  return (
+    <div className="lean-row">
+      <span className="lean-title" title={title}>{title}</span>
+      <span className="lean-meta">{metaText}</span>
+      {onReopen && (
+        <button className="lean-reopen" disabled={busy} onClick={onReopen} title="Bring this back to Inbox">
+          ↺ reopen
+        </button>
+      )}
+    </div>
+  );
+}
+
+const RESOLVED_OUTCOME_LABEL = { done: "Done", wontdo: "Won't do", wrong: "Wrong", dismissed: "Dismissed" };
+
+/**
+ * What you owe, as a real triage flow rather than a filing cabinet — see the
+ * Tasks-page plan (project doc `tasks-page-overhaul-plan.md`) for the full
+ * shape. INBOX asks a one-time question per item (Priority / Not priority /
+ * Remind me later); TRACKED is the actual to-do list, sorted by due date,
+ * with its own Done / Won't do / Wrong / Remind later; NOT PRIORITY and
+ * RESOLVED are both filed away rather than deleted, collapsed behind a
+ * toggle so they don't clutter the page nothing points you back to on
+ * purpose (that's what the ↺ reopen link on each of their rows is for).
+ *
+ * `busyId` disables a row's own buttons while its request is in flight —
+ * the same instant-optimistic-removal pattern act() already uses at the App
+ * level (see removeItemLocally) means the row usually vanishes before the
+ * network call even resolves, but disabling stops a fast double-tap from
+ * firing the action twice in that window.
+ */
+function TasksPage({ d, onAct }) {
+  const { tasks } = d;
+  const [busyId, setBusyId] = useState(null);
+  const [snoozeId, setSnoozeId] = useState(null);
+  const [filedOpen, setFiledOpen] = useState(false);
+  const [resolvedOpen, setResolvedOpen] = useState(false);
+  const snoozeAnchors = useRef(new Map());
+
+  const act = async (id, action, body) => {
+    setBusyId(id);
+    await onAct(id, action, body);
+    setBusyId(null);
+  };
+
+  useEffect(() => {
+    if (snoozeId == null) return;
+    const close = () => setSnoozeId(null);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [snoozeId]);
+
+  const toggleSnooze = (id) => setSnoozeId((cur) => (cur === id ? null : id));
+  const snoozeRefFor = (id) => (el) => {
+    if (el) snoozeAnchors.current.set(id, el);
+    else snoozeAnchors.current.delete(id);
+  };
+  const confirmSnooze = async (id, dateStr) => {
+    setSnoozeId(null);
+    if (!dateStr) return;
+    // A plain YYYY-MM-DD from <input type="date"> plus a fixed 9am, read in
+    // whatever timezone the browser itself is in — good enough for "pick a
+    // date to be reminded on", the exact ask (no time-of-day picker was
+    // requested — see the plan's own answer on this).
+    await act(id, "snooze", { until: new Date(`${dateStr}T09:00:00`).toISOString() });
+  };
+
+  const inbox = tasks.inbox;
+  const tracked = tasks.tracked;
+  const filedAway = tasks.filedAway;
+  const resolved = tasks.resolved;
 
   return (
     <div className="page-tasks">
       <div className="tcol">
-        {priorities?.length > 0 && (
-          <section className="tgroup focus">
-            <h2>Start here<em>{priorities.length}</em></h2>
-            {priorities.map((p, i) => (
-              <div className="focusrow" key={p.id}>
-                <span className="n">{i + 1}</span>
-                <span className="tbody">
-                  <span className="title">{p.do || p.title}</span>
-                  {p.why && <span className="why">{p.why}</span>}
-                  <span className="meta">{p.note || (p.source === "calendar" ? "Calendar" : p.source === "email" ? "Email" : "Brightspace")}</span>
-                </span>
-                <span className="acts">
-                  <button className="act ok" title="done" onClick={() => act(p.id, "done")}>✓</button>
-                  <button className="act no" title="not relevant" onClick={() => act(p.id, "dismiss")}>✕</button>
-                </span>
-              </div>
-            ))}
-          </section>
-        )}
+        <section className="tgroup focus">
+          <h2>Inbox<em>{inbox.total}</em></h2>
+          {inbox.total === 0 ? (
+            <p className="empty">Nothing new to decide on. Check the sources panel if that feels wrong.</p>
+          ) : (
+            <>
+              {inbox.items.map((t) => (
+                <Fragment key={t.id}>
+                  <InboxRow
+                    t={t}
+                    busy={busyId === t.id}
+                    onAct={act}
+                    snoozeOpen={snoozeId === t.id}
+                    onToggleSnooze={toggleSnooze}
+                    snoozeRef={snoozeRefFor(t.id)}
+                  />
+                  {snoozeId === t.id && (
+                    <SnoozePopover
+                      anchorEl={snoozeAnchors.current.get(t.id)}
+                      onConfirm={(dateStr) => confirmSnooze(t.id, dateStr)}
+                      onCancel={() => setSnoozeId(null)}
+                    />
+                  )}
+                </Fragment>
+              ))}
+              {inbox.hidden > 0 && <p className="more">+{inbox.hidden} more</p>}
+            </>
+          )}
+        </section>
 
-        {tasks.total === 0 ? (
-          <p className="empty big-empty">
-            Nothing owed that the system can see. Check the sources panel if that feels wrong.
-          </p>
-        ) : (
-          tasks.groups.map((g) => ({ ...g, items: g.items.filter((t) => !promoted.has(t.id)) }))
-            .filter((g) => g.items.length)
-            .map((g) => (
-            <section className={`tgroup${g.urgent ? " urgent" : ""}`} key={g.key}>
-              <h2>{g.label}<em>{g.items.length + g.hidden}</em></h2>
-              {g.items.map((t) => <Row t={t} key={t.id} />)}
-              {g.hidden > 0 && <p className="more">+{g.hidden} more</p>}
-            </section>
-          ))
-        )}
+        <section className="tgroup">
+          <h2>Tracked<em>{tracked.total}</em></h2>
+          {tracked.total === 0 ? (
+            <p className="empty">Nothing tracked yet — mark something Priority in the Inbox above.</p>
+          ) : (
+            tracked.items.map((t) => (
+              <Fragment key={t.id}>
+                <TrackedRow
+                  t={t}
+                  busy={busyId === t.id}
+                  onAct={act}
+                  snoozeOpen={snoozeId === t.id}
+                  onToggleSnooze={toggleSnooze}
+                  snoozeRef={snoozeRefFor(t.id)}
+                />
+                {snoozeId === t.id && (
+                  <SnoozePopover
+                    anchorEl={snoozeAnchors.current.get(t.id)}
+                    onConfirm={(dateStr) => confirmSnooze(t.id, dateStr)}
+                    onCancel={() => setSnoozeId(null)}
+                  />
+                )}
+              </Fragment>
+            ))
+          )}
+        </section>
       </div>
 
       <div className="tside">
         <section className="zone">
-          <h2>Deadlines</h2>
-          {deadlines.length === 0 ? (
-            <p className="empty">Nothing with a date on it.</p>
-          ) : (
-            deadlines.map((x) => (
-              <div className={`dl${x.near ? " near" : ""}`} key={x.id}>
-                <span className="dlhead">
-                  <span className="in">{x.in}</span>
-                  <span className="on">{x.dateLabel}</span>
-                </span>
-                <span className="what">{x.title}</span>
-                {x.note && <span className="dlnote">{x.note}</span>}
-              </div>
-            ))
+          <button className="collapse-toggle" onClick={() => setFiledOpen((v) => !v)}>
+            <h2>{filedOpen ? "▾" : "▸"} Filed away<em>{filedAway.total}</em></h2>
+          </button>
+          {filedOpen && (
+            filedAway.total === 0 ? (
+              <p className="empty">Nothing filed away.</p>
+            ) : (
+              filedAway.items.map((row) => (
+                <LeanRow
+                  key={row.id}
+                  title={row.title}
+                  metaText={[row.originLabel, row.dateLabel].filter(Boolean).join(" · ")}
+                  onReopen={() => act(row.id, "reopen")}
+                  busy={busyId === row.id}
+                />
+              ))
+            )
+          )}
+        </section>
+
+        <section className="zone">
+          <button className="collapse-toggle" onClick={() => setResolvedOpen((v) => !v)}>
+            <h2>{resolvedOpen ? "▾" : "▸"} Resolved<em>{resolved.total}</em></h2>
+          </button>
+          {resolvedOpen && (
+            resolved.total === 0 ? (
+              <p className="empty">Nothing resolved yet.</p>
+            ) : (
+              resolved.items.map((row) => (
+                <LeanRow
+                  key={row.id}
+                  title={row.title}
+                  metaText={[row.originLabel, RESOLVED_OUTCOME_LABEL[row.outcome] || row.outcome, row.resolvedLabel].filter(Boolean).join(" · ")}
+                  onReopen={() => act(row.id, "reopen")}
+                  busy={busyId === row.id}
+                />
+              ))
+            )
           )}
         </section>
 
@@ -1718,23 +1959,36 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
 const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage };
 
 /**
- * Strip one id out of every list it could be sitting in, immediately and
- * locally — no network round trip. An answered row needs to disappear from
- * "Start here", from its task bucket, and from deadlines all at once, since
- * the same item can be reflected in more than one of those.
+ * Strip one id out of every Tasks-page list it could be sitting in,
+ * immediately and locally — no network round trip. Which list an item
+ * actually MOVES to (Inbox → Tracked, Tracked → Resolved, ...) still comes
+ * from the follow-up /api/display refetch in act() below; this only makes
+ * it vanish from wherever it was a moment ago, the same "instant, not a
+ * wait" feel the old bucket list had.
  */
 function removeItemLocally(d, id) {
   if (!d) return d;
   const drop = (list) => (list || []).filter((it) => it.id !== id);
-  const groups = (d.tasks?.groups || [])
-    .map((g) => ({ ...g, items: drop(g.items) }))
-    .filter((g) => g.items.length > 0);
+  const dropFrom = (bucket) => {
+    if (!bucket) return bucket;
+    const items = drop(bucket.items);
+    const removed = (bucket.items || []).length - items.length;
+    return {
+      ...bucket,
+      items,
+      total: typeof bucket.total === "number" ? Math.max(0, bucket.total - removed) : bucket.total,
+    };
+  };
   return {
     ...d,
-    priorities: drop(d.priorities),
-    deadlines: drop(d.deadlines),
     tasks: d.tasks
-      ? { ...d.tasks, groups, total: groups.reduce((n, g) => n + g.items.length, 0) }
+      ? {
+          ...d.tasks,
+          inbox: dropFrom(d.tasks.inbox),
+          tracked: dropFrom(d.tasks.tracked),
+          filedAway: dropFrom(d.tasks.filedAway),
+          resolved: dropFrom(d.tasks.resolved),
+        }
       : d.tasks,
   };
 }
@@ -1779,14 +2033,20 @@ export default function Display() {
    * marking something done felt laggy. Now the row is dropped from local
    * state the instant you click, and the network call happens underneath
    * that: on success it quietly reconciles with whatever the server
-   * recomputed (a re-ranked "Start here", say); on failure it rolls back to
-   * server truth so a real error is never silently swallowed.
+   * recomputed (a re-ranked Inbox, say); on failure it rolls back to server
+   * truth so a real error is never silently swallowed.
+   *
+   * `body` is optional — every action but the Tasks page's dated "Remind
+   * later" (snooze with an explicit `{until}`) still sends nothing but `{}`,
+   * exactly as before; JSON.stringify(null) below is "null", which
+   * JSON.parse(null) on the server side would choke on, so this falls back
+   * to an empty object rather than passing `body` straight through.
    */
-  const act = useCallback(async (id, action) => {
+  const act = useCallback(async (id, action, body = null) => {
     setD((prev) => removeItemLocally(prev, id));
     try {
       const res = await fetch(`/api/items/${encodeURIComponent(id)}/${action}`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}),
       });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const dres = await fetch("/api/display");

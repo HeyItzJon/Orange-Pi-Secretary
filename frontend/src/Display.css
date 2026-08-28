@@ -1290,6 +1290,80 @@
 .act.no:hover { color: var(--down); border-color: var(--down); }
 .task.busy { opacity: .4; }
 
+/* --------------------------------------------------- tasks: Inbox/Tracked
+   Text-labelled buttons, always visible (not hover-revealed like the plain
+   ✓/✕ pair above) — this page's whole job is deciding on these rows, on a
+   touch screen with no hover to speak of, so the decision can't be hidden
+   behind one. */
+.task.inbox-row, .task.tracked-row { flex-wrap: wrap; gap: 6px 12px; padding: 8px 0; }
+.remind-line { display: block; font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+
+.triage-acts, .tracked-acts {
+  display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0;
+  align-self: center; margin-left: auto;
+}
+.triage-acts .act, .tracked-acts .act {
+  width: auto; height: 27px; padding: 0 10px;
+  font-size: 11.5px; font-weight: 560; white-space: nowrap;
+}
+.tracked-acts .act.wrong { color: var(--down); }
+.tracked-acts .act.wrong:hover { color: var(--down); border-color: var(--down); }
+.triage-acts .act.later, .tracked-acts .act.later { color: var(--accent); }
+.triage-acts .act.later:hover, .tracked-acts .act.later:hover,
+.triage-acts .act.later.open, .tracked-acts .act.later.open {
+  color: var(--accent); border-color: var(--accent);
+}
+.act[disabled] { opacity: .4; cursor: default; pointer-events: none; }
+
+/* The dated "remind me later" popover — same anchored-portal idea as
+   .strip-card/.fcnote (see SnoozePopover's own comment for why it has to be
+   a portal), but interactive rather than a passive glance: a real date
+   input plus Cancel/Set, so unlike those two this does NOT set
+   pointer-events: none. */
+.snooze-pop {
+  position: fixed; z-index: 9999;
+  display: flex; align-items: center; gap: 8px;
+  background: #17171a; border: 1px solid #33333a; border-radius: 7px;
+  padding: 8px 10px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.6);
+  font-size: 12.5px; color: var(--ink);
+}
+.snooze-pop-label { color: var(--muted); white-space: nowrap; }
+.snooze-pop input[type="date"] {
+  background: transparent; border: 1px solid var(--rule); border-radius: 5px;
+  color: var(--ink); font: inherit; font-size: 12.5px; padding: 3px 5px;
+  color-scheme: dark;
+}
+.snooze-pop-acts { display: flex; gap: 6px; }
+.snooze-pop-cancel, .snooze-pop-go {
+  appearance: none; border: 1px solid var(--rule); background: transparent;
+  color: var(--muted); border-radius: 5px; padding: 3px 9px; font-size: 12px; cursor: pointer;
+}
+.snooze-pop-cancel:hover { color: var(--ink); border-color: var(--fill-2); }
+.snooze-pop-go { color: var(--accent); border-color: var(--accent); }
+.snooze-pop-go:hover { background: rgba(237,161,0,.12); }
+.snooze-pop-go[disabled] { opacity: .4; cursor: default; }
+
+/* Filed away / Resolved — collapsed behind a toggle, one line per row, a
+   reopen link rather than the full button row: these are for an occasional
+   glance and the odd correction, not for acting on again (plan §2). */
+.collapse-toggle { all: unset; cursor: pointer; display: block; width: 100%; }
+.collapse-toggle h2 { cursor: pointer; }
+.lean-row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 5px 0; border-bottom: 1px solid var(--rule);
+  font-size: 12.5px;
+}
+.lean-row:last-child { border-bottom: none; }
+.lean-title { color: var(--ink-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lean-meta { color: var(--faint); flex-shrink: 0; }
+.lean-reopen {
+  appearance: none; border: none; background: transparent; color: var(--muted);
+  font-size: 11.5px; cursor: pointer; flex-shrink: 0; padding: 0;
+}
+.lean-reopen:hover { color: var(--accent); }
+.lean-reopen[disabled] { opacity: .4; cursor: default; }
+
 /* Deadlines, restacked: the interval leads, the date confirms it, the thing
    itself gets a full line instead of being clipped between two columns. */
 .dl { display: block; padding: 6px 0; border-bottom: 1px solid var(--rule); }
@@ -1401,6 +1475,15 @@
   .tside { border-left: 0; padding-left: 0; }
   .acts { opacity: 1; }                    /* no hover on a touch screen */
   .act { width: 30px; height: 30px; }
+  /* Inbox/Tracked rows: at this width there isn't room for the title, the
+     due-date text, AND three-to-four labelled buttons to compete on one
+     flex line — the browser's own wrap choice for which item gives up its
+     space first isn't reliable at this width, and a squeezed .tbody meant
+     a title wrapping so hard it visually collided with the acts row (Jon's
+     bug report from the first screenshot of this page). flex-basis: 100%
+     always forces the acts row onto its own guaranteed new line instead of
+     leaving that decision up to the wrap algorithm's per-line fit math. */
+  .triage-acts, .tracked-acts { flex-basis: 100%; margin-left: 0; justify-content: flex-end; }
   /* At this width 6% of the day is about 25px — every label is a clipped
      fragment. Colour still separates them; a tap (see Strip's openId in
      Display.jsx) names them the same way hover does on a laptop. */

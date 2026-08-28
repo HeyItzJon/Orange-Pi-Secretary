@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import {
   buildDisplay, hourOfDay, distanceLabel, chunkFor, priorityWord, durationLabel, freshness,
-  isTaskLike, buildTasks, updatedLabel, dayKey, weekForecast,
+  isTaskLike, buildInbox, buildTracked, buildFiledAway, buildResolved, updatedLabel, dayKey, weekForecast,
   filterLive, buildDayContext, buildDeadlinePool,
 } from "../brief/display.js";
 
@@ -629,60 +629,90 @@ test('"due" only matches the whole word, never inside another one', () => {
   assert.equal(isTaskLike(task({ source: "calendar", title: "Duel practice" })), false);
 });
 
-test("tasks fall into time buckets rather than one long sorted list", () => {
-  const t = buildTasks([
+test("every task-like item lands in Inbox with its own date facts — no buckets, just per-row due/daysOut", () => {
+  const i = buildInbox([
     task({ id: "a", source: "calendar", meta: { allDay: true }, title: "Late thing", dueAt: dayAt(-2, 9) }),
     task({ id: "b", source: "calendar", meta: { allDay: true }, title: "Today thing", dueAt: at(23) }),
     task({ id: "c", source: "calendar", meta: { allDay: true }, title: "Soon thing", dueAt: dayAt(3, 9) }),
     task({ id: "d", source: "calendar", meta: { allDay: true }, title: "Far thing", dueAt: dayAt(40, 9) }),
     task({ id: "e", source: "email", title: "Undated", meta: { needsReply: true } }),
   ], { now: NOW, tz: TZ, config });
-  assert.deepEqual(t.groups.map((g) => g.key), ["overdue", "today", "week", "later", "someday"]);
-  assert.equal(t.total, 5);
-  assert.equal(t.urgent, 2, "overdue and due-today are what the tab badge counts");
+  assert.equal(i.total, 5);
+  const byId = Object.fromEntries(i.items.map((r) => [r.id, r]));
+  assert.equal(byId.a.due, "overdue");
+  assert.equal(byId.b.due, "today");
+  assert.equal(byId.c.due, "3 days");
+  assert.equal(byId.d.due, "40 days");
+  assert.equal(byId.e.due, null, "undated stays undated — no forced bucket");
 });
 
 test("email tasks arrive one per row, labelled with the note they came from", () => {
-  const t = buildTasks(
-    ["Finish the ACB sheet", "Reconcile March", "Email the T5008"].map((title, i) =>
-      task({ id: `n${i}`, source: "email", title, meta: { needsReply: true, note: "ACB", age: 12 } })
+  const i = buildInbox(
+    ["Finish the ACB sheet", "Reconcile March", "Email the T5008"].map((title, idx) =>
+      task({ id: `n${idx}`, source: "email", title, meta: { needsReply: true, note: "ACB", age: 12 } })
     ),
     { now: NOW, tz: TZ, config }
   );
-  const some = t.groups.find((g) => g.key === "someday");
-  assert.equal(some.items.length, 3);
-  assert.equal(some.items[0].originLabel, "Email");
-  assert.equal(some.items[0].context, "ACB", "the note it came from");
+  assert.equal(i.items.length, 3);
+  assert.equal(i.items[0].originLabel, "Email");
+  assert.equal(i.items[0].context, "ACB", "the note it came from");
 });
 
-test("a priority the model picked floats to the top of its bucket and carries its action", () => {
-  const rows = ["Rewire the IMU", "Pick a domain name", "Resolve Altium licensing"].map((title, i) =>
-    task({ id: `v${i}`, source: "email", title, meta: { needsReply: true, note: "Drone", age: 9 } })
+test("a priority the model picked floats to the very front of Inbox and carries its action", () => {
+  const rows = ["Rewire the IMU", "Pick a domain name", "Resolve Altium licensing"].map((title, idx) =>
+    task({ id: `v${idx}`, source: "email", title, meta: { needsReply: true, note: "Drone", age: 9 } })
   );
-  const t = buildTasks(rows, {
+  const i = buildInbox(rows, {
     now: NOW, tz: TZ, config,
     priorities: [{ id: "v2", do: "Email CPRT about an Altium seat", why: "Blocks the PCB review" }],
   });
-  const some = t.groups.find((g) => g.key === "someday");
-  assert.equal(some.items[0].title, "Resolve Altium licensing");
-  assert.equal(some.items[0].do, "Email CPRT about an Altium seat");
-  assert.equal(some.items[0].top, true);
-  assert.equal(some.items[1].top, false, "unpicked rows keep their own order below");
+  assert.equal(i.items[0].title, "Resolve Altium licensing");
+  assert.equal(i.items[0].do, "Email CPRT about an Altium seat");
+  assert.equal(i.items[0].top, true);
+  assert.equal(i.items[1].top, false, "unpicked rows keep their own order below");
 });
 
-test("one noisy origin cannot bury a genuine deadline", () => {
-  const noise = Array.from({ length: 30 }, (_, i) =>
-    task({ id: `n${i}`, source: "email", title: `Note ${i}`, meta: { needsReply: true, note: `Note ${i}` } })
+test("a genuine deadline outranks a pile of undated noise from the same origin, unprompted", () => {
+  const noise = Array.from({ length: 30 }, (_, idx) =>
+    task({ id: `n${idx}`, source: "email", title: `Note ${idx}`, meta: { needsReply: true, note: `Note ${idx}` } })
   );
-  const t = buildTasks([
+  const i = buildInbox([
     ...noise,
     task({ id: "real", source: "calendar", meta: { allDay: true }, title: "Tuition due", dueAt: dayAt(2, 9) }),
   ], { now: NOW, tz: TZ, config });
-  const week = t.groups.find((g) => g.key === "week");
-  assert.equal(week.items[0].title, "Tuition due", "each group is capped separately");
-  const some = t.groups.find((g) => g.key === "someday");
-  assert.equal(some.items.length, 8);
-  assert.equal(some.hidden, 22, "the overflow is counted, not silently dropped");
+  assert.equal(i.total, 31, "nothing is dropped — the ranking, not a per-origin cap, is what protects the real deadline");
+  assert.equal(i.items[0].title, "Tuition due", "rankFallback's own due-date urgency beats a plain needsReply email");
+});
+
+test("a Brightspace item with no matching calendar entry never enters Inbox — it's not yet on the real calendar", () => {
+  const i = buildInbox([
+    task({ id: "bs1", source: "brightspace", courseCode: "ELEC 2507", title: "Assignment 1", dueAt: dayAt(3, 9) }),
+  ], { now: NOW, tz: TZ, config });
+  assert.equal(i.total, 0, "isTaskLike() alone used to be enough — now it also needs a calendar match");
+});
+
+test("a Brightspace item WITH a matching calendar entry (same course code, close in time) does enter Inbox", () => {
+  const i = buildInbox([
+    task({ id: "bs2", source: "brightspace", courseCode: "ELEC 2507", title: "Assignment 1", dueAt: dayAt(3, 9) }),
+    // Deliberately no "due"/allDay/category on this one — it must NOT be
+    // task-like itself (that's not what's under test here), just present in
+    // `live` so matchedIds() has something to match the Brightspace item
+    // against. If it were also task-like it would add a second Inbox row
+    // and this test would be checking the wrong thing.
+    task({ id: "cal1", source: "calendar", title: "ELEC 2507 lecture", dueAt: dayAt(3, 9) }),
+  ], { now: NOW, tz: TZ, config });
+  assert.equal(i.total, 1);
+  assert.equal(i.items[0].id, "bs2");
+});
+
+test("Inbox is capped overall (config.display.maxInbox), with the overflow counted rather than silently dropped", () => {
+  const rows = Array.from({ length: 50 }, (_, idx) =>
+    task({ id: `m${idx}`, source: "email", title: `Note ${idx}`, meta: { needsReply: true } })
+  );
+  const i = buildInbox(rows, { now: NOW, tz: TZ, config: { ...config, display: { ...config.display, maxInbox: 10 } } });
+  assert.equal(i.items.length, 10);
+  assert.equal(i.hidden, 40);
+  assert.equal(i.total, 50);
 });
 
 test("the display model carries the tasks page and a badge count", () => {
@@ -1076,24 +1106,24 @@ test("weekForecast's looming counts a bare-date all-day item due today as due to
   assert.equal(w.looming[0].in, "today");
 });
 
-test("buildTasks buckets a bare-date all-day item due today as 'today', not 'overdue'", () => {
-  const t = buildTasks([
+test("Inbox reads a bare-date all-day item due today as 'today', not 'overdue'", () => {
+  const i = buildInbox([
     task({ id: "dw", source: "calendar", meta: { allDay: true }, title: "Don't wanna", dueAt: TODAY_STR }),
   ], { now: NOW, tz: TZ, config });
-  const today = t.groups.find((g) => g.key === "today");
-  assert.equal(today.items.length, 1);
-  assert.equal(today.items[0].title, "Don't wanna");
+  assert.equal(i.items.length, 1);
+  assert.equal(i.items[0].title, "Don't wanna");
+  assert.equal(i.items[0].due, "today");
+  assert.equal(i.items[0].daysOut, 0);
 });
 
-test("buildTasks buckets a bare-date all-day item due tomorrow as 'week', not 'today'", () => {
-  const t = buildTasks([
+test("Inbox reads a bare-date all-day item due tomorrow as 'tomorrow', not 'today'", () => {
+  const i = buildInbox([
     task({ id: "pd", source: "calendar", meta: { allDay: true }, title: "Payday", dueAt: THURS_STR }),
   ], { now: NOW, tz: TZ, config });
-  const week = t.groups.find((g) => g.key === "week");
-  assert.equal(week.items.length, 1);
-  assert.equal(week.items[0].title, "Payday");
-  assert.equal(t.groups.find((g) => g.key === "today"), undefined,
-    "empty groups are dropped, not left in as empty — 'today' must not appear at all");
+  assert.equal(i.items.length, 1);
+  assert.equal(i.items[0].title, "Payday");
+  assert.equal(i.items[0].due, "tomorrow");
+  assert.equal(i.items[0].daysOut, 1);
 });
 
 test("the Tasks-page sidebar (deadlines) picks up a bare-date all-day item beyond the day-card window and labels it correctly", () => {
