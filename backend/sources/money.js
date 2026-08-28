@@ -41,6 +41,8 @@ import {
   getHoldings, setHoldings,
 } from "../lib/store.js";
 import { getStockIdea } from "../lib/stockIdeas.js";
+import { getSectorProfiles } from "../lib/sectorProfile.js";
+import { buildAllocation } from "../lib/sectorAllocation.js";
 import { calendarDaysBetween } from "../lib/time.js";
 import { resolveVaultPath } from "../lib/paths.js";
 
@@ -277,6 +279,23 @@ export function valueBook(rows, fx, base) {
 }
 
 /**
+ * Weight (%) per settlement currency, from priced positions — a CAD/USD
+ * split at a glance. Pure, and much cheaper than the sector look-through:
+ * every holding already declares its own currency (the vault note, or
+ * Yahoo's own quote), so this needs no extra fetch at all.
+ */
+export function currencyExposure(positions) {
+  const weights = {};
+  for (const p of positions || []) {
+    if (!p.weightPct || !p.currency) continue;
+    weights[p.currency] = (weights[p.currency] || 0) + p.weightPct;
+  }
+  return Object.entries(weights)
+    .map(([currency, pct]) => ({ currency, pct: Math.round(pct * 10) / 10 }))
+    .sort((a, b) => b.pct - a.pct);
+}
+
+/**
  * One human-readable market-status line for the book as a whole, instead
  * of whichever row's raw `marketState` the old code happened to grab
  * first — which is how "market postpost" (Yahoo's real enum value for
@@ -431,6 +450,18 @@ export async function collectMoney(config) {
     log.warn(`stock idea unavailable this pull (${err.message})`);
   }
 
+  // Look-through GICS sector mix — see lib/sectorProfile.js (the cached
+  // Yahoo fetch, ~30-day age check, not tied to this pull's cadence) and
+  // lib/sectorAllocation.js (the pure weighting math). A failure here
+  // should never take down the rest of the money page either.
+  let sectorAllocation = [];
+  try {
+    const profiles = await getSectorProfiles(positions.map((p) => p.ticker));
+    sectorAllocation = buildAllocation(positions, profiles);
+  } catch (err) {
+    log.warn(`sector allocation unavailable this pull (${err.message})`);
+  }
+
   await setMeta("moneySummary", {
     at: now.toISOString(),
     base,
@@ -443,6 +474,8 @@ export async function collectMoney(config) {
     holdingsFrom,
     marketState,                                  // raw Yahoo enum — diagnostic only, see above
     marketStatus,                                 // the standardized label the money page shows
+    sectorAllocation,
+    currencyExposure: currencyExposure(positions),
     fx: Object.fromEntries(Object.entries(fx).filter(([c]) => c !== base)),
     unavailable: rows.filter((r) => r.unavailable).map((r) => r.ticker),
     stale: rows.filter((r) => r.stale && !r.unavailable).map((r) => r.ticker),

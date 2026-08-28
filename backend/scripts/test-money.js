@@ -3,7 +3,7 @@
 // Run: node scripts/test-money.js
 
 import assert from "node:assert/strict";
-import { valueBook, marketStatusLabel } from "../sources/money.js";
+import { valueBook, marketStatusLabel, currencyExposure } from "../sources/money.js";
 
 let pass = 0, fail = 0;
 const group = (t) => console.log(`\n${t}\n`);
@@ -175,6 +175,35 @@ test("everything closed, or no market data at all: null — nothing worth saying
 test("a currency outside USD/CAD still counts for open/pre/post, just without a market name", () => {
   assert.equal(marketStatusLabel([{ currency: "EUR", marketState: "REGULAR" }]), "markets open");
   assert.equal(marketStatusLabel([{ currency: "GBP", marketState: "PRE" }]), "pre-market");
+});
+
+group("currencyExposure — CAD/USD split, no fetch needed");
+
+test("positions in the same currency combine into one slice", () => {
+  const positions = [
+    { ticker: "VFV", weightPct: 54, currency: "USD" },
+    { ticker: "MSFT", weightPct: 7.6, currency: "USD" },
+    { ticker: "XEQT", weightPct: 38.2, currency: "CAD" },
+  ];
+  const exp = currencyExposure(positions);
+  const usd = exp.find((e) => e.currency === "USD");
+  const cad = exp.find((e) => e.currency === "CAD");
+  near(usd.pct, 61.6);
+  near(cad.pct, 38.2);
+});
+
+test("comes back biggest currency first", () => {
+  const positions = [{ ticker: "A", weightPct: 20, currency: "CAD" }, { ticker: "B", weightPct: 80, currency: "USD" }];
+  assert.deepEqual(currencyExposure(positions).map((e) => e.currency), ["USD", "CAD"]);
+});
+
+test("a position with no weight or no currency is skipped, not counted as its own slice", () => {
+  const positions = [
+    { ticker: "A", weightPct: 100, currency: "CAD" },
+    { ticker: "B", weightPct: 0, currency: "USD" },
+    { ticker: "C", weightPct: 5, currency: null },
+  ];
+  assert.deepEqual(currencyExposure(positions), [{ currency: "CAD", pct: 100 }]);
 });
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}\n`);

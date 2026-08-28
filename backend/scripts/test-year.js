@@ -4,7 +4,7 @@
 // Run: node scripts/test-year.js
 
 import assert from "node:assert/strict";
-import { colorBucket, yearGrid } from "../brief/display.js";
+import { colorBucket, yearGrid, yearStats } from "../brief/display.js";
 
 let pass = 0, fail = 0;
 const group = (t) => console.log(`\n${t}\n`);
@@ -161,6 +161,75 @@ test("months are labelled once each, at the column their 1st falls in", () => {
   assert.equal(g.months.length, 12);
   assert.equal(g.months[0].label, "Jan");
   assert.equal(g.months[7].label, "Aug");
+});
+
+group("yearStats — up/down days, streaks, best/worst, from the grid's own cells");
+
+test("nodata and future cells are skipped entirely, not counted as flat", () => {
+  const now = new Date("2026-08-24T18:00:00Z");
+  const g = yearGrid([{ date: "2026-08-24", total: 100, dayPct: 1 }], now, "America/Toronto");
+  const stats = yearStats(g.cells);
+  // 365 cells total; only Jan 1 - Aug 24 (236 days) are non-future, and only
+  // Aug 24 itself has real data — everything else in range is nodata.
+  assert.equal(stats.trackedDays, 1);
+});
+
+test("up/down/flat counts follow the grid's own colour buckets, not the raw sign", () => {
+  const cells = [
+    { date: "d1", bucket: "g2", dayPct: 0.5 },
+    { date: "d2", bucket: "r1", dayPct: -0.2 },
+    { date: "d3", bucket: "flat", dayPct: 0.05 }, // a real up day by raw sign, but "flat" on the grid
+    { date: "d4", bucket: "nodata", dayPct: null },
+    { date: "d5", bucket: "future", dayPct: null },
+  ];
+  const stats = yearStats(cells);
+  assert.equal(stats.upDays, 1);
+  assert.equal(stats.downDays, 1);
+  assert.equal(stats.flatDays, 1);
+  assert.equal(stats.trackedDays, 3);
+});
+
+test("a flat day breaks a streak in progress, same as a loss would", () => {
+  const cells = [
+    { date: "d1", bucket: "g1", dayPct: 0.2 },
+    { date: "d2", bucket: "g2", dayPct: 0.5 },
+    { date: "d3", bucket: "flat", dayPct: 0.05 },
+    { date: "d4", bucket: "g1", dayPct: 0.3 },
+  ];
+  const stats = yearStats(cells);
+  assert.equal(stats.longestUpStreak, 2); // d1-d2, reset at d3, then d4 alone
+});
+
+test("the longest streak wins even if a later, shorter one comes after it", () => {
+  const cells = [
+    { date: "d1", bucket: "r1", dayPct: -0.2 },
+    { date: "d2", bucket: "r1", dayPct: -0.2 },
+    { date: "d3", bucket: "r1", dayPct: -0.2 },
+    { date: "d4", bucket: "g1", dayPct: 0.2 },
+    { date: "d5", bucket: "r1", dayPct: -0.2 },
+  ];
+  const stats = yearStats(cells);
+  assert.equal(stats.longestDownStreak, 3);
+});
+
+test("best and worst day are picked by actual dayPct, not by bucket depth", () => {
+  const cells = [
+    { date: "2026-03-01", bucket: "g3", dayPct: 4.2, dayValue: 300 },
+    { date: "2026-05-14", bucket: "r3", dayPct: -3.9, dayValue: -280 },
+    { date: "2026-06-01", bucket: "g1", dayPct: 0.2, dayValue: 15 },
+  ];
+  const stats = yearStats(cells);
+  assert.equal(stats.bestDay.date, "2026-03-01");
+  assert.equal(stats.bestDay.dayValue, 300);
+  assert.equal(stats.worstDay.date, "2026-05-14");
+});
+
+test("no tracked days at all (a brand new install) gives nulls and zeros, not a crash", () => {
+  const stats = yearStats([{ date: "d1", bucket: "nodata", dayPct: null }, { date: "d2", bucket: "future", dayPct: null }]);
+  assert.equal(stats.trackedDays, 0);
+  assert.equal(stats.bestDay, null);
+  assert.equal(stats.worstDay, null);
+  assert.equal(stats.longestUpStreak, 0);
 });
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}\n`);

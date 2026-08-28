@@ -872,7 +872,16 @@
 
 /* =========================================================== page: year */
 
-.page-year { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+/* overflow-y: auto, not hidden (a safety net — .disp's own min-height:
+   100vh, not a fixed height, already lets the whole document scroll once
+   this page's content is taller than the window, same as every other
+   page here). The real fix for "more sections than fit" is .ysection's
+   own flex: none below: every .ysection now sizes to its own content
+   instead of the old flex: 1 splitting .page-year's height evenly between
+   however many sections happen to exist, which would have squeezed every
+   one of them (the heatmap included) into an equal, too-small slice the
+   moment a second section appeared. */
+.page-year { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
 
 /* The big number is the whole point of this page — GitHub leads with
    "3,936 contributions in 2022" in large type above its own bordered grid,
@@ -886,11 +895,21 @@
    always just say "just now" no matter how stale the colour underneath it. */
 .yupdated { font-size: 13.5px; color: var(--muted); white-space: nowrap; }
 .yupdated b { color: var(--ink-2); font-weight: 620; }
+/* A real descriptive sentence, not a short timestamp like .yupdated — needs
+   to actually wrap on a narrow phone instead of running off the edge. */
+.ysubtitle { font-size: 13.5px; color: var(--muted); }
 
-/* A titled section, not just "the grid" — leaves room for sibling
-   .ysection blocks to stack between .yhead and this one as more yearly
-   stats show up, without this one needing to change shape. */
-.ysection { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* A titled section, not just "the grid" — this is what the sibling
+   .ysection blocks below (sector allocation, currency exposure, year in
+   numbers) stack as. flex: none — each section sizes to its own content
+   rather than the old flex: 1 splitting .page-year's height evenly among
+   however many sections exist, which would have squeezed every one of
+   them (the heatmap included) into an equal, too-small slice the moment a
+   second section appeared. See .page-year's own comment for the other
+   half of this: the page scrolls now instead of relying on every section
+   fitting exactly. */
+.ysection { flex: none; min-height: 0; display: flex; flex-direction: column; margin-bottom: 22px; }
+.ysection:last-child { margin-bottom: 0; }
 .yshead { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 10px; flex-shrink: 0; }
 .yshead h2 { margin: 0; }
 
@@ -965,6 +984,52 @@
 .ynote { font-style: italic; }
 .yscale { display: flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap; }
 .yleg { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; }
+
+/* ---- sector allocation: a look-through GICS donut, not "what sector is
+   each ticker in" — see lib/sectorAllocation.js's own header for why that
+   distinction matters once most of the book is broad ETFs. Donut over pie
+   (a hole in the middle) mainly so a ring reads as "one hundred percent of
+   the book," not as a clock face; the hole shows the single biggest
+   sector, which is the one fact worth leading with the way .ystat leads
+   the page with the day count. Stays a plain circle + a list at every
+   width — no separate narrow-width layout to maintain, unlike .mcols. */
+.ysector { flex-direction: row; align-items: center; gap: 26px; flex-wrap: wrap; }
+.ydonut-wrap { position: relative; width: 148px; height: 148px; flex-shrink: 0; }
+.ydonut { width: 100%; height: 100%; border-radius: 50%; }
+.ydonut-hole {
+  position: absolute; inset: 24%; border-radius: 50%;
+  background: var(--raise); /* matches .ycard's own surface, so the ring reads as hollow, not just dark */
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 4px;
+}
+.ydonut-hole b { font-size: 19px; font-weight: 700; }
+.ydonut-hole span { font-size: 10.5px; color: var(--faint); line-height: 1.25; margin-top: 2px; }
+.ysector-legend { display: flex; flex-direction: column; gap: 5px; min-width: 220px; flex: 1; }
+.ysector-row { display: flex; align-items: baseline; gap: 9px; font-size: 14.5px; }
+.ysector-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; align-self: center; }
+.ysector-name { flex: 1; color: var(--ink-2); }
+.ysector-pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- currency exposure: a plain two-(or more)-segment stacked bar, not
+   a second donut — a binary CAD/USD split doesn't need a ring to read at
+   a glance, and this echoes .prow .w's existing thin-bar language on the
+   Finance page rather than inventing a second chart shape for one number. */
+.ycur-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--fill); }
+.ycur-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 14.5px; }
+.ycur-row { display: flex; align-items: center; gap: 7px; }
+.ycur-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.ycur-name { color: var(--ink-2); }
+.ycur-pct { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- year in numbers: up/down days, streaks, best/worst — same
+   big-number-over-a-caption shape .ystat already uses at the very top of
+   this page for the day count, just smaller and repeated per stat. */
+.ystats-row { display: flex; flex-wrap: wrap; gap: 20px 30px; }
+.ystats-item { display: flex; flex-direction: column; gap: 2px; }
+.ystats-item b { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ystats-item span { font-size: 13px; color: var(--muted); }
+.ystats-item.up b { color: var(--up); }
+.ystats-item.down b { color: var(--down); }
 
 /* =========================================================== page: week */
 /* First cut, testing — a busy-vs-free forecast, not a scheduler. No attempt

@@ -1734,6 +1734,62 @@ function StockIdeaDetailModal({ ticker, onClose }) {
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const LEGEND_BUCKETS = ["r3", "r2", "r1", "flat", "g1", "g2", "g3"];
 
+// One colour per GICS sector — deliberately its own small palette, not a
+// reuse of the domain hues (those are reserved for the tasks page's own
+// dots, see Display.css's "colour budget" comment at the top of the file)
+// and nothing overlapping --up/--down/--accent, which already mean
+// something specific everywhere else on this screen.
+const GICS_COLORS = {
+  "Information Technology": "#5b8dd6",
+  "Financials": "#9585d8",
+  "Health Care": "#4fb8a8",
+  "Consumer Discretionary": "#c17a3e",
+  "Industrials": "#6f7f99",
+  "Communication Services": "#c47fc0",
+  "Consumer Staples": "#b5a56a",
+  "Energy": "#b6633f",
+  "Materials": "#7a8c6a",
+  "Utilities": "#4a7a96",
+  "Real Estate": "#a67c52",
+  "Unclassified": "#55534d",
+};
+// A hand-typed vault sector tag that ISN'T one of the eleven GICS names —
+// lib/sectorAllocation.js's own fallback path for a ticker Yahoo has no
+// data for — still needs a stable colour. Hashed from the label itself so
+// the same tag always lands on the same hue rather than shifting between
+// renders or refreshes.
+function fallbackColor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return `hsl(${hash % 360}, 38%, 48%)`;
+}
+const sectorColor = (name) => GICS_COLORS[name] || fallbackColor(name);
+
+const CURRENCY_COLORS = { USD: "#5b8dd6", CAD: "#c17a3e" };
+const currencyColor = (code) => CURRENCY_COLORS[code] || fallbackColor(code);
+
+/** A conic-gradient() value from an already-sorted [{key, pct}] list —
+ *  cumulative stops, one arc per slice. Shared by the sector donut; the
+ *  currency split uses a plain flex bar instead (see .ycur-bar), not this. */
+function conicGradient(slices, keyOf, colorOf) {
+  let acc = 0;
+  const stops = slices.map((s) => {
+    const start = acc;
+    acc = Math.min(100, acc + s.pct);
+    return `${colorOf(keyOf(s))} ${start}% ${acc}%`;
+  });
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
+const YSTAT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "2026-04-11" -> "Apr 11" — the best/worst-day callouts only need the
+ *  month and day, not the year (the whole page is already scoped to one). */
+function shortDate(iso) {
+  if (!iso) return "";
+  const [, m, day] = iso.split("-");
+  return `${YSTAT_MONTHS[Number(m) - 1]} ${Number(day)}`;
+}
+
 function YearPage({ d }) {
   const y = d.year;
   // Which cell's card is pinned open by a tap — same idea as Strip's own
@@ -1885,6 +1941,128 @@ function YearPage({ d }) {
               Better
             </span>
           </div>
+        </div>
+      </section>
+
+      {/* Look-through GICS sector mix — see lib/sectorAllocation.js's own
+          header for why this weights each ETF's own underlying sectors by
+          how much of the book it is, rather than showing "ETF" as one
+          lump. Empty until the first pull's had a chance to fetch and
+          cache each holding's Yahoo sector data (lib/sectorProfile.js) —
+          shown honestly as "not available yet," never a placeholder pie. */}
+      <section className="ysection">
+        <div className="yshead">
+          <h2>Sector Allocation</h2>
+          <span className="ysubtitle">Look-through — what your ETFs actually hold, not just their own label</span>
+        </div>
+        <div className="ycard ysector">
+          {y.sectorAllocation?.length ? (
+            <>
+              <div className="ydonut-wrap">
+                <div className="ydonut" style={{ background: conicGradient(y.sectorAllocation, (s) => s.sector, sectorColor) }} />
+                <div className="ydonut-hole">
+                  <b>{y.sectorAllocation[0].pct.toFixed(0)}%</b>
+                  <span>{y.sectorAllocation[0].sector}</span>
+                </div>
+              </div>
+              <div className="ysector-legend">
+                {y.sectorAllocation.map((s) => (
+                  <div className="ysector-row" key={s.sector}>
+                    <i className="ysector-dot" style={{ background: sectorColor(s.sector) }} />
+                    <span className="ysector-name">{s.sector}</span>
+                    <span className="ysector-pct">{s.pct.toFixed(1)}%</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <span className="empty">Sector data isn't available yet — it fills in after the next portfolio pull.</span>
+          )}
+        </div>
+      </section>
+
+      {/* CAD/USD split — every holding already declares its own settlement
+          currency, so unlike the sector mix this needs no extra fetch and
+          is never empty once there's at least one priced position. */}
+      <section className="ysection">
+        <div className="yshead">
+          <h2>Currency Exposure</h2>
+        </div>
+        <div className="ycard">
+          {y.currencyExposure?.length ? (
+            <>
+              <div className="ycur-bar">
+                {y.currencyExposure.map((c) => (
+                  <div
+                    key={c.currency}
+                    style={{ flex: `0 0 ${c.pct}%`, background: currencyColor(c.currency) }}
+                  />
+                ))}
+              </div>
+              <div className="ycur-legend">
+                {y.currencyExposure.map((c) => (
+                  <span className="ycur-row" key={c.currency}>
+                    <i className="ycur-dot" style={{ background: currencyColor(c.currency) }} />
+                    <span className="ycur-name">{c.currency}</span>
+                    <span className="ycur-pct">{c.pct.toFixed(1)}%</span>
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <span className="empty">No priced positions yet.</span>
+          )}
+        </div>
+      </section>
+
+      {/* Up/down days, streaks, best/worst — the same GitHub-contribution-
+          graph instinct that made the grid worth building, aggregated into
+          a few numbers instead of 365 cells. See brief/display.js's
+          yearStats() for exactly what "up"/"down" mean here (the grid's
+          own colour buckets, not the raw sign of dayPct). */}
+      <section className="ysection">
+        <div className="yshead">
+          <h2>Year in Numbers</h2>
+        </div>
+        <div className="ycard">
+          {y.stats?.trackedDays ? (
+            <div className="ystats-row">
+              <div className="ystats-item up">
+                <b>{y.stats.upDays}</b>
+                <span>up days</span>
+              </div>
+              <div className="ystats-item down">
+                <b>{y.stats.downDays}</b>
+                <span>down days</span>
+              </div>
+              <div className="ystats-item">
+                <b>{y.stats.flatDays}</b>
+                <span>flat days</span>
+              </div>
+              <div className="ystats-item up">
+                <b>{y.stats.longestUpStreak}</b>
+                <span>best streak</span>
+              </div>
+              <div className="ystats-item down">
+                <b>{y.stats.longestDownStreak}</b>
+                <span>worst streak</span>
+              </div>
+              {y.stats.bestDay && (
+                <div className="ystats-item up">
+                  <b>{signed(y.stats.bestDay.dayPct)}%</b>
+                  <span>best day · {shortDate(y.stats.bestDay.date)}</span>
+                </div>
+              )}
+              {y.stats.worstDay && (
+                <div className="ystats-item down">
+                  <b>{signed(y.stats.worstDay.dayPct)}%</b>
+                  <span>worst day · {shortDate(y.stats.worstDay.date)}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <span className="empty">Not enough tracked days yet this year.</span>
+          )}
         </div>
       </section>
 

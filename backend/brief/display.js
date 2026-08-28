@@ -536,6 +536,54 @@ export function yearGrid(history = [], now = new Date(), timeZone) {
   return { weeks, cells, months };
 }
 
+/**
+ * Up days, down days, streaks, best/worst single day — the same GitHub-
+ * contribution-graph instinct that made the grid itself worth building,
+ * just aggregated into a few numbers instead of 365 cells. Pure, and takes
+ * yearGrid()'s own `cells` output directly.
+ *
+ * "Up"/"down" follow the grid's own colour buckets (g1-g3 / r1-r3), not the raw
+ * sign of dayPct — a +0.05% day reads as "flat" (white) on the grid, so it
+ * shouldn't silently count as a win here either; that would make the
+ * streak/count numbers disagree with what the grid visibly shows. A flat
+ * day breaks a streak in progress the same way a loss would — it's
+ * genuinely neither a win nor a loss. "nodata" and "future" cells (no
+ * dayPct at all) are skipped entirely rather than counted as flat, same
+ * "don't invent a number you don't have" rule as everywhere else here.
+ */
+export function yearStats(cells = []) {
+  const tracked = cells.filter((c) => c.bucket !== "nodata" && c.bucket !== "future");
+
+  let upDays = 0, downDays = 0, flatDays = 0;
+  let curUpStreak = 0, curDownStreak = 0, longestUpStreak = 0, longestDownStreak = 0;
+  let bestDay = null, worstDay = null;
+
+  for (const c of tracked) {
+    const isUp = c.bucket[0] === "g";
+    const isDown = c.bucket[0] === "r";
+    if (isUp) { upDays++; curUpStreak++; curDownStreak = 0; }
+    else if (isDown) { downDays++; curDownStreak++; curUpStreak = 0; }
+    else { flatDays++; curUpStreak = 0; curDownStreak = 0; }
+    longestUpStreak = Math.max(longestUpStreak, curUpStreak);
+    longestDownStreak = Math.max(longestDownStreak, curDownStreak);
+
+    if (c.dayPct != null) {
+      if (!bestDay || c.dayPct > bestDay.dayPct) bestDay = c;
+      if (!worstDay || c.dayPct < worstDay.dayPct) worstDay = c;
+    }
+  }
+
+  const pick = (c) => (c ? { date: c.date, dayPct: c.dayPct, dayValue: c.dayValue } : null);
+
+  return {
+    trackedDays: tracked.length,
+    upDays, downDays, flatDays,
+    longestUpStreak, longestDownStreak,
+    bestDay: pick(bestDay),
+    worstDay: pick(worstDay),
+  };
+}
+
 /** Strip the noise the detail line already carries elsewhere. */
 function locationOf(item) {
   const loc = item.meta?.location || null;
@@ -1546,9 +1594,13 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
 
   // moneyUpdatedLabel itself is computed early, above, alongside
   // lastUpdatedLabel — this is just where the Year page's copy of it lives.
+  const yg = yearGrid(history, now, tz);
   const year = {
-    ...yearProgress(now, tz), ...yearGrid(history, now, tz), moneyUpdatedLabel,
+    ...yearProgress(now, tz), ...yg, moneyUpdatedLabel,
     base: money?.base || "CAD", // so the hover tooltip can label the dollar figure correctly
+    stats: yearStats(yg.cells),
+    sectorAllocation: money?.sectorAllocation || [],
+    currencyExposure: money?.currencyExposure || [],
   };
 
   return {
