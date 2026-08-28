@@ -20,6 +20,8 @@
 
 import { ask } from "../lib/ai.js";
 import { cacheKey } from "../lib/ids.js";
+import { getCourse } from "../lib/store.js";
+import { extractCourseCode } from "../lib/classify.js";
 import { clockLabel, durationLabel, priorityWord, importanceOf } from "./display.js";
 
 const ORIGIN_LABELS = { calendar: "Calendar", email: "Email", brightspace: "Brightspace", money: "Finance" };
@@ -57,8 +59,18 @@ function inferKind(item) {
  * itself computes (see importanceOf() in display.js) — recomputed here
  * from the raw item since this endpoint never has that day's whole pool
  * built, just the one clicked item.
+ *
+ * `syllabus` is the Brightspace enrichment layer — course-level grading
+ * breakdown and topic scope, when a syllabus for this item's course has
+ * been parsed (see scripts/parse-syllabus.js and the `courses` table).
+ * `course` is passed in already-fetched (buildItemDetail awaits getCourse()
+ * before calling this) so buildFacts() itself stays synchronous and free of
+ * any store access, same as every other field here — null when there's no
+ * course code to match, or no syllabus on file for that code yet, so the
+ * modal never shows a partially-true guess, only real parsed data or
+ * nothing at all.
  */
-function buildFacts(item, tz) {
+function buildFacts(item, tz, course = null) {
   const allDay = Boolean(item.meta?.allDay);
   return {
     title: item.title,
@@ -78,6 +90,12 @@ function buildFacts(item, tz) {
     swatch: item.swatch || null,
     color: item.color || null,
     importance: importanceOf(item),
+    syllabus: course ? {
+      courseCode: course.courseCode,
+      courseName: course.courseName,
+      weightings: course.weightings,
+      topics: course.topics,
+    } : null,
   };
 }
 
@@ -163,7 +181,16 @@ const PROMPTS = {
 export async function buildItemDetail(item, config, { tz, hintKind } = {}) {
   const timeZone = tz || config.timezone || "America/Toronto";
   const kind = KINDS.has(hintKind) ? hintKind : inferKind(item);
-  const facts = buildFacts(item, timeZone);
+
+  // A Brightspace item already carries its own courseCode (extracted by
+  // sources/brightspace.js at collection time); a plain calendar/email item
+  // never has that field, so it's extracted fresh from the title here —
+  // same helper, same "MSE 3401" shape either way. Either source of a code
+  // is just a lookup key into the courses table; nothing about ranking or
+  // classification depends on it.
+  const courseCode = item.courseCode || extractCourseCode(item.title) || null;
+  const course = courseCode ? await getCourse(courseCode) : null;
+  const facts = buildFacts(item, timeZone, course);
   const { system, fmt } = PROMPTS[kind];
 
   const key = cacheKey("item-detail", { id: item.id, h: item.contentHash, k: kind });

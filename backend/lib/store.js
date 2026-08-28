@@ -416,3 +416,50 @@ export async function holdingHistory(ticker, { limit } = {}) {
     : dbc.prepare(`SELECT ${cols} FROM holding_days WHERE ticker = ? ORDER BY date ASC`).all(ticker);
   return rows;
 }
+
+// ------------------------------------------------------------- courses
+//
+// Syllabus reference data — see db.js's own comment on the `courses` table.
+// Same getX/setX shape as getHoldings()/setHoldings() above: the caller
+// never sees that weightings/topics are stored as JSON text, only the
+// parsed arrays it actually wants to read or write.
+
+export async function getCourse(courseCode) {
+  const dbc = getDb();
+  const row = dbc.prepare("SELECT * FROM courses WHERE course_code = ?").get(courseCode);
+  if (!row) return null;
+  return {
+    courseCode: row.course_code,
+    courseName: row.course_name || null,
+    weightings: row.weightings ? JSON.parse(row.weightings) : [],
+    topics: row.topics ? JSON.parse(row.topics) : [],
+    syllabusFile: row.syllabus_file || null,
+    syllabusHash: row.syllabus_hash || null,
+    updatedAt: row.updated_at || null,
+  };
+}
+
+export async function setCourse(courseCode, {
+  courseName = null, weightings = [], topics = [], syllabusFile = null, syllabusHash = null,
+} = {}) {
+  const dbc = getDb();
+  dbc.prepare(`
+    INSERT INTO courses (course_code, course_name, weightings, topics, syllabus_file, syllabus_hash, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(course_code) DO UPDATE SET
+      course_name = excluded.course_name,
+      weightings = excluded.weightings,
+      topics = excluded.topics,
+      syllabus_file = excluded.syllabus_file,
+      syllabus_hash = excluded.syllabus_hash,
+      updated_at = excluded.updated_at
+  `).run(
+    courseCode, courseName, JSON.stringify(weightings), JSON.stringify(topics),
+    syllabusFile, syllabusHash, nowIso()
+  );
+}
+
+export async function allCourses() {
+  const dbc = getDb();
+  return dbc.prepare("SELECT course_code FROM courses ORDER BY course_code").all().map((r) => r.course_code);
+}

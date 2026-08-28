@@ -655,6 +655,17 @@
 .item-modal-facts span::before { content: "·"; margin-right: 12px; color: var(--faint); }
 .item-modal-facts span:first-child::before { content: none; margin-right: 0; }
 .item-modal-done { color: var(--accent); font-weight: 640; }
+/* Brightspace syllabus enrichment — a visually distinct inset (small left
+   rule, muted head) so it reads as EXTRA course context sitting alongside
+   the AI summary, never mistaken for a fact about this specific item the
+   way item-modal-facts above is. See Display.jsx's own comment on why this
+   is deliberately course-level ("From the X syllabus"), not a claimed match
+   to one specific weighting line. */
+.item-modal-syllabus {
+  border-left: 2px solid var(--faint); padding-left: 10px; margin: 0 0 12px;
+}
+.item-modal-syllabus-head { margin: 0 0 3px; font-size: 12px; font-weight: 640; color: var(--faint); text-transform: uppercase; letter-spacing: .02em; }
+.item-modal-syllabus-line { margin: 0 0 2px; font-size: 13.5px; line-height: 1.45; color: var(--ink-2); }
 .item-modal-summary { font-size: 14.5px; line-height: 1.5; color: var(--ink-2); margin: 0 0 10px; }
 .item-modal-summary.muted { color: var(--faint); font-style: italic; }
 .item-modal-action { font-size: 14.5px; line-height: 1.5; color: var(--ink); margin: 0 0 10px; }
@@ -736,6 +747,10 @@
 .orow { display: flex; justify-content: space-between; padding: 3px 0; color: var(--ink-2); }
 .orow.off { color: var(--faint); }
 .orow.off span:last-child { font-style: italic; }
+/* The safety-net "N not on your calendar yet" line — see brief/brightspace.js's
+   unscheduledCount(). Rendered only when > 0 (Display.jsx), so this rule
+   never has to account for an empty/zero state. */
+.origins-note { margin: 6px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
 
 /* ========================================================== page: money */
 

@@ -821,6 +821,34 @@ function ItemDetailModal({ detail, onClose }) {
               <span>{facts.sourceLabel}</span>
               {facts.status === "done" && <span className="item-modal-done">Marked done</span>}
             </div>
+            {/* Brightspace syllabus enrichment — course-level context (grade
+                weighting, topic scope) read straight off a parsed syllabus
+                PDF, when one's on file for this item's course (see
+                brief/detail.js's buildFacts() and scripts/parse-syllabus.js).
+                Deliberately COURSE-level, not claiming to match this exact
+                assignment to one specific weighting line — the syllabus
+                doesn't say which line an ICS due-date corresponds to, so
+                this only ever states what's actually written, never a
+                guessed match. Absent entirely when there's no course code
+                or no syllabus parsed yet — same "real data or nothing"
+                rule the AI summary below follows. */}
+            {facts.syllabus && (
+              <div className="item-modal-syllabus">
+                <p className="item-modal-syllabus-head">
+                  From the {facts.syllabus.courseName || facts.syllabus.courseCode} syllabus
+                </p>
+                {facts.syllabus.weightings?.length > 0 && (
+                  <p className="item-modal-syllabus-line">
+                    Grading: {facts.syllabus.weightings.map((w) => `${w.item} ${w.weight}%`).join(", ")}
+                  </p>
+                )}
+                {facts.syllabus.topics?.length > 0 && (
+                  <p className="item-modal-syllabus-line">
+                    {facts.syllabus.topics.map((t) => [t.assessment, t.scope || t.chapters].filter(Boolean).join(" — ")).join("; ")}
+                  </p>
+                )}
+              </div>
+            )}
             {data.ai ? (
               <>
                 <p className="item-modal-summary">{data.ai.summary}</p>
@@ -963,6 +991,17 @@ function TasksPage({ d, onAct }) {
                 <span>{tasks.counts[k] ? `${tasks.counts[k]}` : "not connected"}</span>
               </div>
             ))}
+            {/* The safety-net count — how many upcoming Brightspace deadlines
+                have no matching entry on the real calendar yet (see
+                unscheduledCount() in brief/brightspace.js). Says nothing at
+                all when it's zero, same as every other zero-count badge in
+                this app — a real number is only worth a line when there's
+                actually something to act on. */}
+            {tasks.unscheduledBrightspaceCount > 0 && (
+              <p className="origins-note">
+                {tasks.unscheduledBrightspaceCount} Brightspace {tasks.unscheduledBrightspaceCount === 1 ? "deadline isn't" : "deadlines aren't"} on your calendar yet.
+              </p>
+            )}
           </div>
         </section>
       </div>

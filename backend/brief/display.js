@@ -22,6 +22,8 @@
 //
 // Pure function. No network, no store, no AI.
 
+import { unscheduledCount } from "./brightspace.js";
+
 const DAY = 86400000;
 
 /** Hour of day as a float (13.5 = 1:30pm) in a specific timezone. */
@@ -908,7 +910,18 @@ export function buildTasks(live, { now, tz, config = {}, priorities = [] }) {
     Object.keys(ORIGIN_LABELS).map((k) => [k, rows.filter((r) => r.origin === k).length])
   );
 
-  return { groups, total: rows.length, counts, urgent: rows.filter((r) => r.daysOut !== null && r.daysOut <= 0).length };
+  // How many upcoming Brightspace deadlines aren't on the calendar yet — see
+  // brief/brightspace.js's own header for why this is a plain, cheap,
+  // uncached comparison rather than anything AI-assisted. `live` here (not
+  // `rows`, which is already filtered to isTaskLike()) is deliberate:
+  // unscheduledCount() needs the calendar side of `live` too, to actually
+  // check for a match, not just the task-like Brightspace half of it.
+  const unscheduledBrightspaceCount = unscheduledCount(live, config, now);
+
+  return {
+    groups, total: rows.length, counts, unscheduledBrightspaceCount,
+    urgent: rows.filter((r) => r.daysOut !== null && r.daysOut <= 0).length,
+  };
 }
 
 /**

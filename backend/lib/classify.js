@@ -33,6 +33,22 @@ export function looksLikeCourseCode(text) {
   return /\b[A-Z]{2,4}\s?\d{3,4}[A-Z]?\b/.test(String(text || ""));
 }
 
+/**
+ * Same shape looksLikeCourseCode() tests for, but returns the code itself
+ * (normalised to "ELEC 2507" — letters, one space, digits) instead of a
+ * plain boolean. Written for the Brightspace source and the syllabus
+ * enrichment lookup in brief/detail.js, both of which need the actual code
+ * to key a lookup by, not just a yes/no signal — looksLikeCourseCode()
+ * itself is left untouched (still just a boolean) since categorise() and
+ * deriveDomain() only ever needed that, and there's no reason to risk their
+ * already-tested behaviour for this. The regex is deliberately the same
+ * shape as looksLikeCourseCode()'s own, just with capturing groups.
+ */
+export function extractCourseCode(text) {
+  const m = /\b([A-Z]{2,4})\s?(\d{3,4}[A-Z]?)\b/.exec(String(text || ""));
+  return m ? `${m[1]} ${m[2]}` : null;
+}
+
 /** An email address used as a calendar name is Google's default, not a label. */
 export function isEmailLike(text) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(text || "").trim());

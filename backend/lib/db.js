@@ -86,6 +86,24 @@ CREATE TABLE IF NOT EXISTS holding_days (
   PRIMARY KEY (date, ticker)
 );
 CREATE INDEX IF NOT EXISTS idx_holding_days_ticker ON holding_days(ticker);
+
+-- Syllabus reference data, one row per course — grade weightings and topic
+-- scope, extracted once (and only re-extracted when the PDF's own content
+-- hash changes) by scripts/parse-syllabus.js. Deliberately separate from
+-- items: a course's grading breakdown isn't a task with a due date, it's
+-- context that enriches whichever Brightspace/calendar items mention that
+-- course code (see brief/detail.js's buildFacts()). weightings/topics are
+-- stored as JSON text, same convention as items.data — this table never
+-- needs to be queried BY their contents, only read back whole.
+CREATE TABLE IF NOT EXISTS courses (
+  course_code   TEXT PRIMARY KEY,
+  course_name   TEXT,
+  weightings    TEXT,
+  topics        TEXT,
+  syllabus_file TEXT,
+  syllabus_hash TEXT,
+  updated_at    TEXT
+);
 `;
 
 let instance = null;

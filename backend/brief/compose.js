@@ -17,6 +17,7 @@ import { domainLabel } from "../lib/classify.js";
 import { collectEmail } from "../sources/email.js";
 import { collectCalendar } from "../sources/calendar.js";
 import { collectMoney } from "../sources/money.js";
+import { collectBrightspace } from "../sources/brightspace.js";
 import { buildPriorities } from "./priorities.js";
 import { buildDayContext, buildDeadlinePool } from "./display.js";
 import { refreshInsights } from "./insights.js";
@@ -26,10 +27,15 @@ const log = logger("brief");
 
 // The vault is no longer a task/event source (see lib/sources.js) — money.js
 // still reads it directly for holdings, which is unrelated to this list.
+// brightspace is always in the rotation, same as every other source — see
+// sources/brightspace.js's own header for why running it with no ICS URL
+// set yet is a harmless no-op rather than something that needs special-
+// casing out of this list.
 const COLLECTORS = {
   email: collectEmail,
   calendar: collectCalendar,
   money: collectMoney,
+  brightspace: collectBrightspace,
 };
 
 /** The canonical source list. Everything that iterates sources reads this. */

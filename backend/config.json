@@ -26,6 +26,17 @@
     "horizonDays": 60,
     "_horizonDays_note": "Anything dated further out than this waits its turn. Nothing else is ever removed \u2014 repeated items are marked quiet and collapsed, not dropped."
   },
+  "brightspace": {
+    "_comment": "Secondary enrichment layer: syllabus grading/topic context on items you tap, plus a count of Brightspace deadlines with no matching Google Calendar entry yet. Never a replacement for Calendar \u2014 see backend/sources/brightspace.js.",
+    "enabled": true,
+    "_enabled_note": "The .ics URL itself lives in .env as BRIGHTSPACE_ICS_URL (run `npm run set-brightspace-url`), never here \u2014 it's a credential, and .env is the one file that never travels between machines on a git pull. This flag alone doesn't gate anything in code yet; it's here for when a manual pause switch is worth adding.",
+    "syllabiDir": "backend/data/syllabi",
+    "_syllabiDir_note": "Where `npm run parse-syllabi` looks for PDFs. Already covered by backend/data/'s own .gitignore rule \u2014 syllabus PDFs never get committed.",
+    "auditWindowDays": 14,
+    "_auditWindowDays_note": "How far out the \"not on your calendar yet\" count looks. A Brightspace deadline further out than this isn't counted as missing \u2014 it's just not due soon enough to flag yet.",
+    "courseCodeMatchWindowDays": 2,
+    "_courseCodeMatchWindowDays_note": "A Brightspace item counts as already-scheduled if a calendar item with the same course code falls within this many days of it \u2014 loose enough that your own reminder a day early (or the Brightspace cutoff being a day later than your own entry) still counts as a match."
+  },
   "categories": {
     "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",
     "_matching": "calendarPatterns match the calendar's name, titlePatterns match the event title or email subject, tiers match an email's rule tier. All are case-insensitive substring matches.",

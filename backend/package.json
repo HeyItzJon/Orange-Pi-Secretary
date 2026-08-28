@@ -13,8 +13,10 @@
     "sync-holdings": "node scripts/sync-holdings.js",
     "get-refresh-token": "node scripts/get-refresh-token.js",
     "set-deepseek-key": "node scripts/set-deepseek-key.js",
+    "set-brightspace-url": "node scripts/set-brightspace-url.js",
     "refresh-stock-idea": "node scripts/refresh-stock-idea.js",
-    "test": "node scripts/test-rules.js && node scripts/test-display.js && node scripts/test-money.js && node scripts/test-priorities.js && node scripts/test-year.js && node scripts/test-store.js && node scripts/test-stock-ideas.js && node scripts/test-time.js && node scripts/test-google.js && node scripts/test-paths.js && node scripts/test-envfile.js && node scripts/test-oauthcode.js && node scripts/test-secretvalue.js && node scripts/test-email.js && node scripts/test-insights.js && node scripts/test-detail.js",
+    "parse-syllabi": "node scripts/parse-syllabus.js",
+    "test": "node scripts/test-rules.js && node scripts/test-display.js && node scripts/test-money.js && node scripts/test-priorities.js && node scripts/test-year.js && node scripts/test-store.js && node scripts/test-stock-ideas.js && node scripts/test-time.js && node scripts/test-google.js && node scripts/test-paths.js && node scripts/test-envfile.js && node scripts/test-oauthcode.js && node scripts/test-secretvalue.js && node scripts/test-email.js && node scripts/test-insights.js && node scripts/test-detail.js && node scripts/test-brightspace.js",
     "refresh": "node scripts/run-once.js"
   },
   "dependencies": {
@@ -22,6 +24,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "node-ical": "^0.20.1",
+    "pdf-parse": "^1.1.1",
     "yahoo-finance2": "^4.0.2"
   },
   "engines": {
