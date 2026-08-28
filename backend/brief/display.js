@@ -637,6 +637,25 @@ export function sourceConfigured(source) {
 }
 
 /**
+ * Three real states, not two. sourceConfigured() alone only answers "is
+ * there a credential on file" — a present-but-dead refresh token, or a
+ * revoked Brightspace subscription link, still passes that check, then
+ * fails every actual fetch. Jon's own complaint about the two-state
+ * version: that read identically to "never set up", which points at the
+ * wrong fix (go paste a credential you already have) instead of the right
+ * one (go see why the working credential started failing). `errors` is the
+ * exact same lastError_<source> data freshness()'s own `broken`/`problem`
+ * footer banner already reads (see server.js's /api/display handler) —
+ * reused here, not recomputed, so the origins panel and the footer can
+ * never disagree about whether a source is currently broken.
+ */
+export function originStatus(source, errors = {}) {
+  if (!sourceConfigured(source)) return "unconfigured";
+  if (errors[source]?.message) return "error";
+  return "ok";
+}
+
+/**
  * A 1-10 "how loaded is this day" read for the Week page's per-day cards —
  * the busy/free bar already says the same story in hours, this compresses
  * it to one number a small fill/colour badge can show at a glance. Every
@@ -1468,14 +1487,15 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const taskCounts = Object.fromEntries(
     Object.keys(ORIGIN_LABELS).map((k) => [k, taskLike.filter((r) => r.source === k).length])
   );
-  // Separate from the count above — see sourceConfigured()'s own comment
-  // for why "0 items" and "never set up" can't share one signal.
-  const taskConfigured = Object.fromEntries(Object.keys(ORIGIN_LABELS).map((k) => [k, sourceConfigured(k)]));
+  // Separate from the count above — "unconfigured" | "error" | "ok", see
+  // originStatus()'s own comment for why "0 items" and "never set up" and
+  // "set up but currently broken" all need to stay distinguishable.
+  const taskStatus = Object.fromEntries(Object.keys(ORIGIN_LABELS).map((k) => [k, originStatus(k, errors)]));
   // How many upcoming Brightspace deadlines aren't on the calendar yet — see
   // brief/brightspace.js's own header for why this is a plain, cheap,
   // uncached comparison rather than anything AI-assisted.
   const unscheduledBrightspaceCount = unscheduledCount(live, config, now);
-  const tasks = { inbox, tracked, filedAway, resolved, counts: taskCounts, configured: taskConfigured, unscheduledBrightspaceCount };
+  const tasks = { inbox, tracked, filedAway, resolved, counts: taskCounts, status: taskStatus, unscheduledBrightspaceCount };
 
   // `week` itself (the busy-vs-free forecast plus the looming list it's
   // meant to be read against — see weekForecast()'s own comment for why the

@@ -747,6 +747,8 @@
 .orow { display: flex; justify-content: space-between; padding: 3px 0; color: var(--ink-2); }
 .orow.off { color: var(--faint); }
 .orow.off span:last-child { font-style: italic; }
+.orow.err { color: var(--down); }
+.orow.err span:last-child { font-weight: 600; }
 /* The safety-net "N not on your calendar yet" line — see brief/brightspace.js's
    unscheduledCount(). Rendered only when > 0 (Display.jsx), so this rule
    never has to account for an empty/zero state. */

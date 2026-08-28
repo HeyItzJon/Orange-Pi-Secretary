@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import {
   buildDisplay, hourOfDay, distanceLabel, chunkFor, priorityWord, durationLabel, freshness,
   isTaskLike, buildInbox, buildTracked, buildFiledAway, buildResolved, updatedLabel, dayKey, weekForecast,
-  filterLive, buildDayContext, buildDeadlinePool, sourceConfigured,
+  filterLive, buildDayContext, buildDeadlinePool, sourceConfigured, originStatus,
 } from "../brief/display.js";
 
 const TZ = "America/Toronto";
@@ -1489,19 +1489,51 @@ test("a source with no credential concept at all (money) is never reported as 'o
   withEnv({}, () => assert.equal(sourceConfigured("money"), true));
 });
 
-test("buildDisplay's tasks.configured reflects the real env, independent of tasks.counts", () => {
+test("buildDisplay's tasks.status reflects the real env, independent of tasks.counts", () => {
   withEnv({ BRIGHTSPACE_ICS_URL: "https://example.edu/feed.ics" }, () => {
     // Configured, but genuinely zero items right now (e.g. between terms) —
     // this must NOT read the same as "never set up".
     const d = buildDisplay({ items: [], config, now: NOW });
-    assert.equal(d.tasks.configured.brightspace, true);
+    assert.equal(d.tasks.status.brightspace, "ok");
     assert.equal(d.tasks.counts.brightspace, 0);
   });
   withEnv({}, () => {
     const d = buildDisplay({ items: [], config, now: NOW });
-    assert.equal(d.tasks.configured.brightspace, false);
+    assert.equal(d.tasks.status.brightspace, "unconfigured");
     assert.equal(d.tasks.counts.brightspace, 0);
   });
+});
+
+// ====================================================================
+group("originStatus — a third state for 'configured but currently broken'");
+
+test("unconfigured wins even if an error happens to be recorded (shouldn't normally happen, but configured-ness is checked first)", () => {
+  withEnv({}, () => {
+    assert.equal(originStatus("brightspace", { brightspace: { message: "boom" } }), "unconfigured");
+  });
+});
+
+test("configured + no error is ok", () => {
+  withEnv({ BRIGHTSPACE_ICS_URL: "https://example.edu/feed.ics" }, () => {
+    assert.equal(originStatus("brightspace", {}), "ok");
+    assert.equal(originStatus("brightspace", { brightspace: null }), "ok");
+  });
+});
+
+test("configured + a recorded lastError is 'error', not 'ok' — this is the case a live-but-empty count used to hide", () => {
+  withEnv(
+    { GMAIL_CLIENT_ID: "x", GMAIL_CLIENT_SECRET: "y", GMAIL_REFRESH_TOKEN: "z" },
+    () => {
+      assert.equal(originStatus("email", { email: { at: NOW, message: "invalid_grant" } }), "error");
+      // calendar shares the same Gmail credential — an email-only error
+      // shouldn't be reported against calendar too.
+      assert.equal(originStatus("calendar", { email: { at: NOW, message: "invalid_grant" } }), "ok");
+    }
+  );
+});
+
+test("a source with no credential concept (money) is 'ok' even with no errors object passed", () => {
+  assert.equal(originStatus("money"), "ok");
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);

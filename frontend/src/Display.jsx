@@ -1222,26 +1222,36 @@ function TasksPage({ d, onAct }) {
         <section className="zone">
           <h2>Where these come from</h2>
           <div className="origins">
-            {/* "off" (and the "not connected" text) now tracks whether the
-                source is actually set up — tasks.configured[k], from the
-                real credential/URL each one needs — not whether it happens
-                to have any items right now. A connected-but-currently-empty
-                Brightspace (nothing posted for a new term yet) reads as "0",
-                same as any other source having a genuinely quiet stretch;
-                only a source with no credential/URL at all reads as "not
-                connected". Falls back to the old items-based read if an
-                older cached /api/display response has no `configured`
-                field yet. */}
+            {/* tasks.status[k] is one of three states, not a boolean:
+                  "unconfigured" — no credential/URL set up at all
+                  "error"        — configured, but the last fetch failed
+                                   (dead/expired token, unreachable feed, etc.)
+                  "ok"           — configured and last fetch succeeded,
+                                   whatever the resulting count was
+                A connected-but-currently-empty Brightspace (nothing posted
+                for a new term yet) is "ok" with count 0 — same as any other
+                source having a genuinely quiet stretch. Only "unconfigured"
+                reads as "not connected"; "error" gets its own red state so a
+                source that's actually broken (e.g. a dead Gmail token) can't
+                hide behind a stale-looking count. Falls back to the old
+                items-based read if an older cached /api/display response
+                has neither `status` nor `configured` yet. */}
             {[
               ["calendar", "Calendar"],
               ["email", "Email"],
               ["brightspace", "Brightspace"],
             ].map(([k, label]) => {
-              const isConfigured = tasks.configured ? Boolean(tasks.configured[k]) : Boolean(tasks.counts[k]);
+              const status = tasks.status
+                ? tasks.status[k]
+                : tasks.configured
+                ? (tasks.configured[k] ? "ok" : "unconfigured")
+                : (tasks.counts[k] ? "ok" : "unconfigured");
+              const text =
+                status === "unconfigured" ? "not connected" : status === "error" ? "error" : tasks.counts[k];
               return (
-                <div className={`orow${isConfigured ? "" : " off"}`} key={k}>
+                <div className={`orow${status === "unconfigured" ? " off" : status === "error" ? " err" : ""}`} key={k}>
                   <span>{label}</span>
-                  <span>{isConfigured ? tasks.counts[k] : "not connected"}</span>
+                  <span>{text}</span>
                 </div>
               );
             })}
