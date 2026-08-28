@@ -1222,16 +1222,29 @@ function TasksPage({ d, onAct }) {
         <section className="zone">
           <h2>Where these come from</h2>
           <div className="origins">
+            {/* "off" (and the "not connected" text) now tracks whether the
+                source is actually set up — tasks.configured[k], from the
+                real credential/URL each one needs — not whether it happens
+                to have any items right now. A connected-but-currently-empty
+                Brightspace (nothing posted for a new term yet) reads as "0",
+                same as any other source having a genuinely quiet stretch;
+                only a source with no credential/URL at all reads as "not
+                connected". Falls back to the old items-based read if an
+                older cached /api/display response has no `configured`
+                field yet. */}
             {[
               ["calendar", "Calendar"],
               ["email", "Email"],
               ["brightspace", "Brightspace"],
-            ].map(([k, label]) => (
-              <div className={`orow${tasks.counts[k] ? "" : " off"}`} key={k}>
-                <span>{label}</span>
-                <span>{tasks.counts[k] ? `${tasks.counts[k]}` : "not connected"}</span>
-              </div>
-            ))}
+            ].map(([k, label]) => {
+              const isConfigured = tasks.configured ? Boolean(tasks.configured[k]) : Boolean(tasks.counts[k]);
+              return (
+                <div className={`orow${isConfigured ? "" : " off"}`} key={k}>
+                  <span>{label}</span>
+                  <span>{isConfigured ? tasks.counts[k] : "not connected"}</span>
+                </div>
+              );
+            })}
             {/* The safety-net count — how many upcoming Brightspace deadlines
                 have no matching entry on the real calendar yet (see
                 unscheduledCount() in brief/brightspace.js). Says nothing at

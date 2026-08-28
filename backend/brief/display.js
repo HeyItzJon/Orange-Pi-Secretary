@@ -618,6 +618,25 @@ const ORIGIN_LABELS = {
 };
 
 /**
+ * Whether a source is actually set up, independent of how many items it
+ * happens to have right now. The origins panel used to read "0 items" and
+ * "never configured" as the same thing — wrong for Brightspace specifically,
+ * which can be fully connected and correctly show 0 between terms (nothing
+ * posted for the new term yet), same as a calendar with a genuinely quiet
+ * week isn't "not connected". Checks the actual credential/URL each source
+ * needs to run at all, the same env vars scripts/doctor.js already checks —
+ * calendar and email both ride on the one Google OAuth grant, Brightspace on
+ * its own subscription URL.
+ */
+export function sourceConfigured(source) {
+  if (source === "brightspace") return Boolean(process.env.BRIGHTSPACE_ICS_URL);
+  if (source === "calendar" || source === "email") {
+    return Boolean(process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN);
+  }
+  return true;
+}
+
+/**
  * A 1-10 "how loaded is this day" read for the Week page's per-day cards —
  * the busy/free bar already says the same story in hours, this compresses
  * it to one number a small fill/colour badge can show at a glance. Every
@@ -1449,11 +1468,14 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   const taskCounts = Object.fromEntries(
     Object.keys(ORIGIN_LABELS).map((k) => [k, taskLike.filter((r) => r.source === k).length])
   );
+  // Separate from the count above — see sourceConfigured()'s own comment
+  // for why "0 items" and "never set up" can't share one signal.
+  const taskConfigured = Object.fromEntries(Object.keys(ORIGIN_LABELS).map((k) => [k, sourceConfigured(k)]));
   // How many upcoming Brightspace deadlines aren't on the calendar yet — see
   // brief/brightspace.js's own header for why this is a plain, cheap,
   // uncached comparison rather than anything AI-assisted.
   const unscheduledBrightspaceCount = unscheduledCount(live, config, now);
-  const tasks = { inbox, tracked, filedAway, resolved, counts: taskCounts, unscheduledBrightspaceCount };
+  const tasks = { inbox, tracked, filedAway, resolved, counts: taskCounts, configured: taskConfigured, unscheduledBrightspaceCount };
 
   // `week` itself (the busy-vs-free forecast plus the looming list it's
   // meant to be read against — see weekForecast()'s own comment for why the

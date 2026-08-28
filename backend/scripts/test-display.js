@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import {
   buildDisplay, hourOfDay, distanceLabel, chunkFor, priorityWord, durationLabel, freshness,
   isTaskLike, buildInbox, buildTracked, buildFiledAway, buildResolved, updatedLabel, dayKey, weekForecast,
-  filterLive, buildDayContext, buildDeadlinePool,
+  filterLive, buildDayContext, buildDeadlinePool, sourceConfigured,
 } from "../brief/display.js";
 
 const TZ = "America/Toronto";
@@ -1443,6 +1443,65 @@ test("deadlinesToday prefers the AI-renamed list, falls back to the raw pool, mi
 test("deadlinesToday is empty (not absent) on a day with nothing due", () => {
   const d = buildDisplay({ items: [], config, now: NOW });
   assert.deepEqual(d.deadlinesToday, []);
+});
+
+// ====================================================================
+group("sourceConfigured — \"0 items\" and \"never set up\" are different questions");
+
+// These read the real process.env, so every test here saves and restores
+// the exact keys it touches — a leaked value here would silently change
+// what every OTHER test file sees too, since env vars are process-wide.
+const ENV_KEYS = ["BRIGHTSPACE_ICS_URL", "GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"];
+function withEnv(vars, fn) {
+  const saved = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
+  for (const k of ENV_KEYS) delete process.env[k];
+  Object.assign(process.env, vars);
+  try { fn(); }
+  finally {
+    for (const k of ENV_KEYS) delete process.env[k];
+    for (const [k, v] of Object.entries(saved)) if (v !== undefined) process.env[k] = v;
+  }
+}
+
+test("brightspace is configured iff BRIGHTSPACE_ICS_URL is set — has nothing to do with the item count", () => {
+  withEnv({}, () => assert.equal(sourceConfigured("brightspace"), false));
+  withEnv({ BRIGHTSPACE_ICS_URL: "https://example.edu/feed.ics" }, () => assert.equal(sourceConfigured("brightspace"), true));
+});
+
+test("calendar and email are both configured only when all three Gmail OAuth env vars are present", () => {
+  withEnv({}, () => {
+    assert.equal(sourceConfigured("calendar"), false);
+    assert.equal(sourceConfigured("email"), false);
+  });
+  withEnv({ GMAIL_CLIENT_ID: "x", GMAIL_CLIENT_SECRET: "y" }, () => {
+    // Two of three still isn't configured — a half-set credential can't
+    // actually authenticate.
+    assert.equal(sourceConfigured("calendar"), false);
+    assert.equal(sourceConfigured("email"), false);
+  });
+  withEnv({ GMAIL_CLIENT_ID: "x", GMAIL_CLIENT_SECRET: "y", GMAIL_REFRESH_TOKEN: "z" }, () => {
+    assert.equal(sourceConfigured("calendar"), true);
+    assert.equal(sourceConfigured("email"), true);
+  });
+});
+
+test("a source with no credential concept at all (money) is never reported as 'off'", () => {
+  withEnv({}, () => assert.equal(sourceConfigured("money"), true));
+});
+
+test("buildDisplay's tasks.configured reflects the real env, independent of tasks.counts", () => {
+  withEnv({ BRIGHTSPACE_ICS_URL: "https://example.edu/feed.ics" }, () => {
+    // Configured, but genuinely zero items right now (e.g. between terms) —
+    // this must NOT read the same as "never set up".
+    const d = buildDisplay({ items: [], config, now: NOW });
+    assert.equal(d.tasks.configured.brightspace, true);
+    assert.equal(d.tasks.counts.brightspace, 0);
+  });
+  withEnv({}, () => {
+    const d = buildDisplay({ items: [], config, now: NOW });
+    assert.equal(d.tasks.configured.brightspace, false);
+    assert.equal(d.tasks.counts.brightspace, 0);
+  });
 });
 
 console.log(`\n${passed} passed${process.exitCode ? ", WITH FAILURES" : ""}\n`);
