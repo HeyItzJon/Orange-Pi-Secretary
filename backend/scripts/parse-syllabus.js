@@ -33,6 +33,7 @@
 // `syllabus` block to show, same graceful-degradation shape every other
 // optional fact in this app already follows.
 
+import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";

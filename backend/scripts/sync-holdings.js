@@ -9,6 +9,7 @@
 //
 // Run: node scripts/sync-holdings.js
 
+import "dotenv/config";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
