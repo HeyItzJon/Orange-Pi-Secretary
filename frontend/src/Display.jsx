@@ -1274,6 +1274,78 @@ function TasksPage({ d, onAct }) {
 }
 
 /**
+ * The Finances page's middle panel — real index/VIX numbers, one AI-written
+ * sentence (refreshed once a day, never a prediction or a recommendation —
+ * see backend/lib/marketTake.js), and a handful of real RSS headlines.
+ * Slots between the movers column and the positions table, same `.zone`
+ * shape as its neighbors so the existing `.mcols .zone + .zone` divider
+ * rule and phone-width stacking both apply with no changes needed there.
+ *
+ * `market` is null until the first pull after this feature ships (or if
+ * marketNews.enabled is false in config) — renders nothing in that case
+ * rather than an empty box, same as the "Worth a look" panel's own
+ * empty-until-first-refresh behavior.
+ */
+function MarketZone({ market }) {
+  if (!market) return null;
+
+  return (
+    <section className="zone market">
+      <h2>Markets</h2>
+      <div className="mkt-indices">
+        {market.indices.map((i) => (
+          <div className="mkt-row" key={i.symbol}>
+            <span className="mkt-label">{i.label}</span>
+            <span className={`mkt-pct ${(i.pct ?? 0) >= 0 ? "up" : "down"}`}>
+              {i.pct != null ? `${signed(i.pct, 2)}%` : "—"}
+            </span>
+          </div>
+        ))}
+        {market.vix && (
+          <div className="mkt-row mkt-vix">
+            <span className="mkt-label">VIX</span>
+            <span className="mkt-pct">{market.vix.value.toFixed(1)} · {market.vix.bucket || "—"}</span>
+          </div>
+        )}
+      </div>
+
+      {market.take && (
+        <>
+          <h2 className="spaced">Today's take</h2>
+          <p className="mkt-take">{market.take}</p>
+        </>
+      )}
+
+      <h2 className="spaced">In the news</h2>
+      {market.headlines.length === 0 ? (
+        <p className="empty">No headlines right now.</p>
+      ) : (
+        <div className="mkt-news">
+          {market.headlines.map((h, i) => (
+            <a
+              className="mkt-headline"
+              href={h.link || undefined}
+              target="_blank"
+              rel="noreferrer"
+              key={`${h.link || h.title}-${i}`}
+            >
+              {h.source && <span className="mkt-source">{h.source}</span>}
+              <span className="mkt-title">{h.title}</span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      {/* Named, not silently dropped — same rule the portfolio's own
+          staleTickers/missingTickers warning line follows. */}
+      {market.feedErrors?.length > 0 && (
+        <p className="mwarn">Feed unavailable: <b>{market.feedErrors.join(", ")}</b></p>
+      )}
+    </section>
+  );
+}
+
+/**
  * The book. Every position, priced in one currency, sorted by what it's
  * actually worth.
  *
@@ -1385,6 +1457,8 @@ function MoneyPage({ d }) {
             </>
           )}
         </section>
+
+        <MarketZone market={d.market} />
 
         <section className="zone positions">
           <h2>

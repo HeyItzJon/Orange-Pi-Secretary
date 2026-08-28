@@ -55,6 +55,11 @@ const ENV_READING_MODULES = [
   "lib/ai.js",
   "lib/google.js",
   "sources/brightspace.js",
+  // sources/marketNews.js doesn't read process.env itself, but it calls
+  // lib/marketTake.js's getMarketTake(), which calls lib/ai.js's ask() for
+  // the once-a-day "Today's take" sentence — same indirect shape
+  // sources/money.js already has via lib/paths.js's VAULT_PATH read.
+  "sources/marketNews.js",
 ];
 
 group("every standalone script that needs .env actually loads it");

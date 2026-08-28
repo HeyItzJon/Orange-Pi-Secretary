@@ -15,11 +15,15 @@
 // this list and always polled on the same clock as everything else, but
 // sources/brightspace.js itself no-ops cleanly (0 items, no error) until
 // BRIGHTSPACE_ICS_URL is actually set in .env. See that file's own header.
-export const SOURCES = ["email", "calendar", "money", "brightspace"];
+//
+// "marketNews" needs no credential at all (free RSS + the same Yahoo
+// Finance library the price pulls already use) — always on, same as money.
+export const SOURCES = ["email", "calendar", "money", "brightspace", "marketNews"];
 
 export const SOURCE_LABELS = {
   email: "Email",
   calendar: "Calendar",
   money: "Portfolio",
   brightspace: "Brightspace",
+  marketNews: "Market news",
 };

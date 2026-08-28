@@ -1138,7 +1138,7 @@ export function buildDeadlinePool(items, config, now, { days = 4 } = {}) {
   return byDay;
 }
 
-export function buildDisplay({ items = [], money = null, priorities = [], sources = {}, errors = {}, history = [], config = {}, now = new Date(), insights = null } = {}) {
+export function buildDisplay({ items = [], money = null, marketPulse = null, priorities = [], sources = {}, errors = {}, history = [], config = {}, now = new Date(), insights = null } = {}) {
   const tz = config.timezone || "America/Toronto";
   const cfg = config.display || {};
   const dayCount = cfg.days ?? 3;
@@ -1166,6 +1166,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
   // already uses to decide staleness — so it never claims to be more
   // current than the slower of the two sources actually feeding those pages.
   const moneyUpdatedLabel = updatedLabel(sources.money, tz, todayKey);
+  const marketNewsUpdatedLabel = updatedLabel(sources.marketNews, tz, todayKey);
   const livePairAt = ["email", "calendar"]
     .map((k) => sources[k])
     .filter(Boolean)
@@ -1464,6 +1465,32 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
     };
   }
 
+  // -------------------------------------------------------- market pulse
+  // The Finances page's middle panel — see sources/marketNews.js and
+  // claude/finances-page-ai-plan.md. Real index/VIX numbers and real RSS
+  // headlines pass through untouched; `take` is the one AI-written sentence,
+  // already gated to once a day by lib/marketTake.js, and is simply null
+  // until the first refresh after this feature ships. feedErrors is names
+  // only — a dead feed shows up as "Feed unavailable: X" on the page, same
+  // "named, not silently dropped" rule staleTickers/missingTickers above
+  // already follow for the portfolio.
+  let market = null;
+  if (marketPulse) {
+    market = {
+      updatedLabel: marketNewsUpdatedLabel,
+      at: marketPulse.at || null,
+      indices: (marketPulse.indices || []).map((i) => ({ symbol: i.symbol, label: i.label, pct: r(i.pct, 2) })),
+      vix: marketPulse.vix ? { value: r(marketPulse.vix.value, 1), bucket: marketPulse.vix.bucket || null } : null,
+      headlines: (marketPulse.headlines || []).map((h) => ({
+        title: h.title,
+        link: h.link || null,
+        source: h.source || null,
+      })),
+      feedErrors: (marketPulse.feedErrors || []).map((f) => f.name),
+      take: marketPulse.take || null,
+    };
+  }
+
   // Rule hits the money source raised — a 6% move, a drifted weight, a
   // contribution date. These are the sentences; the numbers above are context.
   const alerts = live
@@ -1575,6 +1602,7 @@ export function buildDisplay({ items = [], money = null, priorities = [], source
 
     // ---- page 4: Finances
     portfolio,
+    market,
     alerts,
     priorities,
 

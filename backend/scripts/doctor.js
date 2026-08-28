@@ -223,6 +223,68 @@ try {
   bad(`quotes check: ${err.message}`);
 }
 
+// ---- market news ----------------------------------------------------------
+// The Finances page's market panel (see config.json's marketNews block and
+// claude/finances-page-ai-plan.md) — free RSS feeds plus real index/VIX
+// data, no signup required. A dead feed is a warn, not a fail: the page
+// still works off whichever feeds are alive, same as one calendar among
+// several failing to resolve.
+console.log("\nMarket news");
+if (config.marketNews?.enabled === false) {
+  warn("marketNews.enabled is false in config.json — the Finances page's market panel will stay empty");
+} else {
+  try {
+    const axios = (await import("axios")).default;
+    const { DEFAULT_FEEDS, parseRssFeed } = await import("../sources/marketNews.js");
+    const feeds = config.marketNews?.feeds?.length ? config.marketNews.feeds : DEFAULT_FEEDS;
+    let deadFeeds = 0;
+    for (const feed of feeds) {
+      try {
+        const res = await axios.get(feed.url, {
+          timeout: config.marketNews?.feedTimeoutMs ?? 7000,
+          responseType: "text",
+          headers: { "User-Agent": "Mozilla/5.0 (compatible; pi-secretary/1.0; +https://github.com)" },
+        });
+        const items = parseRssFeed(res.data, feed.name);
+        items.length
+          ? ok(`${feed.name}: reachable — ${items.length} headline(s) right now`)
+          : warn(`${feed.name}: reachable but 0 headlines parsed out of it — the feed's XML shape may have changed`);
+      } catch (err) {
+        deadFeeds++;
+        const reason = err.response ? `HTTP ${err.response.status}` : err.message;
+        warn(`${feed.name}: ${reason} (the page still works off the other feeds — this one just won't contribute headlines)`);
+      }
+    }
+    if (deadFeeds === feeds.length && feeds.length) {
+      bad("every configured feed failed — 'In the news' will be empty until at least one comes back");
+    }
+  } catch (err) {
+    bad(`market news feed check: ${err.message}`);
+  }
+
+  try {
+    const YahooFinance = (await import("yahoo-finance2")).default;
+    const { DEFAULT_INDICES, DEFAULT_VIX_SYMBOL } = await import("../sources/marketNews.js");
+    const yahoo = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+    const list = config.marketNews?.indices?.length ? config.marketNews.indices : DEFAULT_INDICES;
+    const vixSymbol = config.marketNews?.vixSymbol || DEFAULT_VIX_SYMBOL;
+    const res = await yahoo.quote([...list.map((i) => i.symbol), vixSymbol]);
+    const quotes = new Map((Array.isArray(res) ? res : [res]).filter((q) => q?.symbol).map((q) => [q.symbol, q]));
+    for (const { symbol, label } of list) {
+      const q = quotes.get(symbol);
+      q?.regularMarketChangePercent != null
+        ? ok(`${label} (${symbol}): ${q.regularMarketChangePercent > 0 ? "+" : ""}${q.regularMarketChangePercent.toFixed(2)}%`)
+        : bad(`${label} (${symbol}): no quote from Yahoo`);
+    }
+    const vixQ = quotes.get(vixSymbol);
+    vixQ?.regularMarketPrice != null
+      ? ok(`VIX (${vixSymbol}): ${vixQ.regularMarketPrice.toFixed(1)}`)
+      : bad(`VIX (${vixSymbol}): no quote from Yahoo`);
+  } catch (err) {
+    bad(`index/VIX check: ${err.message}`);
+  }
+}
+
 // ---- frontend -----------------------------------------------------------
 console.log("\nFrontend");
 try {

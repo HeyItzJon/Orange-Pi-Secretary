@@ -800,6 +800,30 @@
 .wrow .bar i { display: block; height: 100%; background: var(--fill); border-radius: 3px; }
 .wrow .wt { font-size: 11.5px; color: var(--muted); min-width: 38px; text-align: right; }
 
+/* The middle panel between the movers column and the positions table — see
+   MarketZone in Display.jsx. Slightly wider than the plain `flex: 1` its
+   neighbors use so a real headline sentence has room before wrapping. */
+.zone.market { flex: 1.15; min-width: 0; }
+
+.mkt-indices { display: flex; flex-direction: column; gap: 1px; }
+.mkt-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 0; font-variant-numeric: tabular-nums; }
+.mkt-label { font-size: 13.5px; color: var(--ink-2); }
+.mkt-pct { font-size: 14px; font-weight: 620; }
+.mkt-pct.up { color: var(--up); } .mkt-pct.down { color: var(--down); }
+.mkt-row.mkt-vix { margin-top: 2px; padding-top: 5px; border-top: 1px solid var(--rule); }
+.mkt-row.mkt-vix .mkt-pct { font-weight: 400; color: var(--muted); }
+
+/* One AI-written sentence a day, never a paragraph — see
+   backend/lib/marketTake.js for the "real data only, no predictions"
+   guardrail this line is held to. */
+.mkt-take { font-size: 13px; color: var(--ink-2); line-height: 1.45; margin: 2px 0 0; }
+
+.mkt-news { display: flex; flex-direction: column; gap: 8px; }
+.mkt-headline { display: flex; flex-direction: column; gap: 1px; color: inherit; text-decoration: none; }
+.mkt-headline:hover .mkt-title { text-decoration: underline; }
+.mkt-source { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
+.mkt-title { font-size: 13px; color: var(--ink-2); line-height: 1.35; }
+
 /* =========================================================== page: year */
 
 .page-year { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }

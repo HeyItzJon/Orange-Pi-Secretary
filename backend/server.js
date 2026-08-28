@@ -72,9 +72,10 @@ app.post("/api/brief/rebuild", async (req, res) => {
 app.get("/api/display", async (_req, res) => {
   try {
     const names = SOURCE_NAMES;
-    const [items, money, history, brief, runs, errs] = await Promise.all([
+    const [items, money, marketPulse, history, brief, runs, errs] = await Promise.all([
       allItems(),
       getMeta("moneySummary", null),
+      getMeta("marketPulse", null),
       portfolioHistory(),
       getMeta("lastBrief", null),
       Promise.all(names.map((s) => getMeta(`lastRun_${s}`, null))),
@@ -88,7 +89,7 @@ app.get("/api/display", async (_req, res) => {
     // endpoint every minute is still free.
     const priorities = brief?.priorities || [];
     const insights = brief?.insights || null;
-    res.json(buildDisplay({ items, money, priorities, sources, errors, history, config, now: new Date(), insights }));
+    res.json(buildDisplay({ items, money, marketPulse, priorities, sources, errors, history, config, now: new Date(), insights }));
   } catch (err) {
     log.error(err.message);
     res.status(500).json({ error: err.message });

@@ -18,6 +18,7 @@ import { collectEmail } from "../sources/email.js";
 import { collectCalendar } from "../sources/calendar.js";
 import { collectMoney } from "../sources/money.js";
 import { collectBrightspace } from "../sources/brightspace.js";
+import { collectMarketNews } from "../sources/marketNews.js";
 import { buildPriorities } from "./priorities.js";
 import { buildDayContext, buildDeadlinePool } from "./display.js";
 import { refreshInsights } from "./insights.js";
@@ -30,12 +31,15 @@ const log = logger("brief");
 // brightspace is always in the rotation, same as every other source — see
 // sources/brightspace.js's own header for why running it with no ICS URL
 // set yet is a harmless no-op rather than something that needs special-
-// casing out of this list.
+// casing out of this list. marketNews is the same shape again: always in
+// the rotation, produces zero items (see that file's own header), and just
+// writes the `marketPulse` meta blob the Finances page reads.
 const COLLECTORS = {
   email: collectEmail,
   calendar: collectCalendar,
   money: collectMoney,
   brightspace: collectBrightspace,
+  marketNews: collectMarketNews,
 };
 
 /** The canonical source list. Everything that iterates sources reads this. */
