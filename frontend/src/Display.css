@@ -32,7 +32,7 @@
      on a PC or iPad screen you're not holding close. Titles get their own,
      bigger bump below; labels/badges/timestamps stay close to their
      original size on purpose, so the size itself still says what matters. */
-  font: 16.5px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 18.5px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   display: flex; flex-direction: column;
   overflow: hidden;
@@ -43,17 +43,17 @@
 }
 
 .disp h2 {
-  font-size: 10.5px; font-weight: 700; letter-spacing: .12em;
+  font-size: 12px; font-weight: 700; letter-spacing: .12em;
   text-transform: uppercase; color: var(--muted); margin: 0 0 7px;
   display: flex; align-items: baseline; gap: 8px;
 }
 .disp h2.spaced { margin-top: 16px; }
 .disp h2 em { font-style: normal; color: var(--faint); letter-spacing: 0; }
 .disp h2 em.age { text-transform: none; letter-spacing: 0; }
-.disp .empty { color: var(--faint); font-size: 14.5px; margin: 2px 0; }
-.disp .big-empty { font-size: 16px; margin: 40px auto; max-width: 34em; text-align: center; }
-.disp .err { color: var(--muted); font-size: 16px; margin: auto; text-align: center; line-height: 1.9; }
-.disp code { background: var(--rule); padding: 2px 6px; border-radius: 3px; font-size: 13px; }
+.disp .empty { color: var(--faint); font-size: 16px; margin: 2px 0; }
+.disp .big-empty { font-size: 18px; margin: 40px auto; max-width: 34em; text-align: center; }
+.disp .err { color: var(--muted); font-size: 18px; margin: auto; text-align: center; line-height: 1.9; }
+.disp code { background: var(--rule); padding: 2px 6px; border-radius: 3px; font-size: 14.5px; }
 
 /* ============================================================ chrome */
 
@@ -61,13 +61,13 @@
   display: flex; align-items: center; gap: 22px;
   padding: 11px 22px; border-bottom: 1px solid var(--rule); flex-shrink: 0;
 }
-.top .date { font-size: 12.5px; color: var(--muted); flex-shrink: 0; }
+.top .date { font-size: 14px; color: var(--muted); flex-shrink: 0; }
 /* The one clock that actually ticks — sits right where the static one used
    to be read, next to the date, so the header still answers "what time is
    it" at a glance. Same tabular-numeric treatment so the seconds digit
    changing doesn't shift anything else in the row. */
 .top .liveclock {
-  font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums;
+  font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums;
   margin-left: -8px; /* the .top gap is generous; this one wants to read as
                          glued to the date, not a separate item */
 }
@@ -76,27 +76,27 @@
    opens on click (see hoverPanel in Display.jsx) — cursor:help and the
    colour lift on hover are the only cue that it's interactive, since a
    header timestamp doesn't otherwise read as something you'd hover. */
-.top .updated { font-size: 12.5px; color: var(--muted); white-space: nowrap; cursor: help; }
+.top .updated { font-size: 14px; color: var(--muted); white-space: nowrap; cursor: help; }
 .top .updated:hover { color: var(--ink-2); }
 .top .updated b { color: var(--ink-2); font-weight: 620; font-variant-numeric: tabular-nums; }
 
 .tabs { display: flex; gap: 4px; margin: 0 auto; }
 .tab {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--muted); font: inherit; font-size: 13px; letter-spacing: .03em;
+  color: var(--muted); font: inherit; font-size: 14.5px; letter-spacing: .03em;
   padding: 5px 14px; border-radius: 5px; position: relative;
   transition: color .12s, background .12s;
 }
 .tab:hover { color: var(--ink-2); background: var(--raise); }
 .tab.on { color: var(--plane); background: var(--accent); font-weight: 620; }
 .tab i {
-  font-style: normal; font-size: 10px; margin-left: 6px; padding: 1px 5px;
+  font-style: normal; font-size: 11px; margin-left: 6px; padding: 1px 5px;
   border-radius: 7px; background: rgba(255,255,255,.13); vertical-align: 1px;
 }
 .tab.on i { background: rgba(0,0,0,.22); }
 
 .refresh {
-  appearance: none; cursor: pointer; font: inherit; font-size: 12px;
+  appearance: none; cursor: pointer; font: inherit; font-size: 13.5px;
   color: var(--ink-2); background: var(--raise); border: 1px solid var(--rule);
   padding: 5px 12px; border-radius: 5px; transition: border-color .12s, color .12s;
 }
@@ -122,11 +122,11 @@
 }
 .dot-nav:hover { background: var(--muted); }
 .dot-nav.on { background: var(--accent); }
-.dots .auto { font-size: 9.5px; color: var(--faint); letter-spacing: .1em; margin-left: 5px; }
+.dots .auto { font-size: 10.5px; color: var(--faint); letter-spacing: .1em; margin-left: 5px; }
 
 .status {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  font: inherit; font-size: 10.5px; color: var(--faint); padding: 2px 0;
+  font: inherit; font-size: 12px; color: var(--faint); padding: 2px 0;
 }
 .status:hover { color: var(--muted); }
 .status.stale { color: var(--accent); }
@@ -154,7 +154,7 @@
      "Looking ahead" — got clipped by its own line box, the same class of
      bug already fixed once on .hero .big below for the same reason; 1.25
      gives it room. */
-  font-size: 40px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25;
+  font-size: 45px; font-weight: 700; letter-spacing: -.015em; line-height: 1.25;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* "Looking ahead" (see TodayHeader in Display.jsx) — tinted so the header
@@ -162,7 +162,7 @@
    text change. Same accent used for the NOW marker and the clock's second
    hand, so it reads as part of the same "this isn't quite real-time" family. */
 .tday-weekday.away { color: var(--accent); }
-.tday-monthday { font-size: 18px; color: var(--muted); margin-top: 8px; }
+.tday-monthday { font-size: 20px; color: var(--muted); margin-top: 8px; }
 
 /* A real analog face — 12 ticks (every 3rd one longer, for 12/3/6/9), three
    hands rotated by inline transform (see AnalogClock in Display.jsx), a hub
@@ -216,12 +216,12 @@
    below (between it and the all-day pills/strip beneath) than the
    descender fix alone was solving for. */
 .hero { display: flex; align-items: baseline; gap: 13px; padding-top: 16px; padding-bottom: 32px; flex-shrink: 0; }
-.hero .lbl { font-size: 10.5px; font-weight: 700; letter-spacing: .12em; color: var(--accent); flex-shrink: 0; }
+.hero .lbl { font-size: 12px; font-weight: 700; letter-spacing: .12em; color: var(--accent); flex-shrink: 0; }
 .hero .big {
-  font-size: 33px; font-weight: 620; letter-spacing: -.014em; line-height: 1.25;
+  font-size: 37px; font-weight: 620; letter-spacing: -.014em; line-height: 1.25;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.hero .sub { font-size: 14.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.hero .sub { font-size: 16px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .hero.calm .lbl { color: var(--muted); }
 .hero.calm .big { color: var(--ink-2); font-weight: 560; }
 
@@ -234,13 +234,13 @@
    own size — this is the one place Jon asked for it bigger, same as the
    old .daycar-busy override it replaces. */
 .hero-busy { display: flex; align-items: center; gap: 9px; padding: 2px 0 14px; flex-shrink: 0; }
-.hero-busy-label { font-size: 13px; color: var(--faint); font-weight: 560; }
-.hero-busy-score { width: 40px; height: 40px; font-size: 17px; }
+.hero-busy-label { font-size: 14.5px; color: var(--faint); font-weight: 560; }
+.hero-busy-score { width: 45px; height: 45px; font-size: 19px; }
 /* DeepSeek's longer note for this day (see hero.note/dayStrips[n].note in
    brief/display.js) — sits under the Busy Score, above the events list,
    same quiet weight as the rest of the page's body copy rather than
    competing with the title above it. */
-.hero-note { font-size: 14.5px; line-height: 1.45; color: var(--ink-2); margin: 0 0 18px; max-width: 62ch; }
+.hero-note { font-size: 16px; line-height: 1.45; color: var(--ink-2); margin: 0 0 18px; max-width: 62ch; }
 
 /* The forward-day pager — Today plus the next 3 days, same strip graphic,
    one page at a time (see DayCarousel in Display.jsx). Forward only: no
@@ -264,7 +264,7 @@
 .daycar-arrow {
   appearance: none; border: 1.5px solid var(--rule); background: var(--raise);
   color: var(--ink-2); cursor: pointer; border-radius: 9px;
-  width: 44px; height: 44px; font-size: 25px; line-height: 1; flex-shrink: 0;
+  width: 49px; height: 49px; font-size: 28px; line-height: 1; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   transition: color .12s, border-color .12s;
 }
@@ -285,12 +285,12 @@
    this size. */
 .daycar-label {
   display: flex; align-items: baseline; gap: 9px; justify-content: center;
-  width: 330px; flex-shrink: 0; white-space: nowrap; overflow: hidden;
+  width: 370px; flex-shrink: 0; white-space: nowrap; overflow: hidden;
 }
 /* "Today", "Tuesday, August 25" — bumped up (14px/12px → 18px/14px) along
    with the arrows above, same "make the whole nav row read bigger" ask. */
-.daycar-name { font-size: 18px; font-weight: 660; }
-.daycar-date { font-size: 14px; color: var(--faint); }
+.daycar-name { font-size: 20px; font-weight: 660; }
+.daycar-date { font-size: 15.5px; color: var(--faint); }
 
 .daycar-viewport { overflow: hidden; }
 /* "This whole thing moves to the side" — a fresh slide, keyed by offset so
@@ -332,7 +332,7 @@
    on a phone. */
 .aday-row { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .aday-label {
-  font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   color: var(--muted); flex-shrink: 0;
 }
 .aday-chips { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; }
@@ -342,7 +342,7 @@
    the wrap fallback) is only there so one genuinely very long title can't
    push wider than its own column and get clipped by an ancestor instead. */
 .aday-chip {
-  font-size: 12.5px; font-weight: 560; padding: 5px 12px; border-radius: 16px;
+  font-size: 14px; font-weight: 560; padding: 5px 12px; border-radius: 16px;
   background: var(--fill); color: var(--ink);
   width: fit-content; max-width: 100%;
   white-space: normal; word-break: break-word; line-height: 1.3;
@@ -459,11 +459,11 @@
      sets the block's own `color` to dark ink via blockStyle() in
      Display.jsx so the label stays readable; with nothing to inherit
      .blk falls through to .disp's var(--ink), the same white as before. */
-  padding: 0 7px; font-size: 11px; color: inherit;
+  padding: 0 7px; font-size: 12.5px; color: inherit;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; gap: 7px; align-items: baseline; min-width: 0;
 }
-.blk .bl em { font-style: normal; font-size: 10px; opacity: .62; flex-shrink: 0; }
+.blk .bl em { font-style: normal; font-size: 11px; opacity: .62; flex-shrink: 0; }
 
 /* FALLBACK ONLY as of the real-Google-colour work: Display.jsx sets an
    inline `background`/`borderLeftColor` straight from item.color (the
@@ -514,11 +514,11 @@
    the hour numbers themselves should read clearly, not just the ticks
    they sit under. */
 .chunks .hr {
-  position: absolute; top: 0; font-size: 10.5px; font-weight: 560; color: var(--muted);
+  position: absolute; top: 0; font-size: 12px; font-weight: 560; color: var(--muted);
   transform: translateX(-50%); font-variant-numeric: tabular-nums;
 }
 .chunks .chunk {
-  position: absolute; top: 13px; font-size: 10px; color: var(--faint);
+  position: absolute; top: 13px; font-size: 11px; color: var(--faint);
   text-align: center; letter-spacing: .04em;
 }
 
@@ -533,10 +533,10 @@
 .zone { min-width: 0; }
 
 .trow { display: flex; gap: 12px; align-items: baseline; padding: 4px 0; }
-.trow .t { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted); min-width: 68px; flex-shrink: 0; }
+.trow .t { font-variant-numeric: tabular-nums; font-size: 15.5px; color: var(--muted); min-width: 74px; flex-shrink: 0; }
 .trow .body { min-width: 0; flex: 1; }
-.trow .title { font-size: 17px; }
-.trow .meta { display: block; font-size: 13.5px; color: var(--muted); margin-top: 1px; }
+.trow .title { font-size: 19px; }
+.trow .meta { display: block; font-size: 15px; color: var(--muted); margin-top: 1px; }
 .trow .prep { color: var(--ink-2); }
 .trow .meta .prep::before { content: " — "; color: var(--faint); }
 /* A finished event stays in the list (Jon: don't remove it, just make it
@@ -550,7 +550,7 @@
    in brief/display.js's buildDayStrip), never shown on a future carousel
    slide since nothing there is happening "now". */
 .now-tag {
-  flex-shrink: 0; align-self: center; font-size: 10px; font-weight: 700;
+  flex-shrink: 0; align-self: center; font-size: 11px; font-weight: 700;
   letter-spacing: .06em; text-transform: uppercase; color: #1a1400;
   background: var(--accent); padding: 2px 7px; border-radius: 9px;
 }
@@ -573,8 +573,8 @@
 .dlrow { display: flex; gap: 10px; align-items: baseline; padding: 5px 0; }
 .dlrow .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--fill); transform: translateY(-1px); }
 .dlrow .dlbody { min-width: 0; flex: 1; }
-.dlrow .title { font-size: 15.5px; display: block; }
-.dlrow .meta { display: block; font-size: 12.5px; color: var(--muted); margin-top: 1px; }
+.dlrow .title { font-size: 17.5px; display: block; }
+.dlrow .meta { display: block; font-size: 14px; color: var(--muted); margin-top: 1px; }
 /* Importance (see organizeDeadlines()'s own rule in brief/insights.js) is a
    quiet weight shift, not a badge — Jon's "sentences over graphics" rule
    (see this file's own header) applies here too: the row that matters more
@@ -583,7 +583,7 @@
 .dlrow.imp-low .title { color: var(--ink-2); }
 .dlrow.imp-low .dot { opacity: .6; }
 
-.pri { margin-left: 9px; font-size: 12px; color: var(--muted); font-style: italic; white-space: nowrap; }
+.pri { margin-left: 9px; font-size: 13.5px; color: var(--muted); font-style: italic; white-space: nowrap; }
 
 /* Today's own events/deadlines/all-day rows are tappable for on-demand AI
    detail (see ItemDetailModal in Display.jsx) — Jon's own scope-down means
@@ -600,14 +600,14 @@
 .days { display: flex; gap: 26px; }
 .day { flex: 1; min-width: 0; }
 .dhead { display: flex; align-items: baseline; gap: 7px; margin-bottom: 4px; }
-.dname { font-size: 15.5px; font-weight: 640; }
-.ddate { font-size: 12px; color: var(--faint); }
+.dname { font-size: 17.5px; font-weight: 640; }
+.ddate { font-size: 13.5px; color: var(--faint); }
 .drow { display: flex; gap: 9px; align-items: baseline; padding: 2px 0; }
-.drow .dt { font-size: 11.5px; color: var(--muted); min-width: 56px; flex-shrink: 0; letter-spacing: .03em; }
+.drow .dt { font-size: 13px; color: var(--muted); min-width: 62px; flex-shrink: 0; letter-spacing: .03em; }
 .drow .dbody { min-width: 0; flex: 1; }
-.drow .title { font-size: 15px; color: var(--ink-2); }
-.drow .meta { display: block; font-size: 12px; color: var(--faint); }
-.drow .pri { margin-left: 7px; font-size: 11.5px; }
+.drow .title { font-size: 17px; color: var(--ink-2); }
+.drow .meta { display: block; font-size: 13.5px; color: var(--faint); }
+.drow .pri { margin-left: 7px; font-size: 13px; }
 
 /* The on-demand AI detail panel (ItemDetailModal in Display.jsx) — opened by
    tapping a clickable row/chip above. Same dark-floating-panel family as
@@ -636,10 +636,10 @@
 .item-modal-close {
   position: absolute; top: 10px; right: 12px;
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--muted); font-size: 22px; line-height: 1; padding: 4px 6px;
+  color: var(--muted); font-size: 24.5px; line-height: 1; padding: 4px 6px;
 }
 .item-modal-close:hover { color: var(--ink); }
-.item-modal-loading, .item-modal-error { color: var(--muted); font-size: 14px; }
+.item-modal-loading, .item-modal-error { color: var(--muted); font-size: 15.5px; }
 .item-modal-head { display: flex; align-items: baseline; gap: 9px; margin: 2px 30px 10px 0; }
 /* background is a fallback only — an event/all-day item overrides it inline
    via blockStyle(facts.color) (see ItemDetailModal in Display.jsx), same as
@@ -647,10 +647,10 @@
    Only shows through on the rare item with neither a real calendar colour
    nor a matching .d-{swatch} rule below. */
 .item-modal-head .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; transform: translateY(-1px); background: var(--fill); }
-.item-modal-head h3 { margin: 0; font-size: 19px; font-weight: 640; line-height: 1.25; }
+.item-modal-head h3 { margin: 0; font-size: 21px; font-weight: 640; line-height: 1.25; }
 .item-modal-facts {
   display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 3px;
-  font-size: 13px; color: var(--ink-2); margin-bottom: 14px;
+  font-size: 14.5px; color: var(--ink-2); margin-bottom: 14px;
 }
 .item-modal-facts span::before { content: "·"; margin-right: 12px; color: var(--faint); }
 .item-modal-facts span:first-child::before { content: none; margin-right: 0; }
@@ -664,21 +664,21 @@
 .item-modal-syllabus {
   border-left: 2px solid var(--faint); padding-left: 10px; margin: 0 0 12px;
 }
-.item-modal-syllabus-head { margin: 0 0 3px; font-size: 12px; font-weight: 640; color: var(--faint); text-transform: uppercase; letter-spacing: .02em; }
-.item-modal-syllabus-line { margin: 0 0 2px; font-size: 13.5px; line-height: 1.45; color: var(--ink-2); }
-.item-modal-summary { font-size: 14.5px; line-height: 1.5; color: var(--ink-2); margin: 0 0 10px; }
+.item-modal-syllabus-head { margin: 0 0 3px; font-size: 13.5px; font-weight: 640; color: var(--faint); text-transform: uppercase; letter-spacing: .02em; }
+.item-modal-syllabus-line { margin: 0 0 2px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+.item-modal-summary { font-size: 16px; line-height: 1.5; color: var(--ink-2); margin: 0 0 10px; }
 .item-modal-summary.muted { color: var(--faint); font-style: italic; }
-.item-modal-action { font-size: 14.5px; line-height: 1.5; color: var(--ink); margin: 0 0 10px; }
+.item-modal-action { font-size: 16px; line-height: 1.5; color: var(--ink); margin: 0 0 10px; }
 .item-modal-action b { color: var(--accent); font-weight: 640; }
 .item-modal-link {
-  display: inline-block; margin-top: 4px; font-size: 13px;
+  display: inline-block; margin-top: 4px; font-size: 14.5px;
   color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent;
 }
 .item-modal-link:hover { border-bottom-color: var(--accent); }
 
 @media (max-width: 480px) {
   .item-modal { padding: 18px 16px 16px; border-radius: 8px; }
-  .item-modal-head h3 { font-size: 17px; }
+  .item-modal-head h3 { font-size: 19px; }
 }
 
 
@@ -697,7 +697,7 @@
 
 .tgroup { break-inside: avoid; margin-bottom: 17px; }
 .tgroup h2 em {
-  font-size: 9.5px; padding: 1px 5px; border-radius: 7px;
+  font-size: 10.5px; padding: 1px 5px; border-radius: 7px;
   background: var(--rule); color: var(--muted);
 }
 .tgroup.urgent h2 { color: var(--accent); }
@@ -706,16 +706,16 @@
 .task { display: flex; gap: 9px; align-items: baseline; padding: 3px 0; }
 .task .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--fill); transform: translateY(-1px); }
 .task .tbody { min-width: 0; flex: 1; }
-.task .title { font-size: 15.5px; display: block; line-height: 1.3; }
+.task .title { font-size: 17.5px; display: block; line-height: 1.3; }
 .task.must .title { font-weight: 640; }
-.task .meta { font-size: 12px; color: var(--faint); display: block; margin-top: 1px; }
+.task .meta { font-size: 13.5px; color: var(--faint); display: block; margin-top: 1px; }
 .task .origin { color: var(--muted); }
 .task .when {
-  font-size: 12.5px; color: var(--muted); flex-shrink: 0;
+  font-size: 14px; color: var(--muted); flex-shrink: 0;
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .task .when.soon { color: var(--accent); }
-.more { font-size: 12px; color: var(--faint); margin: 3px 0 0 15px; }
+.more { font-size: 13.5px; color: var(--faint); margin: 3px 0 0 15px; }
 
 .dot.d-school   { background: #3987e5; }
 .dot.d-work     { background: #d95926; }
@@ -736,14 +736,14 @@
 .dot.pri-medium { background: #eda100; }
 .dot.pri-low    { background: #2f8f5b; }
 
-.dl { display: flex; gap: 11px; align-items: baseline; padding: 3px 0; font-size: 14.5px; }
-.dl .in { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 62px; flex-shrink: 0; font-size: 13px; }
+.dl { display: flex; gap: 11px; align-items: baseline; padding: 3px 0; font-size: 16px; }
+.dl .in { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 68px; flex-shrink: 0; font-size: 14.5px; }
 .dl .what { flex: 1; min-width: 0; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dl .on { font-size: 12px; color: var(--faint); flex-shrink: 0; }
+.dl .on { font-size: 13.5px; color: var(--faint); flex-shrink: 0; }
 .dl.near .in { color: var(--accent); }
 .dl.near .what { color: var(--ink); }
 
-.origins { font-size: 13.5px; }
+.origins { font-size: 15px; }
 .orow { display: flex; justify-content: space-between; padding: 3px 0; color: var(--ink-2); }
 .orow.off { color: var(--faint); }
 .orow.off span:last-child { font-style: italic; }
@@ -752,18 +752,18 @@
 /* The safety-net "N not on your calendar yet" line — see brief/brightspace.js's
    unscheduledCount(). Rendered only when > 0 (Display.jsx), so this rule
    never has to account for an empty/zero state. */
-.origins-note { margin: 6px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--muted); }
+.origins-note { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--muted); }
 
 /* ========================================================== page: money */
 
 .page-money { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .mhead { display: flex; align-items: flex-end; gap: 34px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
 .mtotal { display: flex; align-items: baseline; gap: 14px; }
-.mtotal .val { font-size: 47px; font-weight: 620; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.mtotal .chg { font-size: 19px; font-variant-numeric: tabular-nums; }
-.mtotal .chg em { font-style: normal; font-size: 14px; opacity: .7; margin-left: 8px; }
+.mtotal .val { font-size: 53px; font-weight: 620; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.mtotal .chg { font-size: 21px; font-variant-numeric: tabular-nums; }
+.mtotal .chg em { font-style: normal; font-size: 15.5px; opacity: .7; margin-left: 8px; }
 .mtotal .chg.up { color: var(--up); } .mtotal .chg.down { color: var(--down); }
-.mspan { display: flex; gap: 24px; font-size: 13px; color: var(--muted); padding-bottom: 7px; }
+.mspan { display: flex; gap: 24px; font-size: 14.5px; color: var(--muted); padding-bottom: 7px; }
 .mspan b { font-weight: 620; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-right: 4px; }
 .mspan .warn b { color: var(--accent); }
 
@@ -773,9 +773,9 @@
 
 .mgrid { display: flex; flex-direction: column; gap: 1px; }
 .mrow { display: flex; align-items: baseline; gap: 10px; padding: 2px 0; font-variant-numeric: tabular-nums; }
-.mrow .tk { font-size: 15px; font-weight: 620; letter-spacing: .01em; min-width: 62px; }
-.mrow .pc { font-size: 15px; min-width: 56px; }
-.mrow .wt { font-size: 12px; color: var(--faint); }
+.mrow .tk { font-size: 17px; font-weight: 620; letter-spacing: .01em; min-width: 68px; }
+.mrow .pc { font-size: 17px; min-width: 62px; }
+.mrow .wt { font-size: 13.5px; color: var(--faint); }
 .mrow.up .pc { color: var(--up); } .mrow.down .pc { color: var(--down); }
 
 /* "Worth a look" — one related-ticker candidate, not a mover, so it gets a
@@ -788,17 +788,17 @@
 .ideas { display: flex; flex-direction: column; gap: 10px; }
 .idea { padding: 2px 0; }
 .idea-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.idea-head .tk { font-size: 15px; font-weight: 620; letter-spacing: .01em; flex-shrink: 0; }
-.idea-head .nm { font-size: 13.5px; color: var(--muted); }
-.idea-summary { font-size: 13px; color: var(--ink-2); line-height: 1.4; margin: 4px 0 0; }
+.idea-head .tk { font-size: 17px; font-weight: 620; letter-spacing: .01em; flex-shrink: 0; }
+.idea-head .nm { font-size: 15px; color: var(--muted); }
+.idea-summary { font-size: 14.5px; color: var(--ink-2); line-height: 1.4; margin: 4px 0 0; }
 .idea-summary.none { color: var(--faint); font-style: italic; }
-.idea-why { font-size: 12px; color: var(--faint); margin-top: 4px; line-height: 1.4; }
+.idea-why { font-size: 13.5px; color: var(--faint); margin-top: 4px; line-height: 1.4; }
 
 .wrow { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-variant-numeric: tabular-nums; }
-.wrow .tk { font-size: 13px; min-width: 62px; color: var(--ink-2); }
+.wrow .tk { font-size: 14.5px; min-width: 68px; color: var(--ink-2); }
 .wrow .bar { flex: 1; height: 5px; background: var(--rule); border-radius: 3px; overflow: hidden; }
 .wrow .bar i { display: block; height: 100%; background: var(--fill); border-radius: 3px; }
-.wrow .wt { font-size: 11.5px; color: var(--muted); min-width: 38px; text-align: right; }
+.wrow .wt { font-size: 13px; color: var(--muted); min-width: 42px; text-align: right; }
 
 /* The middle panel between the movers column and the positions table — see
    MarketZone in Display.jsx. Slightly wider than the plain `flex: 1` its
@@ -807,8 +807,8 @@
 
 .mkt-indices { display: flex; flex-direction: column; gap: 1px; }
 .mkt-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 0; font-variant-numeric: tabular-nums; }
-.mkt-label { font-size: 13.5px; color: var(--ink-2); }
-.mkt-pct { font-size: 14px; font-weight: 620; }
+.mkt-label { font-size: 15px; color: var(--ink-2); }
+.mkt-pct { font-size: 15.5px; font-weight: 620; }
 .mkt-pct.up { color: var(--up); } .mkt-pct.down { color: var(--down); }
 .mkt-row.mkt-vix { margin-top: 2px; padding-top: 5px; border-top: 1px solid var(--rule); }
 .mkt-row.mkt-vix .mkt-pct { font-weight: 400; color: var(--muted); }
@@ -816,13 +816,13 @@
 /* One AI-written sentence a day, never a paragraph — see
    backend/lib/marketTake.js for the "real data only, no predictions"
    guardrail this line is held to. */
-.mkt-take { font-size: 13px; color: var(--ink-2); line-height: 1.45; margin: 2px 0 0; }
+.mkt-take { font-size: 14.5px; color: var(--ink-2); line-height: 1.45; margin: 2px 0 0; }
 
 .mkt-news { display: flex; flex-direction: column; gap: 8px; }
 .mkt-headline { display: flex; flex-direction: column; gap: 1px; color: inherit; text-decoration: none; }
 .mkt-headline:hover .mkt-title { text-decoration: underline; }
-.mkt-source { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
-.mkt-title { font-size: 13px; color: var(--ink-2); line-height: 1.35; }
+.mkt-source { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); }
+.mkt-title { font-size: 14.5px; color: var(--ink-2); line-height: 1.35; }
 
 /* =========================================================== page: year */
 
@@ -832,13 +832,13 @@
    "3,936 contributions in 2022" in large type above its own bordered grid,
    so this leads the same way instead of burying "Day X of 365" as a footnote. */
 .yhead { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding-bottom: 16px; flex-shrink: 0; }
-.ystat .big { font-size: 39px; font-weight: 700; letter-spacing: -.02em; }
-.ystat .big em { font-style: normal; font-size: 16px; font-weight: 500; color: var(--muted); margin-left: 8px; }
-.ystat .sub { display: block; font-size: 14.5px; color: var(--ink-2); margin-top: 4px; }
+.ystat .big { font-size: 44px; font-weight: 700; letter-spacing: -.02em; }
+.ystat .big em { font-style: normal; font-size: 18px; font-weight: 500; color: var(--muted); margin-left: 8px; }
+.ystat .sub { display: block; font-size: 16px; color: var(--ink-2); margin-top: 4px; }
 /* This is money.js's actual last pull, not the 60s poll of this page — see
    the comment on moneyUpdatedLabel in brief/display.js. Otherwise it would
    always just say "just now" no matter how stale the colour underneath it. */
-.yupdated { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.yupdated { font-size: 13.5px; color: var(--muted); white-space: nowrap; }
 .yupdated b { color: var(--ink-2); font-weight: 620; }
 
 /* A titled section, not just "the grid" — leaves room for sibling
@@ -886,12 +886,12 @@
 }
 .ygrid {
   display: grid;
-  grid-template-columns: var(--ylabelw, 44px) repeat(var(--yweeks), minmax(13px, 1fr));
+  grid-template-columns: var(--ylabelw, 49px) repeat(var(--yweeks), minmax(13px, 1fr));
   grid-template-rows: 16px repeat(7, auto);
   gap: 3px;
 }
-.mlabel { align-self: end; justify-self: start; padding-bottom: 3px; font-size: 10.5px; color: var(--faint); letter-spacing: .03em; }
-.wlabel { align-self: center; justify-self: end; padding-right: 8px; font-size: 10px; color: var(--faint); }
+.mlabel { align-self: end; justify-self: start; padding-bottom: 3px; font-size: 12px; color: var(--faint); letter-spacing: .03em; }
+.wlabel { align-self: center; justify-self: end; padding-right: 8px; font-size: 11px; color: var(--faint); }
 
 /* Tappable now (see YearPage's openDate in Display.jsx) as well as
    hoverable — a mouse still gets the native `title` tooltip below for free,
@@ -915,7 +915,7 @@
 .b-g2   { background: #5fbf6c; }
 .b-g3   { background: #227a34; }
 
-.ylegend { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--rule); flex-shrink: 0; font-size: 10.5px; color: var(--faint); }
+.ylegend { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--rule); flex-shrink: 0; font-size: 12px; color: var(--faint); }
 .ynote { font-style: italic; }
 .yscale { display: flex; align-items: center; gap: 5px; flex-shrink: 0; white-space: nowrap; }
 .yleg { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; }
@@ -928,8 +928,8 @@
 
 .page-week { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .fchead { flex-shrink: 0; padding-bottom: 14px; }
-.fchead .big { font-size: 24px; font-weight: 700; letter-spacing: -.01em; display: block; }
-.fchead .sub { display: block; font-size: 14px; color: var(--muted); margin-top: 3px; }
+.fchead .big { font-size: 27px; font-weight: 700; letter-spacing: -.01em; display: block; }
+.fchead .sub { display: block; font-size: 15.5px; color: var(--muted); margin-top: 3px; }
 
 .fcgrid {
   /* 110px let exactly 7 columns land in a mobile-landscape-width row (each
@@ -942,7 +942,7 @@
      below is the second, independent safety net in case a width ever lands
      right at the edge again. The all-day badge no longer lives in this row
      at all (see .fcallday-row below), so it's out of this squeeze entirely. */
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
   gap: 10px; flex-shrink: 0;
 }
 .fcday {
@@ -960,7 +960,7 @@
    clicked — self-clears after ~1.8s (see WeekPage in Display.jsx). */
 .fcfar {
   flex-shrink: 0; margin-bottom: 4px; padding: 8px 12px; border-radius: 7px;
-  background: rgba(237,161,0,.14); color: var(--accent); font-size: 13px; font-weight: 560;
+  background: rgba(237,161,0,.14); color: var(--accent); font-size: 14.5px; font-weight: 560;
 }
 /* Just the day name/date and the info icon share this row now — the
    all-day badge moved to its own row just above the bar (see
@@ -976,14 +976,14 @@
 /* Bounded so a long day/month name can never spill past its own column and
    push the info icon beside it (see .fcdhead above) — it ellipsizes
    instead. */
-.fcdname { font-size: 13.5px; font-weight: 620; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcdname { font-size: 15px; font-weight: 620; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Jon's visual cue for which cards the carousel can actually jump to: the
    clickable ones (today + the next `clickableCount`-1 days, matching
    dayStrips in brief/display.js) get the brightest possible title; the rest
    of the week fades toward the background instead. */
 .fcdname.fcd-live { color: var(--ink); }
 .fcdname.fcd-far { color: var(--faint); }
-.fcddate { font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fcddate { font-size: 12.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The 1-10 busyness read (see busynessScore() in brief/display.js) — one
    fixed size for every card (Jon's call: the colour and number already
    carry the score, a size that also changed was one signal too many), five
@@ -992,9 +992,9 @@
    the Today page's carousel header (see .daycar-busy below) so the two
    surfaces read as the same visual language. */
 .fcscore {
-  width: 22px; height: 22px; border-radius: 50%;
+  width: 25px; height: 25px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  font-size: 11px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
+  font-size: 12.5px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18);
 }
 .fcscore.b-calm     { background: #2f8f52; }
@@ -1006,7 +1006,7 @@
    above — so margin-top: auto pushes just this row down to fill whatever
    room the rest of the card's content didn't use). */
 .fcbusy-row { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: auto; }
-.fcbusy-label { font-size: 10.5px; color: var(--faint); }
+.fcbusy-label { font-size: 12px; color: var(--faint); }
 /* A day's own all-day items don't touch the bar below at all (see
    weekForecast's comment on why it never guesses a duration for them) — this
    badge is what actually says a visually-free day still has one sitting on
@@ -1027,7 +1027,7 @@
    down card to card. */
 .fcallday-row { display: flex; justify-content: flex-end; margin-top: -2px; min-height: 16px; }
 .fcallday {
-  flex-shrink: 0; font-size: 10px; font-weight: 700; line-height: 1;
+  flex-shrink: 0; font-size: 11px; font-weight: 700; line-height: 1;
   padding: 3px 6px; border-radius: 8px;
   background: rgba(237,161,0,.16); color: var(--accent);
 }
@@ -1039,7 +1039,7 @@
    affordance rather than competing with the day name for attention. */
 .fcnote-btn {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--faint); font-size: 13px; line-height: 1; padding: 1px 2px; flex-shrink: 0;
+  color: var(--faint); font-size: 14.5px; line-height: 1; padding: 1px 2px; flex-shrink: 0;
 }
 .fcnote-btn:hover { color: var(--accent); }
 /* A density strip, not a progress bar: one segment per event, roughly sized
@@ -1073,15 +1073,15 @@
    numbers; used sits at the same size but a quieter colour so the row
    reads as one pair, not two competing headlines. */
 .fcusedfree { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-.fcused { font-size: 14px; font-weight: 560; color: var(--muted); font-variant-numeric: tabular-nums; }
-.fcfree { font-size: 14px; font-weight: 620; color: var(--ink); font-variant-numeric: tabular-nums; }
-.fccount { font-size: 11px; color: var(--faint); }
+.fcused { font-size: 15.5px; font-weight: 560; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fcfree { font-size: 15.5px; font-weight: 620; color: var(--ink); font-variant-numeric: tabular-nums; }
+.fccount { font-size: 12.5px; color: var(--faint); }
 /* Same line treatment as .fccount right above it — Jon's ask: "right below
    the x events text we could have another similar line with x deadlines."
    Reads `day.deadlineCount` (see brief/display.js's buildDeadlinePool) —
    the exact same pool the Today page's own Deadlines section is built
    from, so this number and that list always agree. */
-.fcdlcount { font-size: 11px; color: var(--faint); }
+.fcdlcount { font-size: 12.5px; color: var(--faint); }
 
 /* The "Looming" list (regrouped by day) that used to render below the
    fcgrid is gone (Jon's call: "they were never that useful we will add
@@ -1093,8 +1093,8 @@
 
 .page-world { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .whead { display: flex; align-items: baseline; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
-.whead h2 { margin: 0; font-size: 11px; }
-.wmeta { font-size: 11px; color: var(--faint); display: flex; align-items: center; }
+.whead h2 { margin: 0; font-size: 12.5px; }
+.wmeta { font-size: 12.5px; color: var(--faint); display: flex; align-items: center; }
 .wmeta .sep { margin-left: 7px; }
 .wgrid { columns: 330px; column-gap: 34px; padding-top: 14px; flex: 1; min-height: 0; overflow: hidden; }
 
@@ -1108,9 +1108,9 @@
 .tone.neutral, .tone.unknown { background: var(--fill); }
 .tone.inline { display: inline-block; margin: 0 4px 0 7px; align-self: center; }
 .story .sbody { min-width: 0; flex: 1; }
-.story .title { font-size: 14px; line-height: 1.32; display: block; color: var(--ink); }
-.story.small .title { font-size: 13px; }
-.story .meta { font-size: 11px; color: var(--faint); display: block; margin-top: 2px; }
+.story .title { font-size: 15.5px; line-height: 1.32; display: block; color: var(--ink); }
+.story.small .title { font-size: 14.5px; }
+.story .meta { font-size: 12.5px; color: var(--faint); display: block; margin-top: 2px; }
 .story .why { display: block; color: var(--muted); font-style: italic; margin-top: 1px; }
 
 /* ======================================================= sources panel */
@@ -1126,25 +1126,25 @@
 }
 .phead { display: flex; align-items: center; justify-content: space-between; }
 .panel h3 {
-  font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
   color: var(--muted); margin: 0 0 8px;
 }
 .panel h3.spaced { margin-top: 14px; }
 .panel .x {
   appearance: none; border: 0; background: transparent; cursor: pointer;
-  color: var(--muted); font-size: 17px; line-height: 1; padding: 0 2px 6px;
+  color: var(--muted); font-size: 19px; line-height: 1; padding: 0 2px 6px;
 }
 .panel .x:hover { color: var(--ink); }
 
-.srow { display: flex; align-items: baseline; gap: 11px; padding: 4px 0; font-size: 12.5px; }
-.srow .sname { min-width: 68px; color: var(--ink-2); }
+.srow { display: flex; align-items: baseline; gap: 11px; padding: 4px 0; font-size: 14px; }
+.srow .sname { min-width: 74px; color: var(--ink-2); }
 .srow .sstate { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
-.srow .just { font-style: normal; color: var(--up); margin-left: 7px; font-size: 11.5px; }
+.srow .just { font-style: normal; color: var(--up); margin-left: 7px; font-size: 13px; }
 .srow .fail { color: var(--down); font-weight: 400; }
 
 .feeds { display: flex; flex-wrap: wrap; gap: 5px; }
 .feed {
-  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  font-size: 12.5px; padding: 2px 8px; border-radius: 4px;
   background: var(--rule); color: var(--muted);
 }
 .feed.bad { background: rgba(230,103,103,.14); color: var(--down); }
@@ -1152,9 +1152,9 @@
 /* ====================================================== smaller panels */
 
 @media (max-width: 1100px) {
-  .mtotal .val { font-size: 36px; }
-  .story .title { font-size: 13px; }
-  .story .meta { font-size: 10.5px; }
+  .mtotal .val { font-size: 40px; }
+  .story .title { font-size: 14.5px; }
+  .story .meta { font-size: 12px; }
 }
 
 /* iPad portrait (and similar) sits between the two existing tiers — wide
@@ -1176,8 +1176,8 @@
   .stage { padding: 12px 16px 0; }
   .top { padding: 8px 16px; }
   .tday-head { padding: 2px 2px 12px; }
-  .tday-weekday { font-size: 26px; }
-  .tday-monthday { font-size: 14px; }
+  .tday-weekday { font-size: 29px; }
+  .tday-monthday { font-size: 15.5px; }
   /* Scaled up with the rest of the clock, but short of a full 2x — this is
      the short-kiosk-panel breakpoint, where a full-size doubled face would
      eat too much of the limited vertical room. */
@@ -1186,7 +1186,7 @@
      panel; this is the actual physical kiosk's tight height budget, so it
      gets a smaller bump instead of the full one. */
   .hero { padding-top: 6px; padding-bottom: 18px; }
-  .hero .big { font-size: 25px; }
+  .hero .big { font-size: 28px; }
   /* Same taller-than-its-blocks ruler treatment as the base rule above,
      just a smaller inset (5px vs 7px) — this is the actual physical
      kiosk panel's tight height budget, so the reveal above/below each
@@ -1197,7 +1197,7 @@
   .nowline { top: -7px; height: 64px; }
   .daycar-head { margin-bottom: 14px; }
   .day:nth-child(3) { display: none; }
-  .mtotal .val { font-size: 34px; }
+  .mtotal .val { font-size: 38px; }
   .ycell { border-radius: 2px; }
   .ycard { padding: 12px 14px 10px; }
   .cols { padding-top: 11px; }
@@ -1205,13 +1205,13 @@
      dots and extra breathing room added elsewhere would eat into an
      already-tight budget here, so this breakpoint gets its own smaller,
      but still slightly bigger-than-before, values. */
-  .daycar-arrow { width: 34px; height: 34px; font-size: 19px; }
+  .daycar-arrow { width: 38px; height: 38px; font-size: 21px; }
   .daycar-dots { gap: 8px; margin-top: 8px; }
   .daycar-dot { width: 7px; height: 7px; }
   .aday-row { margin-bottom: 8px; }
   .story { padding: 3px 0; }
-  .story .title { font-size: 12.5px; }
-  .task .title { font-size: 13px; }
+  .story .title { font-size: 14px; }
+  .task .title { font-size: 14.5px; }
   .panel { top: 42px; }
 }
 
@@ -1241,15 +1241,15 @@
   background: #17171a; border: 1px solid #33333a; border-radius: 7px;
   box-shadow: 0 10px 26px rgba(0,0,0,.6);
   display: flex; flex-direction: column; gap: 3px;
-  font-size: 12.5px; line-height: 1.35; color: var(--ink);
+  font-size: 14px; line-height: 1.35; color: var(--ink);
   white-space: normal; pointer-events: none; z-index: 9999;
 }
-.strip-card b { font-size: 13.5px; font-weight: 640; }
+.strip-card b { font-size: 15px; font-weight: 640; }
 .strip-card .crange { color: var(--ink-2); font-variant-numeric: tabular-nums; }
 .strip-card .cwhere { color: var(--muted); }
 .strip-card .cprep  { color: var(--ink-2); font-style: italic; }
-.strip-card .cpri   { color: var(--accent); font-size: 11.5px; letter-spacing: .02em; }
-.strip-card .cflag  { color: var(--ink-2); font-size: 11.5px; letter-spacing: .02em; }
+.strip-card .cpri   { color: var(--accent); font-size: 13px; letter-spacing: .02em; }
+.strip-card .cflag  { color: var(--ink-2); font-size: 13px; letter-spacing: .02em; }
 
 /* The Week page's own per-day insight popover (see `day.note` in
    brief/display.js and WeekPage's hover/tap comment in Display.jsx) — same
@@ -1263,10 +1263,10 @@
   min-width: 200px; max-width: 320px; padding: 10px 12px;
   background: #17171a; border: 1px solid #33333a; border-radius: 7px;
   box-shadow: 0 10px 26px rgba(0,0,0,.6);
-  font-size: 13px; line-height: 1.45; color: var(--ink);
+  font-size: 14.5px; line-height: 1.45; color: var(--ink);
   white-space: normal; pointer-events: none; z-index: 9999;
 }
-.fcnote-day { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+.fcnote-day { display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
 .fcnote p { margin: 0; color: var(--ink-2); }
 
 /* The Year grid's own tap-card (see YearPage's openDate in Display.jsx) —
@@ -1279,7 +1279,7 @@
   padding: 7px 11px; white-space: nowrap;
   background: #17171a; border: 1px solid #33333a; border-radius: 7px;
   box-shadow: 0 10px 26px rgba(0,0,0,.6);
-  font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums;
+  font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums;
   pointer-events: none; z-index: 9999;
 }
 
@@ -1291,15 +1291,15 @@
   padding: 7px 0; border-bottom: 1px solid var(--rule);
 }
 .focusrow .n {
-  flex-shrink: 0; width: 19px; height: 19px; border-radius: 50%;
-  background: var(--accent); color: #1a1400; font-size: 11px; font-weight: 700;
+  flex-shrink: 0; width: 21px; height: 21px; border-radius: 50%;
+  background: var(--accent); color: #1a1400; font-size: 12.5px; font-weight: 700;
   display: flex; align-items: center; justify-content: center; margin-top: 1px;
 }
-.focusrow .title { font-size: 16px; font-weight: 560; }
-.why { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.focusrow .title { font-size: 18px; font-weight: 560; }
+.why { display: block; font-size: 14.5px; color: var(--ink-2); margin-top: 2px; }
 /* When the model rewrote the row into an action, the original still shows —
    quietly — so you can tell what it decided to sharpen. */
-.task .from { display: block; font-size: 12.5px; color: var(--faint); margin-top: 1px; }
+.task .from { display: block; font-size: 14px; color: var(--faint); margin-top: 1px; }
 .task.top { border-left: 2px solid var(--accent); padding-left: 8px; margin-left: -10px; }
 
 /* Answering a row. Hidden until the row is hovered on a pointer device, and
@@ -1309,7 +1309,7 @@
 .act {
   appearance: none; border: 1px solid var(--rule); background: transparent;
   color: var(--muted); cursor: pointer; border-radius: 5px;
-  width: 24px; height: 24px; font-size: 12px; line-height: 1;
+  width: 27px; height: 27px; font-size: 13.5px; line-height: 1;
 }
 .act:hover { color: var(--ink); border-color: var(--fill-2); }
 .act.ok:hover { color: var(--up); border-color: var(--up); }
@@ -1322,7 +1322,7 @@
    touch screen with no hover to speak of, so the decision can't be hidden
    behind one. */
 .task.inbox-row, .task.tracked-row { flex-wrap: wrap; gap: 6px 12px; padding: 8px 0; }
-.remind-line { display: block; font-size: 11.5px; color: var(--faint); margin-top: 2px; }
+.remind-line { display: block; font-size: 13px; color: var(--faint); margin-top: 2px; }
 
 .triage-acts, .tracked-acts {
   display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0;
@@ -1330,7 +1330,7 @@
 }
 .triage-acts .act, .tracked-acts .act {
   width: auto; height: 27px; padding: 0 10px;
-  font-size: 11.5px; font-weight: 560; white-space: nowrap;
+  font-size: 13px; font-weight: 560; white-space: nowrap;
 }
 .tracked-acts .act.wrong { color: var(--down); }
 .tracked-acts .act.wrong:hover { color: var(--down); border-color: var(--down); }
@@ -1352,18 +1352,18 @@
   background: #17171a; border: 1px solid #33333a; border-radius: 7px;
   padding: 8px 10px;
   box-shadow: 0 10px 26px rgba(0,0,0,.6);
-  font-size: 12.5px; color: var(--ink);
+  font-size: 14px; color: var(--ink);
 }
 .snooze-pop-label { color: var(--muted); white-space: nowrap; }
 .snooze-pop input[type="date"] {
   background: transparent; border: 1px solid var(--rule); border-radius: 5px;
-  color: var(--ink); font: inherit; font-size: 12.5px; padding: 3px 5px;
+  color: var(--ink); font: inherit; font-size: 14px; padding: 3px 5px;
   color-scheme: dark;
 }
 .snooze-pop-acts { display: flex; gap: 6px; }
 .snooze-pop-cancel, .snooze-pop-go {
   appearance: none; border: 1px solid var(--rule); background: transparent;
-  color: var(--muted); border-radius: 5px; padding: 3px 9px; font-size: 12px; cursor: pointer;
+  color: var(--muted); border-radius: 5px; padding: 3px 9px; font-size: 13.5px; cursor: pointer;
 }
 .snooze-pop-cancel:hover { color: var(--ink); border-color: var(--fill-2); }
 .snooze-pop-go { color: var(--accent); border-color: var(--accent); }
@@ -1378,14 +1378,14 @@
 .lean-row {
   display: flex; align-items: baseline; gap: 10px;
   padding: 5px 0; border-bottom: 1px solid var(--rule);
-  font-size: 12.5px;
+  font-size: 14px;
 }
 .lean-row:last-child { border-bottom: none; }
 .lean-title { color: var(--ink-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lean-meta { color: var(--faint); flex-shrink: 0; }
 .lean-reopen {
   appearance: none; border: none; background: transparent; color: var(--muted);
-  font-size: 11.5px; cursor: pointer; flex-shrink: 0; padding: 0;
+  font-size: 13px; cursor: pointer; flex-shrink: 0; padding: 0;
 }
 .lean-reopen:hover { color: var(--accent); }
 .lean-reopen[disabled] { opacity: .4; cursor: default; }
@@ -1394,16 +1394,16 @@
    itself gets a full line instead of being clipped between two columns. */
 .dl { display: block; padding: 6px 0; border-bottom: 1px solid var(--rule); }
 .dl .dlhead { display: flex; justify-content: space-between; align-items: baseline; }
-.dl .in { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.dl .on { font-size: 12px; color: var(--faint); }
-.dl .what { display: block; font-size: 15px; color: var(--ink-2); margin-top: 1px; }
-.dl .dlnote { display: block; font-size: 12.5px; color: var(--muted); font-style: italic; }
+.dl .in { font-size: 14.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dl .on { font-size: 13.5px; color: var(--faint); }
+.dl .what { display: block; font-size: 17px; color: var(--ink-2); margin-top: 1px; }
+.dl .dlnote { display: block; font-size: 14px; color: var(--muted); font-style: italic; }
 .dl.near .in { color: var(--accent); font-weight: 640; }
 .dl.near .what { color: var(--ink); }
 
 /* ============================================================== positions */
 .mwarn {
-  font-size: 12.5px; color: var(--accent); margin: 0 0 8px;
+  font-size: 14px; color: var(--accent); margin: 0 0 8px;
   background: rgba(237,161,0,.09); border-left: 2px solid var(--accent);
   padding: 6px 10px; border-radius: 0 4px 4px 0;
 }
@@ -1412,7 +1412,7 @@
 .sortby { margin-left: auto; display: flex; gap: 3px; }
 .sortby button {
   appearance: none; border: 1px solid transparent; background: transparent;
-  color: var(--faint); cursor: pointer; font: inherit; font-size: 10px;
+  color: var(--faint); cursor: pointer; font: inherit; font-size: 11px;
   text-transform: uppercase; letter-spacing: .08em; padding: 2px 6px; border-radius: 4px;
 }
 .sortby button:hover { color: var(--ink-2); }
@@ -1420,29 +1420,29 @@
 
 .ptable { font-variant-numeric: tabular-nums; }
 .ptable .phead, .ptable .prow {
-  display: grid; grid-template-columns: 4.6rem 1fr 6.4rem 4.4rem 4rem;
+  display: grid; grid-template-columns: 5.15rem 1fr 7.2rem 4.95rem 4.5rem;
   gap: 10px; align-items: center; padding: 3px 0;
 }
 .ptable .phead {
-  font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase;
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--faint); border-bottom: 1px solid var(--rule); padding-bottom: 4px; margin-bottom: 2px;
 }
 .ptable .phead span:not(:first-child), .prow .v, .prow .d, .prow .r { text-align: right; }
-.prow { font-size: 13.5px; border-bottom: 1px solid rgba(38,38,37,.5); }
+.prow { font-size: 15px; border-bottom: 1px solid rgba(38,38,37,.5); }
 .prow:hover { background: rgba(255,255,255,.028); }
 .prow .tk { font-weight: 620; letter-spacing: .01em; }
-.prow .tk em { font-style: normal; font-size: 9px; color: var(--faint); margin-left: 3px; }
+.prow .tk em { font-style: normal; font-size: 10px; color: var(--faint); margin-left: 3px; }
 .prow .v { color: var(--ink-2); }
 /* The weight bar is the only chart here, and it earns it: concentration is a
    shape, not a number you compare forty times. */
 /* Two fixed tracks. The bar lives in its own lane so a heavy position can
    never shove its own percentage into the column beside it. */
-.prow .w { display: grid; grid-template-columns: 1fr 2.7rem; align-items: center; gap: 7px; }
+.prow .w { display: grid; grid-template-columns: 1fr 3rem; align-items: center; gap: 7px; }
 .prow .w i { height: 4px; border-radius: 2px; background: var(--fill-2); display: block; min-width: 1px; }
-.prow .w b { font-weight: 400; font-size: 11px; color: var(--muted); text-align: right; }
+.prow .w b { font-weight: 400; font-size: 12.5px; color: var(--muted); text-align: right; }
 .prow.stale { opacity: .5; }
 .prow.stale .v::after { content: " ⚠"; color: var(--accent); }
-.mtotal .ccy { font-size: 12px; color: var(--faint); align-self: flex-end; margin: 0 2px 4px -6px; }
+.mtotal .ccy { font-size: 13.5px; color: var(--faint); align-self: flex-end; margin: 0 2px 4px -6px; }
 .mspan .quiet { color: var(--faint); }
 
 /* ============================================================= phone
@@ -1472,15 +1472,15 @@
      longer exist at this width. */
   .zone, .tside, .pf-zone { border-left: 0 !important; padding-left: 0 !important; }
   .mcols > .zone + .zone { border-top: 1px solid var(--rule); padding-top: 12px; }
-  .disp { padding: 12px 13px 8px; font-size: 14px; }
+  .disp { padding: 12px 13px 8px; font-size: 15.5px; }
   .tday-head { padding: 2px 2px 14px; gap: 10px; }
-  .tday-weekday { font-size: 26px; }
-  .tday-monthday { font-size: 13.5px; }
+  .tday-weekday { font-size: 29px; }
+  .tday-monthday { font-size: 15px; }
   /* Same proportional (not full-2x) bump as the short-panel breakpoint above
      — phone width is tight enough that a full-size doubled face would crowd
      the date text next to it. */
   .aclock-face { width: 86px; height: 86px; }
-  .daycar-arrow { width: 48px; height: 48px; font-size: 26px; }
+  .daycar-arrow { width: 54px; height: 54px; font-size: 29px; }
   /* The desktop fixed-width reservation (330px, see the base rule) is
      sized for the arrows/gaps a wide panel has room for — a phone this
      narrow doesn't have 330px to spare next to two 48px arrows, so this
@@ -1489,7 +1489,7 @@
      phone specifically, and a flexible box beats a broken layout. */
   .daycar-label { width: auto; min-width: 0; flex-shrink: 1; overflow: visible; white-space: normal; }
   .hero { flex-wrap: wrap; gap: 6px; }
-  .hero .big { font-size: 21px; white-space: normal; }
+  .hero .big { font-size: 23.5px; white-space: normal; }
   .hero .sub { white-space: normal; }
   .hero-busy { padding-bottom: 10px; }
   .hero-note { max-width: none; }
@@ -1497,10 +1497,10 @@
      that got missed, and it left Today's two lists overlapping each other. */
   .cols, .page-tasks, .mcols, .days { display: flex; flex-direction: column; gap: 16px; }
   .trow { gap: 10px; }
-  .trow .t { min-width: 58px; }
+  .trow .t { min-width: 64px; }
   .tside { border-left: 0; padding-left: 0; }
   .acts { opacity: 1; }                    /* no hover on a touch screen */
-  .act { width: 30px; height: 30px; }
+  .act { width: 34px; height: 34px; }
   /* Inbox/Tracked rows: at this width there isn't room for the title, the
      due-date text, AND three-to-four labelled buttons to compete on one
      flex line — the browser's own wrap choice for which item gives up its
@@ -1514,20 +1514,20 @@
      fragment. Colour still separates them; a tap (see Strip's openId in
      Display.jsx) names them the same way hover does on a laptop. */
   .blk .bl { display: none; }
-  .ptable .phead, .ptable .prow { grid-template-columns: 3.6rem 1fr 3.6rem 3.6rem; }
+  .ptable .phead, .ptable .prow { grid-template-columns: 4rem 1fr 4rem 4rem; }
   .ptable .phead span:nth-child(3), .prow .w { display: none; }
   /* Scrolling itself is now the default everywhere it's needed (see
      .ygrid-scroll/.ygrid above) — this just tightens the label column and
      cell gap a bit further for a narrow phone specifically. */
-  .ygrid { --ylabelw: 30px; gap: 2px; }
+  .ygrid { --ylabelw: 33px; gap: 2px; }
   .ycell { border-radius: 2px; }
-  .mlabel { font-size: 9px; }
+  .mlabel { font-size: 10px; }
   .yhead { flex-wrap: wrap; gap: 4px; }
   .yshead { flex-wrap: wrap; gap: 4px 10px; }
-  .ystat .big { font-size: 26px; }
+  .ystat .big { font-size: 29px; }
   .ycard { padding: 10px 12px 8px; }
   .ylegend { flex-wrap: wrap; }
-  .mtotal .val { font-size: 26px; }
+  .mtotal .val { font-size: 29px; }
   /* The header wraps to two rows here (tabs, then the refresh button on its
      own line) — the panel needs to clear both, not just the first. */
   .panel { top: 92px; right: 13px; width: calc(100vw - 26px); max-width: 420px; }
