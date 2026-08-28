@@ -80,6 +80,32 @@ try {
   bad(`Gmail query: ${err.message}`);
 }
 
+// ---- brightspace ----------------------------------------------------------
+// Optional secondary source (see config.json's brightspace._enabled_note —
+// this flag alone doesn't gate anything, the app works fine without it), so
+// a missing URL is a warn, not a fail. Doctor never actually checked this
+// before, which is exactly how it went quietly unset: `npm run
+// set-brightspace-url` prints its own "restart to pick it up" message and
+// exits, but nothing afterward ever confirmed the value actually landed —
+// this closes that gap by re-running the same live fetch+parse check that
+// script does, so a revoked/expired/never-actually-saved subscription link
+// shows up here instead of silently doing nothing.
+console.log("\nBrightspace");
+if (!process.env.BRIGHTSPACE_ICS_URL) {
+  warn("BRIGHTSPACE_ICS_URL not set in .env — run `npm run set-brightspace-url` if you want the safety-net/syllabus features (skip this if you don't use Brightspace)");
+} else {
+  try {
+    const axios = (await import("axios")).default;
+    const { parseFeed } = await import("../sources/brightspace.js");
+    const res = await axios.get(process.env.BRIGHTSPACE_ICS_URL, { timeout: 20000, responseType: "text" });
+    const events = parseFeed(res.data);
+    ok(`feed reachable — ${events.length} entr${events.length === 1 ? "y" : "ies"} on it right now`);
+  } catch (err) {
+    const reason = err.response ? `HTTP ${err.response.status}` : err.message;
+    bad(`BRIGHTSPACE_ICS_URL is set but fetching it failed: ${reason} — the subscription link may have been regenerated or revoked on Brightspace's side, or never actually saved (re-run \`npm run set-brightspace-url\`)`);
+  }
+}
+
 // ---- vault ----------------------------------------------------------------
 // The vault is no longer a task/event source — this just confirms the path
 // resolves, because money.js still reads it directly for holdings (share
