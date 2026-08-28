@@ -585,15 +585,19 @@
 
 .pri { margin-left: 9px; font-size: 13.5px; color: var(--muted); font-style: italic; white-space: nowrap; }
 
-/* Today's own events/deadlines/all-day rows are tappable for on-demand AI
-   detail (see ItemDetailModal in Display.jsx) — Jon's own scope-down means
-   only Today's slide ever gets this `.clickable` class this round, so a
-   Looking-ahead row stays inert and unstyled until that's wired up too. A
-   quiet background lift on hover, same family as .fcday.clickable's own
-   treatment on the Week page, rather than an underline or a coloured
-   border — this app's own "sentences over graphics" rule again. */
-.trow.clickable, .dlrow.clickable { cursor: pointer; border-radius: 6px; transition: background .12s; }
-.trow.clickable:hover, .dlrow.clickable:hover { background: var(--raise); }
+/* Every events/deadlines/all-day row across all 4 Today-page slides, plus
+   the Tasks page's Inbox/Tracked rows, is tappable for on-demand AI detail
+   (see ItemDetailModal in Display.jsx). A quiet background lift on hover,
+   same family as .fcday.clickable's own treatment on the Week page, rather
+   than an underline or a coloured border — this app's own "sentences over
+   graphics" rule again. Tasks rows reuse the exact same hover treatment as
+   .trow/.dlrow rather than inventing a second one — see .task.inbox-row,
+   .task.tracked-row for their own action-button styling, which sits inside
+   this same clickable row and stops its own clicks from bubbling up to it. */
+.trow.clickable, .dlrow.clickable,
+.task.inbox-row.clickable, .task.tracked-row.clickable { cursor: pointer; border-radius: 6px; transition: background .12s; }
+.trow.clickable:hover, .dlrow.clickable:hover,
+.task.inbox-row.clickable:hover, .task.tracked-row.clickable:hover { background: var(--raise); }
 .aday-chip.clickable { cursor: pointer; transition: filter .12s; }
 .aday-chip.clickable:hover { filter: brightness(1.15); }
 

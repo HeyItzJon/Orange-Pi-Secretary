@@ -521,14 +521,17 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
   const slide = slides[offset];
 
   // On-demand AI detail for one tapped item (see ItemDetailModal below) —
-  // `{id, kind}` of whichever row is currently open, or null. Jon's own
-  // scoping call for this round: only Today's own rows (onToday) ever set
-  // this — the infrastructure (the modal, the endpoint, the kind-per-list
-  // wiring) is general, but the click handlers below are deliberately only
-  // attached on Today's slide for now, so no API call happens for the 3
-  // Looking-ahead days yet. Reset whenever the carousel pages to a
-  // different slide, so paging away from Today doesn't leave a stale
-  // modal open behind the new slide.
+  // `{id, kind}` of whichever row is currently open, or null. Round 41
+  // scoped the click handlers to Today's own rows (onToday) only, on
+  // purpose — the infrastructure (the modal, the endpoint, the kind-per-list
+  // wiring) was already general, so once that proved out, wiring the same
+  // clicks onto the 3 Looking-ahead slides was exactly the one-line change
+  // per list that round's own comments predicted (see git history for
+  // "onToday alone gates it"). Every slide gets the same click-to-expand
+  // treatment now; the only thing onToday still changes below is which
+  // heading text and empty-state copy a slide shows. Reset whenever the
+  // carousel pages to a different slide, so paging away doesn't leave a
+  // stale modal open behind the new slide.
   const [detail, setDetail] = useState(null);
   useEffect(() => { setDetail(null); }, [offset]);
 
@@ -603,7 +606,7 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
           below the (now-relocated) title instead, as the first thing in the
           page's own body, in both pill and written form. See AllDayZone's
           own comment. */}
-      <AllDayZone items={slide.allDay} onSelect={onToday ? (id) => setDetail({ id, kind: "allday" }) : null} />
+      <AllDayZone items={slide.allDay} onSelect={(id) => setDetail({ id, kind: "allday" })} />
 
       {/* The old second column here — a text restatement of Tomorrow/
           Thursday/Friday — is gone on purpose: the carousel above already
@@ -627,24 +630,22 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
       <div className="cols">
         <section className="zone">
           <h2>{onToday ? "Today's events" : `${slide.label}'s events`}</h2>
-          {/* Clickable on Today's slide only for now (Jon's own scope-down:
-              "only set up the API calls for today") — each row opens
-              ItemDetailModal below with a location/attendee summary and
-              DeepSeek's own take on what to do about it, cached per item
-              after the first click (see brief/detail.js). The 3
-              Looking-ahead slides get the same treatment once this proves
-              out; onToday alone gates it rather than a separate flag, so
-              turning it on for them later is a one-line change here. */}
+          {/* Clickable on every slide — Today and all 3 Looking-ahead days
+              alike. Each row opens ItemDetailModal below with a
+              location/attendee summary and DeepSeek's own take on what to
+              do about it, cached per item after the first click (see
+              brief/detail.js), so paging ahead and tapping around never
+              costs more than one call per item, ever. */}
           {!slide.events || slide.events.length === 0 ? (
             <p className="empty">{onToday ? "Nothing timed today." : "Nothing timed that day."}</p>
           ) : (
             slide.events.map((t) => (
               <div
-                className={`trow${t.past ? " past" : ""}${onToday ? " clickable" : ""}`}
+                className={`trow${t.past ? " past" : ""} clickable`}
                 key={t.id}
-                onClick={onToday ? () => setDetail({ id: t.id, kind: "event" }) : undefined}
-                role={onToday ? "button" : undefined}
-                tabIndex={onToday ? 0 : undefined}
+                onClick={() => setDetail({ id: t.id, kind: "event" })}
+                role="button"
+                tabIndex={0}
               >
                 {/* Orange, same family as the day strip's own now-marker —
                     walks down the list on its own as `now` moves past each
@@ -684,7 +685,7 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
       <DeadlinesZone
         label={onToday ? "Today" : slide.label}
         items={onToday ? d.deadlinesToday : slide.deadlinesToday}
-        onSelect={onToday ? (id) => setDetail({ id, kind: "deadline" }) : null}
+        onSelect={(id) => setDetail({ id, kind: "deadline" })}
       />
 
       {/* Renders nothing while `detail` is null — see ItemDetailModal's own
@@ -751,11 +752,19 @@ function DeadlinesZone({ label, items, onSelect }) {
  * own loading/error state, so it needs an actual close affordance rather
  * than "move the mouse away".
  *
- * `detail` is `{id, kind}` or null (see TodayPage's own `detail` state) —
- * `kind` is one of "event"/"deadline"/"allday", telling the backend which
- * of the three lists this click came from (an item can appear in more
- * than one — see brief/detail.js's inferKind() comment), sent through as
- * `?kind=`.
+ * `detail` is `{id, kind}` or null — TodayPage keeps its own `detail` state
+ * for its 4 slides (Today plus the 3 Looking-ahead days), and TasksPage
+ * keeps a separate one for its Inbox/Tracked rows; both render this same
+ * component. `kind` is one of "event"/"deadline"/"allday", telling the
+ * backend which of the three lists this click came from (an item can
+ * appear in more than one — see brief/detail.js's inferKind() comment),
+ * sent through as `?kind=`. TasksPage's rows are a heterogeneous mix of
+ * calendar events, emails, and Brightspace deadlines with no single list
+ * to hint from, so it omits `kind` entirely and lets the backend's own
+ * inferKind() fallback read it off the item itself (calendar-sourced and
+ * timed → event, calendar-sourced and all-day → allday, everything
+ * else — email, Brightspace — → deadline) — the same guess the backend
+ * already had to support for any client that doesn't send a hint.
  */
 function ItemDetailModal({ detail, onClose }) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
@@ -954,9 +963,20 @@ function SnoozePopover({ anchorEl, onConfirm, onCancel }) {
  * rows, so hiding the decision behind a hover state — which doesn't even
  * exist on the touch screen this is meant to work on — would be backwards.
  */
-function InboxRow({ t, busy, onAct, snoozeOpen, onToggleSnooze, snoozeRef }) {
+function InboxRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, snoozeRef }) {
+  // Row itself opens the on-demand detail modal (see TasksPage's own
+  // comment); every action button stops the click from bubbling up to
+  // that handler first, same pattern "Remind later" already used for the
+  // exact same reason against the snooze popover — otherwise tapping
+  // Priority/Not priority would triage the item AND pop the modal open at
+  // once.
   return (
-    <div className={`task inbox-row${t.unmissable ? " must" : ""}${t.top ? " top" : ""}${busy ? " busy" : ""}`}>
+    <div
+      className={`task inbox-row clickable${t.unmissable ? " must" : ""}${t.top ? " top" : ""}${busy ? " busy" : ""}`}
+      onClick={() => onOpenDetail(t.id)}
+      role="button"
+      tabIndex={0}
+    >
       <span className={`dot d-${t.domain}`} />
       <span className="tbody">
         <span className="title">{t.do || t.title}</span>
@@ -973,8 +993,8 @@ function InboxRow({ t, busy, onAct, snoozeOpen, onToggleSnooze, snoozeRef }) {
         <span className={`when${t.daysOut !== null && t.daysOut <= 1 ? " soon" : ""}`}>{t.due}</span>
       )}
       <span className="triage-acts">
-        <button className="act ok" disabled={busy} onClick={() => onAct(t.id, "priority")}>Priority</button>
-        <button className="act no" disabled={busy} onClick={() => onAct(t.id, "not-priority")}>Not priority</button>
+        <button className="act ok" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "priority"); }}>Priority</button>
+        <button className="act no" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "not-priority"); }}>Not priority</button>
         <button
           ref={snoozeRef}
           className={`act later${snoozeOpen ? " open" : ""}`}
@@ -996,9 +1016,15 @@ function InboxRow({ t, busy, onAct, snoozeOpen, onToggleSnooze, snoozeRef }) {
  * lib/store.js's bumpRemindCounts() for how it's incremented (once a day,
  * not once a page-load).
  */
-function TrackedRow({ t, busy, onAct, snoozeOpen, onToggleSnooze, snoozeRef }) {
+function TrackedRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, snoozeRef }) {
+  // Same click-vs-action split as InboxRow above, same reason.
   return (
-    <div className={`task tracked-row${t.unmissable ? " must" : ""}${busy ? " busy" : ""}`}>
+    <div
+      className={`task tracked-row clickable${t.unmissable ? " must" : ""}${busy ? " busy" : ""}`}
+      onClick={() => onOpenDetail(t.id)}
+      role="button"
+      tabIndex={0}
+    >
       <span className={`dot d-${t.domain}`} />
       <span className="tbody">
         <span className="title">{t.do || t.title}</span>
@@ -1019,9 +1045,9 @@ function TrackedRow({ t, busy, onAct, snoozeOpen, onToggleSnooze, snoozeRef }) {
         <span className={`when${t.daysOut !== null && t.daysOut <= 1 ? " soon" : ""}`}>{t.due}</span>
       )}
       <span className="tracked-acts">
-        <button className="act ok" disabled={busy} onClick={() => onAct(t.id, "done")}>Done</button>
-        <button className="act no" disabled={busy} onClick={() => onAct(t.id, "wontdo")}>Won't do</button>
-        <button className="act wrong" disabled={busy} onClick={() => onAct(t.id, "wrong")}>Wrong</button>
+        <button className="act ok" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "done"); }}>Done</button>
+        <button className="act no" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "wontdo"); }}>Won't do</button>
+        <button className="act wrong" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "wrong"); }}>Wrong</button>
         <button
           ref={snoozeRef}
           className={`act later${snoozeOpen ? " open" : ""}`}
@@ -1081,6 +1107,19 @@ function TasksPage({ d, onAct }) {
   const [filedOpen, setFiledOpen] = useState(false);
   const [resolvedOpen, setResolvedOpen] = useState(false);
   const snoozeAnchors = useRef(new Map());
+  // On-demand AI detail — same ItemDetailModal, endpoint, and per-item cache
+  // TodayPage uses (see its own comment and brief/detail.js). Jon's ask:
+  // Inbox and Tracked rows should open the same detail panel Today's rows
+  // do, so triaging an Inbox item — or deciding what to do about a Tracked
+  // one — doesn't mean guessing from the title alone. No `kind` hint is
+  // passed here (see ItemDetailModal's own comment on why): Inbox/Tracked
+  // mix calendar events, emails, and Brightspace deadlines with no single
+  // list to hint from, so the backend's inferKind() fallback reads it off
+  // the item itself instead. Filed away/Resolved stay plain, un-clickable
+  // rows — those are a glance-back archive, not something worth a fresh
+  // API call to re-read; easy to extend to them later if that changes.
+  const [detail, setDetail] = useState(null);
+  const openDetail = (id) => setDetail({ id });
 
   const act = async (id, action, body) => {
     setBusyId(id);
@@ -1130,6 +1169,7 @@ function TasksPage({ d, onAct }) {
                     t={t}
                     busy={busyId === t.id}
                     onAct={act}
+                    onOpenDetail={openDetail}
                     snoozeOpen={snoozeId === t.id}
                     onToggleSnooze={toggleSnooze}
                     snoozeRef={snoozeRefFor(t.id)}
@@ -1159,6 +1199,7 @@ function TasksPage({ d, onAct }) {
                   t={t}
                   busy={busyId === t.id}
                   onAct={act}
+                  onOpenDetail={openDetail}
                   snoozeOpen={snoozeId === t.id}
                   onToggleSnooze={toggleSnooze}
                   snoozeRef={snoozeRefFor(t.id)}
@@ -1269,6 +1310,12 @@ function TasksPage({ d, onAct }) {
           </div>
         </section>
       </div>
+
+      {/* Renders nothing while `detail` is null — see ItemDetailModal's own
+          comment for why Inbox/Tracked rows share this exact component
+          (and its per-item cache) with TodayPage rather than building a
+          second one. */}
+      <ItemDetailModal detail={detail} onClose={() => setDetail(null)} />
     </div>
   );
 }
