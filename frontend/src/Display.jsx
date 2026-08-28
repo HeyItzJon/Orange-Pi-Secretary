@@ -1723,7 +1723,15 @@ function StockIdeaDetailModal({ ticker, onClose }) {
  * brief/display.js's yearGrid for why those are left grey rather than
  * guessed at.
  */
-const WEEKDAY_LABELS = ["", "Mon", "", "Wed", "", "Fri", ""];
+// Every row labeled, not just Mon/Wed/Fri (GitHub's own contribution graph
+// convention, which this was originally modeled on) — with only every
+// other row carrying a label, the labeled+unlabeled rows visually pair up
+// (Sun+Mon, Tue+Wed, Thu+Fri, Sat alone), which is almost certainly what
+// Jon was seeing as "rows of two groupings": extensive DOM measurement
+// (Playwright getBoundingClientRect at multiple viewport widths) found the
+// actual cell/gap sizing perfectly uniform, so the fix here is perceptual,
+// not structural — a label on every row removes the alternating rhythm.
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const LEGEND_BUCKETS = ["r3", "r2", "r1", "flat", "g1", "g2", "g3"];
 
 function YearPage({ d }) {
