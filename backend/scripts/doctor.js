@@ -136,6 +136,67 @@ try {
   warn(`portfolio.json: ${err.message} (fine if your holdings live in the vault instead — this file is only a last-resort fallback)`);
 }
 
+// ---- quotes ---------------------------------------------------------------
+// Hits Yahoo directly, ticker by ticker, so a stale price on the Finances
+// page has a real answer instead of a guess. Two failure shapes read very
+// differently here, deliberately:
+//   1. EVERY ticker fails with the same "no set-cookie header" / crumb-type
+//      error — that's Yahoo's own auth flow breaking (a known, recurring
+//      yahoo-finance2 issue, sometimes tied to how Yahoo's EU consent
+//      redirect responds to a given IP), nothing wrong with any one holding.
+//   2. ONE ticker fails while the rest succeed — that's the real signal a
+//      specific symbol is wrong, delisted, or a listing Yahoo just doesn't
+//      carry reliable data for (small NEO/Cboe Canada CDR listings are the
+//      most likely case in this book).
+// Also reports what's CURRENTLY cached for each ticker (moneySummary/
+// priceCache), since a live failure right now doesn't by itself explain how
+// old the price actually showing on screen is.
+console.log("\nQuotes");
+try {
+  const { init: initStore, getHoldings, getMeta } = await import("../lib/store.js");
+  await initStore();
+  const holdings = await getHoldings();
+  if (!holdings.length) {
+    warn("no holdings to check — see Portfolio above");
+  } else {
+    const YahooFinance = (await import("yahoo-finance2")).default;
+    const yahoo = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+    const priceCache = (await getMeta("priceCache", {})) || {};
+    const moneySummary = await getMeta("moneySummary", null);
+
+    let liveFailures = 0;
+    for (const h of holdings) {
+      const cached = priceCache[h.ticker];
+      const cacheNote = cached
+        ? ` (cache: ${cached.price} ${cached.currency} as of ${cached.quotedAt})`
+        : " (nothing cached for this ticker yet)";
+      try {
+        const q = await yahoo.quote(h.ticker);
+        if (q?.regularMarketPrice != null) {
+          ok(`${h.ticker}: live ${q.regularMarketPrice} ${q.currency || "?"} (${q.marketState || "unknown state"})`);
+        } else {
+          liveFailures++;
+          bad(`${h.ticker}: Yahoo returned no price for this symbol${cacheNote}`);
+        }
+      } catch (err) {
+        liveFailures++;
+        bad(`${h.ticker}: ${err.message}${cacheNote}`);
+      }
+    }
+    if (liveFailures === holdings.length && holdings.length > 1) {
+      warn("every ticker failed the same way — this points at Yahoo's own auth/consent flow, not any one holding. Try again in a few minutes; if it persists, yahoo-finance2 may need an update.");
+    }
+    if (moneySummary?.stale?.length) {
+      warn(`moneySummary currently marks stale: ${moneySummary.stale.join(", ")} (showing last-known price rather than live)`);
+    }
+    if (moneySummary?.unavailable?.length) {
+      bad(`moneySummary currently marks unavailable (no price at all, ever): ${moneySummary.unavailable.join(", ")}`);
+    }
+  }
+} catch (err) {
+  bad(`quotes check: ${err.message}`);
+}
+
 // ---- frontend -----------------------------------------------------------
 console.log("\nFrontend");
 try {
