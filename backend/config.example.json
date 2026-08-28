@@ -35,7 +35,9 @@
     "auditWindowDays": 14,
     "_auditWindowDays_note": "How far out the \"not on your calendar yet\" count looks. A Brightspace deadline further out than this isn't counted as missing \u2014 it's just not due soon enough to flag yet.",
     "courseCodeMatchWindowDays": 2,
-    "_courseCodeMatchWindowDays_note": "A Brightspace item counts as already-scheduled if a calendar item with the same course code falls within this many days of it \u2014 loose enough that your own reminder a day early (or the Brightspace cutoff being a day later than your own entry) still counts as a match."
+    "_courseCodeMatchWindowDays_note": "A Brightspace item counts as already-scheduled if a calendar item with the same course code falls within this many days of it \u2014 loose enough that your own reminder a day early (or the Brightspace cutoff being a day later than your own entry) still counts as a match.",
+    "maxPastDays": 14,
+    "_maxPastDays_note": "A Brightspace .ics feed commonly carries your ENTIRE enrollment history, not just the current term \u2014 old courses' assignment dates never expire out of it on their own. Anything due more than this many days ago is dropped at collection time rather than kept around forever as a permanently-open, permanently-unmatched item."
   },
   "categories": {
     "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",

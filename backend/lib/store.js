@@ -225,7 +225,7 @@ export async function markSurfaced(ids) {
 }
 
 /** Drop resolved/expired items so the store doesn't grow without bound. */
-export async function prune({ maxAgeDays = 90 } = {}) {
+export async function prune({ maxAgeDays = 90, brightspaceMaxPastDays = 14 } = {}) {
   const dbc = getDb();
   const cutoffIso = new Date(Date.now() - maxAgeDays * 86400000).toISOString();
 
@@ -234,7 +234,25 @@ export async function prune({ maxAgeDays = 90 } = {}) {
     WHERE COALESCE(lastSeen, firstSeen) < ?
       AND (status IN ('done', 'dismissed') OR dueAt IS NULL)
   `).run(cutoffIso);
-  const removed = result.changes;
+  let removed = result.changes;
+
+  // Brightspace is the one source whose feed routinely spans a student's
+  // ENTIRE enrollment history (see sources/brightspace.js), so an old item
+  // never earns 'done'/'dismissed' the way everything else does — nobody
+  // goes back and marks a two-year-old assignment done. Without this, the
+  // rule above never touches it and it stays 'open' forever. Safe to just
+  // delete outright (not a status change): Brightspace is documented as a
+  // secondary, disposable source, never the primary record of anything —
+  // losing an old, unmatched entry here loses nothing the app actually
+  // relies on. sources/brightspace.js's own collector already stops
+  // re-adding items this old going forward; this is what clears out
+  // whatever already accumulated before that filter existed.
+  const bsCutoffIso = new Date(Date.now() - brightspaceMaxPastDays * 86400000).toISOString();
+  const bsResult = dbc.prepare(`
+    DELETE FROM items
+    WHERE source = 'brightspace' AND status = 'open' AND dueAt IS NOT NULL AND dueAt < ?
+  `).run(bsCutoffIso);
+  removed += bsResult.changes;
 
   const { c: seenCount } = dbc.prepare("SELECT COUNT(*) AS c FROM seen_message_ids").get();
   if (seenCount > 3000) {

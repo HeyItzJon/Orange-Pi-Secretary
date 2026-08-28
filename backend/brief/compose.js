@@ -191,6 +191,9 @@ export async function buildBrief(config, { narrate = true, markAsSurfaced = true
 export async function runFullCycle(config, { force = false } = {}) {
   const report = await runSources(config, { force });
   const brief = await buildBrief(config, { narrate: true });
-  await prune({ maxAgeDays: config.brief?.retainDays ?? 90 });
+  await prune({
+    maxAgeDays: config.brief?.retainDays ?? 90,
+    brightspaceMaxPastDays: config.brightspace?.maxPastDays ?? 14,
+  });
   return { report, brief };
 }

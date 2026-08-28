@@ -19,7 +19,7 @@
 
 import { logger } from "./log.js";
 import { runSources, buildBrief } from "../brief/compose.js";
-import { getMeta, setMeta } from "./store.js";
+import { getMeta, setMeta, prune } from "./store.js";
 import { SOURCES } from "./sources.js";
 
 const log = logger("scheduler");
@@ -72,6 +72,17 @@ export function startScheduler(config) {
         log.info("composing morning brief");
         await buildBrief(config, { narrate: true });
         await setMeta("ranOn_brief", day);
+        // Once a day, piggybacked on the brief slot rather than its own
+        // clock — a hygiene sweep doesn't need to run every 15 minutes, and
+        // this is the one guaranteed once-a-day moment. (This used to only
+        // ever run from the manual `npm run brief`/run-once.js path via
+        // runFullCycle — never from the actual always-on scheduler, so
+        // config.brief.retainDays silently did nothing on a live server.)
+        const removed = await prune({
+          maxAgeDays: config.brief?.retainDays ?? 90,
+          brightspaceMaxPastDays: config.brightspace?.maxPastDays ?? 14,
+        });
+        if (removed) log.info(`daily prune: removed ${removed} stale item(s)`);
       }
     } catch (err) {
       log.error(`tick failed: ${err.message}`);

@@ -56,12 +56,23 @@ function hasCalendarMatch(bsItem, calendarItems, matchWindowMs) {
  * unscheduled — the conservative default for a safety net: better to flag
  * something that's actually already on the calendar under an unmatchable
  * title than to silently drop it from the count.
+ *
+ * "Upcoming" is enforced on both ends, deliberately: sources/brightspace.js
+ * already drops anything older than maxPastDays at collection time, but
+ * this function takes a plain `live` array from whoever calls it, not a
+ * guaranteed-fresh pull — so it doesn't lean on that alone. A years-old
+ * Brightspace item (an old course's assignment, still sitting in the store
+ * as "open") has no business being counted as something you "haven't
+ * scheduled yet" — that framing only makes sense for something still
+ * ahead of you. A one-day grace lets something due earlier today still
+ * count, matching how the rest of the app treats "due today" as current.
  */
 export function unscheduledCount(live, config, now = new Date()) {
   const cfg = config.brightspace || {};
   const auditWindowMs = (cfg.auditWindowDays ?? 14) * DAY;
   const matchWindowMs = (cfg.courseCodeMatchWindowDays ?? 2) * DAY;
   const horizon = now.getTime() + auditWindowMs;
+  const pastFloor = now.getTime() - DAY;
 
   const bsItems = live.filter((i) => i.source === "brightspace" && i.dueAt);
   if (!bsItems.length) return 0;
@@ -71,7 +82,7 @@ export function unscheduledCount(live, config, now = new Date()) {
   let count = 0;
   for (const bs of bsItems) {
     const due = new Date(bs.dueAt).getTime();
-    if (Number.isNaN(due) || due > horizon) continue;
+    if (Number.isNaN(due) || due > horizon || due < pastFloor) continue;
     if (!hasCalendarMatch(bs, calendarItems, matchWindowMs)) count++;
   }
   return count;

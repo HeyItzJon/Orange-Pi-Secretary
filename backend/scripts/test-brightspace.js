@@ -21,7 +21,7 @@ const TMP_DB = path.join(os.tmpdir(), `pi-secretary-test-brightspace-${process.p
 process.env.STORE_DB_PATH = TMP_DB;
 
 const { init, setCourse } = await import("../lib/store.js");
-const { parseFeed, eventToItem } = await import("../sources/brightspace.js");
+const { parseFeed, eventToItem, filterRecent } = await import("../sources/brightspace.js");
 const { unscheduledCount } = await import("../brief/brightspace.js");
 const { buildItemDetail } = await import("../brief/detail.js");
 const { extractCourseCode } = await import("../lib/classify.js");
@@ -136,6 +136,36 @@ await test("a title that reads like a quiz earns the 'Test' category, same rules
 });
 
 // ====================================================================
+group("filterRecent — dropping a Brightspace feed's old history at collection time");
+
+const FR_NOW = new Date("2026-08-28T00:00:00Z");
+const FR_CFG = { brightspace: { maxPastDays: 14 } };
+
+await test("an item due well within the past window survives", () => {
+  const items = [{ dueAt: "2026-08-25T12:00:00Z" }]; // 3 days ago
+  assert.equal(filterRecent(items, FR_CFG, FR_NOW).length, 1);
+});
+
+await test("an item due long before the past window is dropped", () => {
+  const items = [{ dueAt: "2024-01-15T12:00:00Z" }]; // over a year ago — an old semester
+  assert.equal(filterRecent(items, FR_CFG, FR_NOW).length, 0);
+});
+
+await test("an item due in the future always survives", () => {
+  const items = [{ dueAt: "2026-09-15T12:00:00Z" }];
+  assert.equal(filterRecent(items, FR_CFG, FR_NOW).length, 1);
+});
+
+await test("a mixed feed keeps only the recent-or-future items, in order", () => {
+  const items = [
+    { id: "old", dueAt: "2023-05-01T00:00:00Z" },
+    { id: "recent", dueAt: "2026-08-27T00:00:00Z" },
+    { id: "future", dueAt: "2026-09-01T00:00:00Z" },
+  ];
+  assert.deepEqual(filterRecent(items, FR_CFG, FR_NOW).map((i) => i.id), ["recent", "future"]);
+});
+
+// ====================================================================
 group("unscheduledCount — the safety-net comparison against the calendar");
 
 const bsItem = (o) => ({
@@ -176,6 +206,16 @@ await test("a Brightspace item with no extractable course code always counts —
 await test("a Brightspace item due past auditWindowDays isn't counted yet — too far out to flag", () => {
   const live = [bsItem({ dueAt: "2026-10-01T23:59:00Z" })]; // ~34 days out, window is 14
   assert.equal(unscheduledCount(live, CFG, NOW), 0);
+});
+
+await test("a Brightspace item due long in the past isn't counted — it's old history, not something 'not scheduled yet'", () => {
+  const live = [bsItem({ dueAt: "2024-01-15T23:59:00Z" })]; // an old semester's assignment
+  assert.equal(unscheduledCount(live, CFG, NOW), 0);
+});
+
+await test("a Brightspace item due just before NOW still gets the benefit of the doubt (1-day grace)", () => {
+  const live = [bsItem({ dueAt: "2026-08-27T23:59:00Z" })]; // a few minutes before NOW
+  assert.equal(unscheduledCount(live, CFG, NOW), 1);
 });
 
 await test("no Brightspace items at all is a flat zero, not an error", () => {

@@ -178,6 +178,21 @@ await atest("an old, done item with no dueAt is pruned; an old item with a futur
   assert.ok(await getItem("p2"));
 });
 
+await atest("an old, still-open Brightspace item is pruned even though 'open' items are normally kept — its feed can span an entire enrollment history, and nothing else ever marks it done", async () => {
+  const longAgo = new Date(Date.now() - 400 * 86400000).toISOString();
+  await upsertItem({ id: "p3", contentHash: "x", source: "brightspace", dueAt: longAgo });
+
+  // A same-age, same-status item from a different source (e.g. a calendar
+  // item) must NOT be swept by the same rule — only Brightspace gets this
+  // more aggressive treatment.
+  await upsertItem({ id: "p4", contentHash: "x", source: "calendar", dueAt: longAgo });
+
+  const removed = await prune({ maxAgeDays: 90, brightspaceMaxPastDays: 14 });
+  assert.ok(removed >= 1);
+  assert.equal(await getItem("p3"), null, "an old open Brightspace item should be gone");
+  assert.ok(await getItem("p4"), "an old open calendar item should NOT be touched by the Brightspace-specific rule");
+});
+
 group("gmail message id dedup");
 
 await atest("remembered ids come back as a Set", async () => {

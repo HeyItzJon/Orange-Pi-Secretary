@@ -111,7 +111,25 @@ export function eventToItem(e, config) {
   };
 }
 
-export async function collectBrightspace(config, { force = false } = {}) {
+/**
+ * A Brightspace .ics feed is typically a subscription to your WHOLE
+ * enrollment history, not just the current term — old courses' assignment
+ * dates sit in it forever. Nothing else in the pipeline ages these out on
+ * its own (see lib/store.js's prune(), which only ever removes done/
+ * dismissed items — an old Brightspace item stays "open" indefinitely
+ * unless dropped here), so without this a years-old assignment gets
+ * re-collected and counted as an open task, and as "not on your calendar",
+ * forever. maxPastDays draws the line at "recent enough to still matter."
+ * Split out from collectBrightspace() so scripts/test-brightspace.js can
+ * exercise the cutoff itself against plain fixture items, no network call.
+ */
+export function filterRecent(items, config, now = new Date()) {
+  const maxPastDays = config.brightspace?.maxPastDays ?? 14;
+  const cutoff = now.getTime() - maxPastDays * 86400000;
+  return items.filter((i) => new Date(i.dueAt).getTime() >= cutoff);
+}
+
+export async function collectBrightspace(config, { force = false, now = new Date() } = {}) {
   const url = process.env.BRIGHTSPACE_ICS_URL;
   if (!url) {
     return { items: [], detail: "not configured — run `npm run set-brightspace-url`" };
@@ -129,7 +147,8 @@ export async function collectBrightspace(config, { force = false } = {}) {
   }
 
   const events = parseFeed(text);
-  const items = events.map((e) => eventToItem(e, config)).filter(Boolean);
+  const rawItems = events.map((e) => eventToItem(e, config)).filter(Boolean);
+  const items = filterRecent(rawItems, config, now);
 
   const courseCount = new Set(items.map((i) => i.courseCode).filter(Boolean)).size;
   const detail = items.length
