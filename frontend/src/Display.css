@@ -680,6 +680,42 @@
 }
 .item-modal-link:hover { border-bottom-color: var(--accent); }
 
+/* StockIdeaDetailModal — the "Worth a look" card's own on-demand panel
+   (see Display.jsx's own comment on why it's a separate component from
+   ItemDetailModal above). Reuses .item-modal's backdrop/frame/close-button
+   wholesale, just a little wider (more content: an AI narrative in 3 parts,
+   a stats grid, a Yahoo link) and its own inner layout below. */
+.idea-modal { max-width: 500px; }
+.idea-modal-ai p { font-size: 15.5px; line-height: 1.5; color: var(--ink-2); margin: 0 0 10px; }
+.idea-modal-lbl {
+  display: block; font-size: 12.5px; font-weight: 640; color: var(--faint);
+  text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px;
+}
+.idea-modal-plain { font-size: 15.5px; line-height: 1.5; color: var(--ink-2); margin: 0 0 10px; }
+.idea-modal-stats {
+  display: flex; flex-direction: column; gap: 2px;
+  border-top: 1px solid var(--rule); padding-top: 10px; margin-top: 4px;
+}
+.idea-modal-stat { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; font-size: 14.5px; color: var(--ink-2); }
+.idea-modal-stat .lbl { color: var(--faint); }
+.idea-modal-stat em { font-style: normal; font-weight: 640; }
+.idea-modal-stat em.up { color: var(--up); }
+.idea-modal-stat em.down { color: var(--down); }
+.idea-modal-yahoo {
+  display: inline-block; margin-top: 12px; font-size: 14.5px;
+  color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent;
+}
+.idea-modal-yahoo:hover { border-bottom-color: var(--accent); }
+
+/* "Worth a look" card is tappable for the same on-demand detail — same
+   quiet hover-lift family as .trow.clickable/.dlrow.clickable elsewhere in
+   this file, just with a touch of horizontal padding added (unlike those
+   edge-to-edge rows, .idea already reads as its own little card among
+   siblings, so the hover background gets a matching inset rather than
+   touching the column's own edges). */
+.idea.clickable { cursor: pointer; border-radius: 6px; padding: 2px 8px; margin: 0 -8px; transition: background .12s; }
+.idea.clickable:hover { background: var(--raise); }
+
 @media (max-width: 480px) {
   .item-modal { padding: 18px 16px 16px; border-radius: 8px; }
   .item-modal-head h3 { font-size: 19px; }

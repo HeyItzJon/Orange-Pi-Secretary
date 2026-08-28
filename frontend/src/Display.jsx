@@ -1402,6 +1402,14 @@ function MarketZone({ market }) {
 function MoneyPage({ d }) {
   const p = d.portfolio;
   const [sort, setSort] = useState("value");
+  // On-demand AI detail for the "Worth a look" stock idea card — same
+  // click-to-load, cache-for-the-day shape as ItemDetailModal elsewhere in
+  // this file, but its own component (see StockIdeaDetailModal below):
+  // different facts (business/competitors/analysts, a Yahoo link), and its
+  // own endpoint (GET /api/stock-idea/:ticker/detail, see
+  // lib/stockIdeaDetail.js) rather than the local item store. Just the
+  // ticker string, or null.
+  const [ideaTicker, setIdeaTicker] = useState(null);
 
   if (!p) return <p className="empty big-empty">No portfolio pulled yet — press refresh, or open Sources.</p>;
 
@@ -1483,7 +1491,14 @@ function MoneyPage({ d }) {
               <h2 className="spaced">Worth a look</h2>
               <div className="ideas">
                 {p.stockIdea.map((c) => (
-                  <div className="idea" key={c.ticker}>
+                  <div
+                    className="idea clickable"
+                    key={c.ticker}
+                    onClick={() => setIdeaTicker(c.ticker)}
+                    role="button"
+                    tabIndex={0}
+                    title="Tap for a deeper look — business, competitors, analyst ratings"
+                  >
                     <div className="idea-head">
                       <span className="tk">{c.ticker}</span>
                       {c.name && <span className="nm">{c.name}</span>}
@@ -1542,7 +1557,160 @@ function MoneyPage({ d }) {
           </div>
         </section>
       </div>
+
+      {/* Renders nothing while `ideaTicker` is null — see its own comment
+          for why this isn't just ItemDetailModal reused: different facts
+          shape, different endpoint, no local item behind it at all. */}
+      <StockIdeaDetailModal ticker={ideaTicker} onClose={() => setIdeaTicker(null)} />
     </div>
+  );
+}
+
+/**
+ * On-demand AI detail for the daily "Worth a look" stock idea — Jon's ask:
+ * the same click-to-load, cache-until-tomorrow system Today's items already
+ * have, but for a stock idea instead of a calendar/email/Brightspace item.
+ * Deliberately its own component rather than a reuse of ItemDetailModal
+ * above: the facts here are a live Yahoo pull with no local item behind
+ * them at all (business summary, competitors, analyst targets, a link to
+ * the ticker's real Yahoo Finance page), the AI narrative is three sections
+ * instead of one summary + one action, and the endpoint is
+ * `GET /api/stock-idea/:ticker/detail` (see lib/stockIdeaDetail.js) rather
+ * than `/api/items/:id/detail` — trying to force one component to cover
+ * both shapes would mean more conditionals in one place than two smaller,
+ * honest components.
+ *
+ * Cached server-side for the whole calendar day (see that file's own
+ * comment on why — a live Yahoo pull is a real cost to re-pay, unlike
+ * ItemDetailModal's free local facts), so re-opening the same day's idea
+ * again costs nothing, and a day boundary — even for a ticker that
+ * recurs — always earns a fresh pull rather than silently reusing
+ * yesterday's price or rating.
+ */
+function StockIdeaDetailModal({ ticker, onClose }) {
+  const [state, setState] = useState({ loading: true, data: null, error: null });
+
+  useEffect(() => {
+    if (!ticker) return;
+    let cancelled = false;
+    setState({ loading: true, data: null, error: null });
+    fetch(`/api/stock-idea/${encodeURIComponent(ticker)}/detail`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        return res.json();
+      })
+      .then((data) => { if (!cancelled) setState({ loading: false, data, error: null }); })
+      .catch((e) => { if (!cancelled) setState({ loading: false, data: null, error: e.message }); });
+    return () => { cancelled = true; };
+  }, [ticker]);
+
+  useEffect(() => {
+    if (!ticker) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [ticker, onClose]);
+
+  if (!ticker) return null;
+
+  const { loading, data, error } = state;
+  const facts = data?.facts;
+
+  return createPortal(
+    <div className="item-modal-backdrop" onClick={onClose}>
+      <div className="item-modal idea-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <button className="item-modal-close" onClick={onClose} aria-label="Close">×</button>
+        {loading && <p className="item-modal-loading">Loading…</p>}
+        {error && <p className="item-modal-error">Couldn't load detail — {error}</p>}
+        {facts && (
+          <>
+            <div className="item-modal-head">
+              <h3>{facts.ticker}{facts.name && facts.name !== facts.ticker ? ` — ${facts.name}` : ""}</h3>
+            </div>
+            <div className="item-modal-facts">
+              {facts.price != null && <span>${facts.price} {facts.currency}</span>}
+              {facts.sector && <span>{facts.sector}{facts.industry ? ` · ${facts.industry}` : ""}</span>}
+              {facts.employees != null && <span>{facts.employees.toLocaleString()} employees</span>}
+            </div>
+
+            {/* AI narrative — three short sections (business, competitors,
+                analysts), same "rules decide facts, AI narrates" guardrail
+                as everywhere else in this app: grounded only in the facts
+                below, never a fabricated rating or an invented competitor.
+                Falls back to the plain facts alone (still fully useful —
+                real numbers, a real link) when the model is off,
+                unavailable, or came back unparseable. */}
+            {data.ai ? (
+              <div className="idea-modal-ai">
+                <p><span className="idea-modal-lbl">Business</span>{data.ai.business}</p>
+                {data.ai.competitive && <p><span className="idea-modal-lbl">Competitors</span>{data.ai.competitive}</p>}
+                {data.ai.analysts && <p><span className="idea-modal-lbl">Analysts</span>{data.ai.analysts}</p>}
+              </div>
+            ) : (
+              facts.businessSummary && <p className="idea-modal-plain">{facts.businessSummary}</p>
+            )}
+
+            {/* Plain facts underneath the narrative either way — the real
+                numbers behind whatever the AI just said in prose, and
+                (Jon's ask) a link straight to the ticker's own Yahoo
+                Finance page for anyone who wants to go look themselves. */}
+            <div className="idea-modal-stats">
+              {facts.recommendationLabel && (
+                <div className="idea-modal-stat">
+                  <span className="lbl">Analyst rating</span>
+                  <span>
+                    {facts.recommendationLabel}
+                    {facts.numberOfAnalystOpinions ? ` · ${facts.numberOfAnalystOpinions} analysts` : ""}
+                  </span>
+                </div>
+              )}
+              {facts.targetMeanPrice != null && (
+                <div className="idea-modal-stat">
+                  <span className="lbl">Price target</span>
+                  <span>
+                    ${facts.targetMeanPrice} mean (${facts.targetLowPrice}–${facts.targetHighPrice})
+                    {facts.analystUpsidePct != null && (
+                      <em className={facts.analystUpsidePct >= 0 ? "up" : "down"}>
+                        {" "}{facts.analystUpsidePct >= 0 ? "+" : ""}{facts.analystUpsidePct}%
+                      </em>
+                    )}
+                  </span>
+                </div>
+              )}
+              {(facts.fiftyTwoWeekLow != null || facts.fiftyTwoWeekHigh != null) && (
+                <div className="idea-modal-stat">
+                  <span className="lbl">52-week range</span>
+                  <span>${facts.fiftyTwoWeekLow} – ${facts.fiftyTwoWeekHigh}</span>
+                </div>
+              )}
+              {facts.trailingPE != null && (
+                <div className="idea-modal-stat">
+                  <span className="lbl">P/E</span>
+                  <span>{facts.trailingPE}</span>
+                </div>
+              )}
+              {facts.dividendYieldPct != null && (
+                <div className="idea-modal-stat">
+                  <span className="lbl">Dividend yield</span>
+                  <span>{facts.dividendYieldPct}%</span>
+                </div>
+              )}
+              {facts.competitors?.length > 0 && (
+                <div className="idea-modal-stat">
+                  <span className="lbl">Similar companies</span>
+                  <span>{facts.competitors.map((c) => c.ticker).join(", ")}</span>
+                </div>
+              )}
+            </div>
+
+            <a className="idea-modal-yahoo" href={facts.yahooUrl} target="_blank" rel="noreferrer">
+              View on Yahoo Finance ↗
+            </a>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body
   );
 }
 

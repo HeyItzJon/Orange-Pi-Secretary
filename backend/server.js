@@ -14,8 +14,9 @@ import { logger } from "./lib/log.js";
 import { init as initStore, getMeta, getItem, patchItem, dismissItem, suppressPermanently, triageItem, resolveTrackedItem, snoozeItem, allItems, portfolioHistory } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
-import { buildDisplay } from "./brief/display.js";
+import { buildDisplay, shortTicker } from "./brief/display.js";
 import { buildItemDetail } from "./brief/detail.js";
+import { getStockIdeaDetail } from "./lib/stockIdeaDetail.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -142,6 +143,37 @@ app.get("/api/items/:id/detail", async (req, res) => {
     const item = await getItem(req.params.id);
     if (!item) return res.status(404).json({ error: "no such item" });
     const detail = await buildItemDetail(item, config, { hintKind: req.query.kind });
+    res.json(detail);
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * On-demand AI detail for the Finances page's one daily "Worth a look"
+ * stock idea (see lib/stockIdeaDetail.js) — same click-to-load, cache-until-
+ * the-next-calendar-day shape as the item detail above, but for a live
+ * Yahoo pull rather than a local item, so the whole result (facts + AI) is
+ * cached together for the day rather than just the AI half.
+ *
+ * `:ticker` arrives as the SHORT display symbol the frontend was actually
+ * shown (see shortTicker in brief/display.js — it strips a Canadian
+ * exchange suffix for display). This looks it up against today's real
+ * stockIdea candidates (which still carry the full Yahoo symbol, e.g.
+ * "SHOP.TO") two ways at once: it recovers the real symbol a quoteSummary
+ * call actually needs, and it doubles as the input validation — a ticker
+ * that isn't one of today's actual candidates 404s rather than silently
+ * running an arbitrary Yahoo lookup for whatever a modified client sends.
+ */
+app.get("/api/stock-idea/:ticker/detail", async (req, res) => {
+  try {
+    const requested = String(req.params.ticker || "").toUpperCase();
+    const money = await getMeta("moneySummary", null);
+    const candidate = (money?.stockIdea || []).find((c) => shortTicker(c.symbol).toUpperCase() === requested);
+    if (!candidate) return res.status(404).json({ error: "not today's stock idea" });
+
+    const detail = await getStockIdeaDetail(config, candidate.symbol);
     res.json(detail);
   } catch (err) {
     log.error(err.message);

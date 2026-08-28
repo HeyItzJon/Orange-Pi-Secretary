@@ -76,6 +76,21 @@ export function clockLabel(date, timeZone) {
 }
 
 /**
+ * The display-friendly ticker (strips a Canadian exchange suffix — Jon's
+ * holdings/candidates are a mix of US and TSX/TSXV/NEO/CSE tickers, and
+ * ".TO"/".V"/".NE"/".CN" is noise on a page that's already showing the
+ * currency next to the price). Exported because it isn't only cosmetic:
+ * lib/stockIdeaDetail.js's on-demand click endpoint has to map the SHORT
+ * ticker the frontend sends back (this function's own output) back to the
+ * real Yahoo symbol a quoteSummary call needs — same function, both
+ * directions, so the two can never drift apart into two different ideas of
+ * what "the ticker" means.
+ */
+export function shortTicker(t) {
+  return String(t).replace(/\.(TO|V|NE|CN)$/i, "");
+}
+
+/**
  * "Last updated" as a clock reading, not a countdown. This used to be a
  * one-off computed just for the Year page's `moneyUpdatedLabel`; it's the
  * shared shape every page's own "Last updated" line and the header both
@@ -1387,7 +1402,7 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
   // the live rate before it sums anything. The old version added USD prices to
   // CAD prices as if they were the same unit, which made the total, every
   // weight, and therefore "biggest position" all wrong.
-  const short = (t) => String(t).replace(/\.(TO|V|NE|CN)$/i, "");
+  const short = shortTicker;
   const r = (n, d = 1) => (n == null || Number.isNaN(n) ? null : Number(n.toFixed(d)));
 
   let portfolio = null;

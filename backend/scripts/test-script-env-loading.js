@@ -60,6 +60,10 @@ const ENV_READING_MODULES = [
   // the once-a-day "Today's take" sentence — same indirect shape
   // sources/money.js already has via lib/paths.js's VAULT_PATH read.
   "sources/marketNews.js",
+  // lib/stockIdeaDetail.js calls lib/ai.js's ask() directly for the stock
+  // idea detail panel's narrative — same shape as sources/marketNews.js
+  // above, one level shallower.
+  "lib/stockIdeaDetail.js",
 ];
 
 group("every standalone script that needs .env actually loads it");
