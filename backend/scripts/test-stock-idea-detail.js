@@ -8,7 +8,7 @@
 // No real network call, no real AI call, no real store — buildFacts/
 // recommendationLabel/isFresh/pruneToDay are all pure functions, tested the
 // same way lib/stockIdeas.js's own pure helpers are in test-stock-ideas.js.
-// The live Yahoo + AI integration (fetchLiveDetail/getStockIdeaDetail's own
+// The live Yahoo + AI integration (fetchLiveDetail/getTickerDetail's own
 // network calls) is exercised by hand via
 // `npm run refresh-stock-idea-detail`, same as lib/stockIdeas.js's
 // refreshStockIdea/getStockIdea are — this codebase doesn't unit-test past

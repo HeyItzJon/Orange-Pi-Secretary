@@ -9,8 +9,10 @@
 //
 // Defaults to whichever ticker is today's actual stock idea
 // (moneySummary.stockIdea[0]) — pass a ticker explicitly to check any
-// other symbol regardless of whether it's today's pick:
-//   node scripts/refresh-stock-idea-detail.js [TICKER]
+// other symbol regardless of whether it's today's pick, and optionally
+// "holding" as a second argument to preview the AI narrative the way an
+// actual position (rather than a research candidate) gets framed:
+//   node scripts/refresh-stock-idea-detail.js [TICKER] [holding]
 //
 // Run: node scripts/refresh-stock-idea-detail.js
 
@@ -19,7 +21,7 @@ import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { init, getMeta } from "../lib/store.js";
-import { getStockIdeaDetail } from "../lib/stockIdeaDetail.js";
+import { getTickerDetail } from "../lib/stockIdeaDetail.js";
 import { shortTicker } from "../brief/display.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -28,6 +30,7 @@ const config = JSON.parse(await fs.readFile(path.join(__dirname, "..", "config.j
 await init();
 
 let ticker = process.argv[2];
+const context = process.argv[3] === "holding" ? "holding" : "idea";
 if (!ticker) {
   const money = await getMeta("moneySummary", null);
   const pick = money?.stockIdea?.[0];
@@ -39,8 +42,8 @@ if (!ticker) {
   console.log(`no ticker given — using today's actual pick: ${shortTicker(ticker)}\n`);
 }
 
-console.log(`pulling live detail for ${ticker}...\n`);
-const detail = await getStockIdeaDetail(config, ticker, { force: true });
+console.log(`pulling live detail for ${ticker} (context: ${context})...\n`);
+const detail = await getTickerDetail(config, ticker, { force: true, context });
 
 const { facts, ai } = detail;
 console.log(`${facts.name} (${facts.ticker}) — $${facts.price} ${facts.currency || ""}`);

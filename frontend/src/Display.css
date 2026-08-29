@@ -690,11 +690,15 @@
 }
 .item-modal-link:hover { border-bottom-color: var(--accent); }
 
-/* StockIdeaDetailModal — the "Worth a look" card's own on-demand panel
-   (see Display.jsx's own comment on why it's a separate component from
-   ItemDetailModal above). Reuses .item-modal's backdrop/frame/close-button
-   wholesale, just a little wider (more content: an AI narrative in 3 parts,
-   a stats grid, a Yahoo link) and its own inner layout below. */
+/* TickerDetailModal — shared by the "Worth a look" card's on-demand panel
+   AND (Round 48) a tap on any row in All Positions, same visual panel
+   either way (see Display.jsx's own comment on why it's a separate
+   component from ItemDetailModal above, and why one component covers both
+   triggers). Class names kept from the original idea-only version rather
+   than a purely cosmetic rename. Reuses .item-modal's backdrop/frame/
+   close-button wholesale, just a little wider (more content: an AI
+   narrative in 3 parts, a stats grid, a Yahoo link) and its own inner
+   layout below. */
 .idea-modal { max-width: 500px; }
 .idea-modal-ai p { font-size: 15.5px; line-height: 1.5; color: var(--ink-2); margin: 0 0 10px; }
 .idea-modal-lbl {
@@ -1622,6 +1626,10 @@
 .ptable .phead span:not(:first-child), .prow .v, .prow .d, .prow .r { text-align: right; }
 .prow { font-size: 15px; border-bottom: 1px solid rgba(38,38,37,.5); }
 .prow:hover { background: rgba(255,255,255,.028); }
+/* Round 48: every row opens the same on-demand company detail panel the
+   "Worth a look" card already used (see TickerDetailModal) — cursor is the
+   only affordance needed on top of the existing hover background above. */
+.prow.clickable { cursor: pointer; }
 .prow .tk { font-weight: 620; letter-spacing: .01em; }
 .prow .tk em { font-style: normal; font-size: 10px; color: var(--faint); margin-left: 3px; }
 .prow .v { color: var(--ink-2); }

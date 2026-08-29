@@ -1470,14 +1470,16 @@ function PortfolioExtras({ p }) {
 function MoneyPage({ d }) {
   const p = d.portfolio;
   const [sort, setSort] = useState("value");
-  // On-demand AI detail for the "Worth a look" stock idea card — same
-  // click-to-load, cache-for-the-day shape as ItemDetailModal elsewhere in
-  // this file, but its own component (see StockIdeaDetailModal below):
-  // different facts (business/competitors/analysts, a Yahoo link), and its
-  // own endpoint (GET /api/stock-idea/:ticker/detail, see
-  // lib/stockIdeaDetail.js) rather than the local item store. Just the
-  // ticker string, or null.
-  const [ideaTicker, setIdeaTicker] = useState(null);
+  // On-demand AI detail — same click-to-load, cache-for-the-day shape as
+  // ItemDetailModal elsewhere in this file, but its own component (see
+  // TickerDetailModal below): different facts (business/competitors/
+  // analysts, a Yahoo link), and its own endpoints rather than the local
+  // item store. Shared by two different triggers on this page — the daily
+  // "Worth a look" idea card and a tap on any row in All Positions — which
+  // hit different backend routes (`kind` picks the endpoint, see
+  // TickerDetailModal's own comment) but render identically otherwise.
+  // `null` when no modal should be showing.
+  const [detail, setDetail] = useState(null);
 
   if (!p) return <p className="empty big-empty">No portfolio pulled yet — press refresh, or open Sources.</p>;
 
@@ -1562,7 +1564,7 @@ function MoneyPage({ d }) {
                   <div
                     className="idea clickable"
                     key={c.ticker}
-                    onClick={() => setIdeaTicker(c.ticker)}
+                    onClick={() => setDetail({ ticker: c.ticker, kind: "idea" })}
                     role="button"
                     tabIndex={0}
                     title="Tap for a deeper look — business, competitors, analyst ratings"
@@ -1606,7 +1608,14 @@ function MoneyPage({ d }) {
               <span>Ticker</span><span>Value</span><span>Weight</span><span>Today</span><span>Return</span>
             </div>
             {sorted.map((x) => (
-              <div className={`prow${x.stale ? " stale" : ""}`} key={x.ticker} title={x.name || x.ticker}>
+              <div
+                className={`prow clickable${x.stale ? " stale" : ""}`}
+                key={x.ticker}
+                title={`${x.name || x.ticker} — tap for company detail`}
+                onClick={() => setDetail({ ticker: x.display, kind: "position" })}
+                role="button"
+                tabIndex={0}
+              >
                 <span className="tk">
                   {x.display}
                   {x.currency !== p.base && <em>{x.currency}</em>}
@@ -1628,43 +1637,60 @@ function MoneyPage({ d }) {
         </section>
       </div>
 
-      {/* Renders nothing while `ideaTicker` is null — see its own comment
-          for why this isn't just ItemDetailModal reused: different facts
-          shape, different endpoint, no local item behind it at all. */}
-      <StockIdeaDetailModal ticker={ideaTicker} onClose={() => setIdeaTicker(null)} />
+      {/* Renders nothing while `detail` is null — see its own comment for
+          why this isn't just ItemDetailModal reused: different facts shape,
+          a live Yahoo-backed endpoint, no local item behind it at all. */}
+      <TickerDetailModal ticker={detail?.ticker} kind={detail?.kind} onClose={() => setDetail(null)} />
     </div>
   );
 }
 
 /**
- * On-demand AI detail for the daily "Worth a look" stock idea — Jon's ask:
- * the same click-to-load, cache-until-tomorrow system Today's items already
- * have, but for a stock idea instead of a calendar/email/Brightspace item.
- * Deliberately its own component rather than a reuse of ItemDetailModal
- * above: the facts here are a live Yahoo pull with no local item behind
- * them at all (business summary, competitors, analyst targets, a link to
- * the ticker's real Yahoo Finance page), the AI narrative is three sections
- * instead of one summary + one action, and the endpoint is
- * `GET /api/stock-idea/:ticker/detail` (see lib/stockIdeaDetail.js) rather
- * than `/api/items/:id/detail` — trying to force one component to cover
- * both shapes would mean more conditionals in one place than two smaller,
- * honest components.
+ * On-demand AI detail for a ticker — Jon's original ask was just the daily
+ * "Worth a look" stock idea (the same click-to-load, cache-until-tomorrow
+ * system Today's items already have, but for a stock instead of a calendar/
+ * email/Brightspace item); Round 48 reused the exact same panel for any row
+ * tapped in All Positions, since the vault already has everything needed
+ * (a live Yahoo pull) and the two just need different facts underneath — a
+ * research candidate vs. something already owned. `kind` ("idea" |
+ * "position") is the only thing that differs: it picks the endpoint
+ * (`GET /api/stock-idea/:ticker/detail` vs `GET /api/positions/:ticker/
+ * detail`, see lib/stockIdeaDetail.js — same backend function either way,
+ * just a different `context` for the AI prompt) and nothing else. Still its
+ * own component rather than a reuse of ItemDetailModal above: the facts here
+ * are a live Yahoo pull with no local item behind them at all (business
+ * summary, market cap, competitors, analyst targets, a link to the ticker's
+ * real Yahoo Finance page), and the AI narrative is three sections instead
+ * of one summary + one action.
  *
  * Cached server-side for the whole calendar day (see that file's own
  * comment on why — a live Yahoo pull is a real cost to re-pay, unlike
- * ItemDetailModal's free local facts), so re-opening the same day's idea
+ * ItemDetailModal's free local facts), so re-opening the same day's ticker
  * again costs nothing, and a day boundary — even for a ticker that
  * recurs — always earns a fresh pull rather than silently reusing
  * yesterday's price or rating.
  */
-function StockIdeaDetailModal({ ticker, onClose }) {
+/** "$7.8B" / "$412.0M" / "$950K" — Yahoo's marketCap arrives as a plain
+ *  number of dollars, too many digits to read at a glance next to a price. */
+function fmtMarketCap(n) {
+  if (n == null) return null;
+  const abs = Math.abs(n);
+  if (abs >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (abs >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (abs >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
+  return `$${n}`;
+}
+
+function TickerDetailModal({ ticker, kind, onClose }) {
   const [state, setState] = useState({ loading: true, data: null, error: null });
 
   useEffect(() => {
     if (!ticker) return;
     let cancelled = false;
     setState({ loading: true, data: null, error: null });
-    fetch(`/api/stock-idea/${encodeURIComponent(ticker)}/detail`)
+    const base = kind === "position" ? "/api/positions" : "/api/stock-idea";
+    fetch(`${base}/${encodeURIComponent(ticker)}/detail`)
       .then((res) => {
         if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
         return res.json();
@@ -1672,7 +1698,7 @@ function StockIdeaDetailModal({ ticker, onClose }) {
       .then((data) => { if (!cancelled) setState({ loading: false, data, error: null }); })
       .catch((e) => { if (!cancelled) setState({ loading: false, data: null, error: e.message }); });
     return () => { cancelled = true; };
-  }, [ticker]);
+  }, [ticker, kind]);
 
   useEffect(() => {
     if (!ticker) return;
@@ -1699,6 +1725,7 @@ function StockIdeaDetailModal({ ticker, onClose }) {
             </div>
             <div className="item-modal-facts">
               {facts.price != null && <span>${facts.price} {facts.currency}</span>}
+              {facts.marketCap != null && <span>{fmtMarketCap(facts.marketCap)} cap</span>}
               {facts.sector && <span>{facts.sector}{facts.industry ? ` · ${facts.industry}` : ""}</span>}
               {facts.employees != null && <span>{facts.employees.toLocaleString()} employees</span>}
             </div>

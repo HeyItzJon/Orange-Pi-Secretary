@@ -1,7 +1,13 @@
 // lib/stockIdeaDetail.js
 //
-// On-demand, click-to-expand detail for the Finances page's one daily
-// "Worth a look" stock idea (see lib/stockIdeas.js) — same on-demand shape
+// On-demand, click-to-expand ticker detail — a live Yahoo pull (business
+// summary, price, market cap, analyst targets, competitors) plus an AI
+// narrative, cached for the calendar day. Started as the Finances page's one
+// daily "Worth a look" stock idea (see lib/stockIdeas.js) and now also backs
+// the All Positions table's per-holding detail panel (Round 48) — same
+// facts shape and cache mechanics either way, just a different `context`
+// ("idea" vs "holding") so the AI narrative frames the company correctly
+// (a research candidate vs. something already owned). Same on-demand shape
 // and cost model as brief/detail.js's item detail (nothing runs until a
 // person actually taps the card), but a different caching strategy, because
 // the underlying data is different in kind:
@@ -115,7 +121,17 @@ export function buildFacts({ ticker, quoteSummary, competitorQuotes }) {
   };
 }
 
-const SYSTEM = `You help a university student who also works part-time understand one specific stock they just tapped for more detail — a research candidate their dashboard surfaced, related to what they already hold, NOT investment advice and never a recommendation to buy or sell.
+// `context` picks the one sentence that frames who/what this is about —
+// everything else about the prompt (shape, rules) is identical either way.
+// "idea": Jon doesn't own this yet, it's a research candidate the dashboard
+// surfaced. "holding": he already owns it — the narrative shouldn't talk
+// about it as a prospect ("related to what they already hold" would be
+// backwards when the ticker IS a current holding).
+function systemFor(context) {
+  const subject = context === "holding"
+    ? "one stock they currently hold in their portfolio and just tapped in the positions list for more detail"
+    : "one specific stock they just tapped for more detail — a research candidate their dashboard surfaced, related to what they already hold";
+  return `You help a university student who also works part-time understand ${subject}, NOT investment advice and never a recommendation to buy or sell.
 
 Return json with this exact shape:
 {"business":"...","competitive":"...","analysts":"..."}
@@ -126,6 +142,7 @@ Rules:
 - "analysts": 2-3 plain sentences on what Wall Street analysts currently think — the rating, how many analysts, and the price target versus the current price — in plain English (e.g. "analysts are mildly bullish" rather than just repeating the raw numbers). If there's no analyst coverage at all, say so plainly rather than inventing sentiment.
 - Never say "buy," "sell," or give your own recommendation — describe what the data says, not what to do about it.
 - No emoji, no generic filler.`;
+}
 
 function fmtPrompt(facts) {
   const lines = [
@@ -210,27 +227,32 @@ export function pruneToDay(all, today) {
 }
 
 /**
- * `getMeta("stockIdeaDetails")` is a small map keyed by ticker, each entry
+ * `getMeta("tickerDetails")` is a small map keyed by ticker, each entry
  * stamped with the local calendar day it was fetched on. Any entry whose
  * day doesn't match today (in `config.timezone`) is treated as a miss and
  * dropped on the next write — self-pruning, so this never grows unbounded
  * across months of daily picks. `force` bypasses the cache entirely (used
  * by the matching refresh-stock-idea-detail.js script, same pattern as
- * every other force-refresh script in this app).
+ * every other force-refresh script in this app). `context` ("idea" or
+ * "holding") only steers the AI system prompt (see systemFor above) — the
+ * facts, caching, and everything else is identical either way. A ticker can
+ * never legitimately be fetched under both contexts the same day (Round 46's
+ * stock-idea screener explicitly excludes anything already held), so there's
+ * no cache-collision case to worry about between the two callers.
  */
-export async function getStockIdeaDetail(config, ticker, { force = false } = {}) {
+export async function getTickerDetail(config, ticker, { force = false, context = "idea" } = {}) {
   const tz = config.timezone || "America/Toronto";
   const today = localDateKey(new Date(), tz);
 
-  const all = (await getMeta("stockIdeaDetails", {})) || {};
+  const all = (await getMeta("tickerDetails", {})) || {};
   const cached = all[ticker];
   if (!force && isFresh(cached, today)) return cached;
 
   const facts = await fetchLiveDetail(ticker);
 
-  const key = cacheKey("stock-idea-detail", { ticker, day: today });
+  const key = cacheKey("ticker-detail", { ticker, day: today, context });
   const parsed = await ask({
-    system: SYSTEM,
+    system: systemFor(context),
     user: fmtPrompt(facts),
     config,
     maxTokens: 420,
@@ -254,8 +276,8 @@ export async function getStockIdeaDetail(config, ticker, { force = false } = {})
   // otherwise quietly accumulate.
   const pruned = pruneToDay(all, today);
   pruned[ticker] = result;
-  await setMeta("stockIdeaDetails", pruned);
+  await setMeta("tickerDetails", pruned);
 
-  log.info(`stock idea detail refreshed: ${ticker}`);
+  log.info(`ticker detail refreshed: ${ticker} (${context})`);
   return result;
 }

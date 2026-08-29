@@ -16,7 +16,7 @@ import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
 import { buildDisplay, shortTicker } from "./brief/display.js";
 import { buildItemDetail } from "./brief/detail.js";
-import { getStockIdeaDetail } from "./lib/stockIdeaDetail.js";
+import { getTickerDetail } from "./lib/stockIdeaDetail.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -173,7 +173,32 @@ app.get("/api/stock-idea/:ticker/detail", async (req, res) => {
     const candidate = (money?.stockIdea || []).find((c) => shortTicker(c.symbol).toUpperCase() === requested);
     if (!candidate) return res.status(404).json({ error: "not today's stock idea" });
 
-    const detail = await getStockIdeaDetail(config, candidate.symbol);
+    const detail = await getTickerDetail(config, candidate.symbol, { context: "idea" });
+    res.json(detail);
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * The same on-demand detail panel (lib/stockIdeaDetail.js), for a ticker
+ * that's already an actual holding rather than today's suggested idea —
+ * Round 48's "tap a row in All Positions" ask. Same shape as the route
+ * above: `:ticker` arrives short (shortTicker'd for display), looked up
+ * against `money.positions` (which carry the full Yahoo symbol, e.g.
+ * "SHOP.TO") both to recover the real symbol and as input validation — a
+ * ticker that isn't an actual current position 404s rather than running an
+ * arbitrary Yahoo lookup for whatever a modified client sends.
+ */
+app.get("/api/positions/:ticker/detail", async (req, res) => {
+  try {
+    const requested = String(req.params.ticker || "").toUpperCase();
+    const money = await getMeta("moneySummary", null);
+    const position = (money?.positions || []).find((p) => shortTicker(p.ticker).toUpperCase() === requested);
+    if (!position) return res.status(404).json({ error: "not a current holding" });
+
+    const detail = await getTickerDetail(config, position.ticker, { context: "holding" });
     res.json(detail);
   } catch (err) {
     log.error(err.message);
