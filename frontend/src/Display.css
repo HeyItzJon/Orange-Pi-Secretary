@@ -876,18 +876,23 @@
    reads as "pushed up above" the same way Jon asked for, with no
    separate narrow-width rule to maintain. */
 .pf-sector { display: flex; }
-/* Bigger again — 148px on the Year page, 192px, then 240px, still left
-   real empty space unused once the legend stopped needing the full width
-   for itself (Jon: "look at this empty space"). .ydonut-hole sizes
-   itself off a percentage inset, so it scales up for free; only the
-   fixed-px text sizes inside it need bumping to match, plus the hole's
-   own sector-name text — the Year page had it at var(--faint), fine
-   against a short percent-only card, but at this size, wrapped across
-   two lines over a bright ring, it read as barely legible. Matched to
-   the percent's own brightness instead. */
-.pf-donut-wrap { width: 320px; height: 320px; }
-.pf-donut-wrap .ydonut-hole b { font-size: 36px; }
-.pf-donut-wrap .ydonut-hole span { font-size: 15px; color: var(--ink); }
+/* Compound selector (.ydonut-wrap.pf-donut-wrap, two classes), not a bare
+   .pf-donut-wrap — the base .ydonut-wrap rule below (line ~1074) is also a
+   single-class selector, and at equal specificity the one later in the
+   file wins regardless of which one "looks like" the override. Every
+   earlier size here was silently losing to .ydonut-wrap's own 148px until
+   this got compounded to actually beat it; only the .ydonut-hole font-size
+   overrides below ever took effect (they target a more specific descendant
+   selector), which is why the sector-name text kept growing while the
+   ring itself stayed pinned at 148px and the text spilled out of it.
+   Landed on roughly the legend's own height (~273px, measured) — Jon's
+   call: big enough to read as the page's real chart, not so big it towers
+   over the list beside it. max-width/aspect-ratio/flex-shrink let it
+   shrink gracefully once .pf-sector wraps it onto its own line on a phone,
+   rather than pinning a fixed height that would run off a narrow screen. */
+.ydonut-wrap.pf-donut-wrap { width: 300px; max-width: 100%; aspect-ratio: 1; height: auto; flex-shrink: 1; }
+.pf-donut-wrap .ydonut-hole b { font-size: 34px; }
+.pf-donut-wrap .ydonut-hole span { font-size: 14px; color: var(--ink); }
 
 .mgrid { display: flex; flex-direction: column; gap: 1px; }
 /* flex-wrap is a safety net, not the primary narrow-width fix (see the
