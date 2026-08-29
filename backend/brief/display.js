@@ -1525,6 +1525,16 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
         reason: c.reason || null,
       })),
       stockIdeaAt: money.stockIdeaAt || null,
+
+      // GICS look-through sector mix and CAD/USD split — Round 46 built
+      // these for the Year page; Jon's round-47 call moved them here
+      // instead ("the sector allocation belongs on the portfolio page"),
+      // so this is now their only home. See lib/sectorAllocation.js for
+      // how sectorAllocation is weighted and lib/sectorProfile.js for
+      // where the underlying per-ticker Yahoo data (vault as fallback)
+      // comes from.
+      sectorAllocation: money.sectorAllocation || [],
+      currencyExposure: money.currencyExposure || [],
     };
   }
 
@@ -1599,8 +1609,6 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
     ...yearProgress(now, tz), ...yg, moneyUpdatedLabel,
     base: money?.base || "CAD", // so the hover tooltip can label the dollar figure correctly
     stats: yearStats(yg.cells),
-    sectorAllocation: money?.sectorAllocation || [],
-    currencyExposure: money?.currencyExposure || [],
   };
 
   return {
@@ -1630,14 +1638,19 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
       // below, which is only what's still upcoming. Jon's call: the tab
       // number should read as "how much is on today", not "how much is
       // left", so it shouldn't shrink as the day goes on.
-      { id: "today", label: "Today", badge: todays.length || null },
+      // Labels only — Jon's round-47 relabel ("Day, Week, Tasks, Portfolio,
+      // Stats"). The `id` values below are the actual routing keys (PAGES
+      // map in Display.jsx, d.pages[page]?.id lookups elsewhere) and stay
+      // as they were so nothing downstream has to change just because the
+      // tab text did.
+      { id: "today", label: "Day", badge: todays.length || null },
       { id: "week", label: "Week", badge: null },
       // The Inbox count, not the old "overdue + due today" tally — this is
       // "how many things are waiting on a decision from you", which is the
       // actual queue this page is now built around (plan §2).
       { id: "tasks", label: "Tasks", badge: tasks.inbox.total || null },
-      { id: "money", label: "Finances", badge: null },
-      { id: "year", label: "Year", badge: null },
+      { id: "money", label: "Portfolio", badge: null },
+      { id: "year", label: "Stats", badge: null },
     ],
 
     // ---- page 1: Today

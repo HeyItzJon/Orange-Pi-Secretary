@@ -1393,6 +1393,74 @@ function MarketZone({ market }) {
 }
 
 /**
+ * Sector Allocation + Currency Exposure — moved here from the Year page in
+ * Jon's round-47 reorg ("i almost feel the sector allocation belongs on
+ * the portfolio page"). Sits in .mcols's own "extra" grid area, stacked
+ * below Up/down today and Markets in the gap that opens up there once the
+ * positions table (same row, its own column) grows past both of them —
+ * see the .mcols grid rules in Display.css. GICS_COLORS/sectorColor/
+ * currencyColor/conicGradient are the same module-level helpers the Year
+ * page's heatmap card used to reach for; they moved nowhere, only the JSX
+ * consuming them did.
+ */
+function PortfolioExtras({ p }) {
+  return (
+    <div className="zone extra">
+      <section className="pf-block">
+        <h2>Sector Allocation</h2>
+        <span className="ysubtitle">Look-through — what your ETFs actually hold, not just their own label</span>
+        {p.sectorAllocation?.length ? (
+          <div className="ysector pf-sector">
+            <div className="ydonut-wrap pf-donut-wrap">
+              <div className="ydonut" style={{ background: conicGradient(p.sectorAllocation, (s) => s.sector, sectorColor) }} />
+              <div className="ydonut-hole">
+                <b>{p.sectorAllocation[0].pct.toFixed(0)}%</b>
+                <span>{p.sectorAllocation[0].sector}</span>
+              </div>
+            </div>
+            <div className="ysector-legend">
+              {p.sectorAllocation.map((s) => (
+                <div className="ysector-row" key={s.sector}>
+                  <i className="ysector-dot" style={{ background: sectorColor(s.sector) }} />
+                  <span className="ysector-name">{s.sector}</span>
+                  <span className="ysector-pct">{s.pct.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <span className="empty">Sector data isn't available yet — it fills in after the next portfolio pull.</span>
+        )}
+      </section>
+
+      <section className="pf-block spaced">
+        <h2>Currency Exposure</h2>
+        {p.currencyExposure?.length ? (
+          <>
+            <div className="ycur-bar">
+              {p.currencyExposure.map((c) => (
+                <div key={c.currency} style={{ flex: `0 0 ${c.pct}%`, background: currencyColor(c.currency) }} />
+              ))}
+            </div>
+            <div className="ycur-legend">
+              {p.currencyExposure.map((c) => (
+                <span className="ycur-row" key={c.currency}>
+                  <i className="ycur-dot" style={{ background: currencyColor(c.currency) }} />
+                  <span className="ycur-name">{c.currency}</span>
+                  <span className="ycur-pct">{c.pct.toFixed(1)}%</span>
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <span className="empty">No priced positions yet.</span>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/**
  * The book. Every position, priced in one currency, sorted by what it's
  * actually worth.
  *
@@ -1474,7 +1542,7 @@ function MoneyPage({ d }) {
       )}
 
       <div className="mcols">
-        <section className="zone">
+        <section className="zone movers">
           <h2>Up today</h2>
           <Movers list={p.up} dir="up" />
           <h2 className="spaced">Down today</h2>
@@ -1521,6 +1589,8 @@ function MoneyPage({ d }) {
         </section>
 
         <MarketZone market={d.market} />
+
+        <PortfolioExtras p={p} />
 
         <section className="zone positions">
           <h2>
@@ -1944,76 +2014,12 @@ function YearPage({ d }) {
         </div>
       </section>
 
-      {/* Look-through GICS sector mix — see lib/sectorAllocation.js's own
-          header for why this weights each ETF's own underlying sectors by
-          how much of the book it is, rather than showing "ETF" as one
-          lump. Empty until the first pull's had a chance to fetch and
-          cache each holding's Yahoo sector data (lib/sectorProfile.js) —
-          shown honestly as "not available yet," never a placeholder pie. */}
-      <section className="ysection">
-        <div className="yshead">
-          <h2>Sector Allocation</h2>
-          <span className="ysubtitle">Look-through — what your ETFs actually hold, not just their own label</span>
-        </div>
-        <div className="ycard ysector">
-          {y.sectorAllocation?.length ? (
-            <>
-              <div className="ydonut-wrap">
-                <div className="ydonut" style={{ background: conicGradient(y.sectorAllocation, (s) => s.sector, sectorColor) }} />
-                <div className="ydonut-hole">
-                  <b>{y.sectorAllocation[0].pct.toFixed(0)}%</b>
-                  <span>{y.sectorAllocation[0].sector}</span>
-                </div>
-              </div>
-              <div className="ysector-legend">
-                {y.sectorAllocation.map((s) => (
-                  <div className="ysector-row" key={s.sector}>
-                    <i className="ysector-dot" style={{ background: sectorColor(s.sector) }} />
-                    <span className="ysector-name">{s.sector}</span>
-                    <span className="ysector-pct">{s.pct.toFixed(1)}%</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <span className="empty">Sector data isn't available yet — it fills in after the next portfolio pull.</span>
-          )}
-        </div>
-      </section>
-
-      {/* CAD/USD split — every holding already declares its own settlement
-          currency, so unlike the sector mix this needs no extra fetch and
-          is never empty once there's at least one priced position. */}
-      <section className="ysection">
-        <div className="yshead">
-          <h2>Currency Exposure</h2>
-        </div>
-        <div className="ycard">
-          {y.currencyExposure?.length ? (
-            <>
-              <div className="ycur-bar">
-                {y.currencyExposure.map((c) => (
-                  <div
-                    key={c.currency}
-                    style={{ flex: `0 0 ${c.pct}%`, background: currencyColor(c.currency) }}
-                  />
-                ))}
-              </div>
-              <div className="ycur-legend">
-                {y.currencyExposure.map((c) => (
-                  <span className="ycur-row" key={c.currency}>
-                    <i className="ycur-dot" style={{ background: currencyColor(c.currency) }} />
-                    <span className="ycur-name">{c.currency}</span>
-                    <span className="ycur-pct">{c.pct.toFixed(1)}%</span>
-                  </span>
-                ))}
-              </div>
-            </>
-          ) : (
-            <span className="empty">No priced positions yet.</span>
-          )}
-        </div>
-      </section>
+      {/* Sector Allocation and Currency Exposure used to live here — Jon's
+          round-47 call moved both to the Portfolio page ("i almost feel
+          the sector allocation belongs on the portfolio page"), stacked
+          below Up/down today and Markets/News (see PortfolioExtras in
+          MoneyPage). This page keeps the heatmap and the Year-in-Numbers
+          stats, which stayed put. */}
 
       {/* Up/down days, streaks, best/worst — the same GitHub-contribution-
           graph instinct that made the grid worth building, aggregated into
@@ -2377,6 +2383,21 @@ function ago(iso) {
   return `${Math.round(m / 1440)}d ago`;
 }
 
+// The backend's SOURCE_NAMES (brief/compose.js's COLLECTORS keys) are
+// internal identifiers, not copy — "money" collects Yahoo prices, not just
+// generic "money", and "marketNews" isn't a name a person would write with
+// that capitalization. This is display-only: report/lastRun lookups below
+// still key off the real internal name, so nothing here needs to change if
+// a source is ever renamed or added on the backend (it'll just show its
+// raw internal name until this map catches up).
+const SOURCE_LABELS = {
+  email: "Email",
+  calendar: "Calendar",
+  money: "Yahoo Finance",
+  brightspace: "Brightspace",
+  marketNews: "Market News",
+};
+
 /**
  * The pipeline, made visible: every source, when it last actually succeeded,
  * and what it said if it failed — which is how you find out whether the
@@ -2432,7 +2453,7 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
           const r = report?.[s.name];
           return (
             <div className={`srow${s.lastError ? " bad" : ""}`} key={s.name}>
-              <span className="sname">{s.name}</span>
+              <span className="sname">{SOURCE_LABELS[s.name] || s.name}</span>
               <span className="sstate">
                 {s.lastError ? (
                   <b className="fail">{s.lastError.message}</b>

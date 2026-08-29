@@ -292,7 +292,17 @@
 .daycar-name { font-size: 20px; font-weight: 660; }
 .daycar-date { font-size: 15.5px; color: var(--faint); }
 
-.daycar-viewport { overflow: hidden; }
+/* overflow:hidden is only here to clip the slide-in animation's sideways
+   travel (see @keyframes daycarInFwd/Back below) — but a plain clip also
+   ate the now-cursor's own overshoot above the strip (the flag tip pokes
+   up to -15px: -9px for .nowline itself plus another -6px for its
+   ::before triangle, see .nowline below), which is what silently erased
+   Jon's downward-triangle cap without anyone touching .nowline itself.
+   padding-top gives the clip box that same 15px of headroom back (overflow
+   clips at the padding edge, not the content edge, so anything painted
+   inside the padding is still visible) and margin-top cancels the padding
+   right back out so the viewport doesn't visibly shift down a notch. */
+.daycar-viewport { overflow: hidden; padding-top: 15px; margin-top: -15px; }
 /* "This whole thing moves to the side" — a fresh slide, keyed by offset so
    React remounts rather than diffs it, sliding in from the direction you
    just paged toward. Only one Strip is ever mounted at a time (see
@@ -807,9 +817,63 @@
 .mspan b { font-weight: 620; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-right: 4px; }
 .mspan .warn b { color: var(--accent); }
 
-.mcols { display: flex; gap: 34px; flex: 1; min-height: 0; padding-top: 16px; overflow: hidden; }
-.mcols .zone { flex: 1; min-width: 0; }
-.mcols .zone + .zone { border-left: 1px solid var(--rule); padding-left: 30px; }
+/* Four named areas, not three: movers/market/positions across the top row,
+   plus "extra" (Sector Allocation + Currency Exposure, Round 47 — see
+   PortfolioExtras in Display.jsx) filling row 2 underneath movers+market.
+   positions spans both rows via grid-area so it keeps running the panel's
+   full height like it always did, beside extra rather than below it —
+   exactly the gap Jon pointed at ("the portfolio list continues going
+   down" while the other two columns stop short). Column widths mirror
+   what the old flex layout actually rendered at (measured directly, not
+   the 1 / 1.15 / 1.5 an old comment here claimed — .zone.positions had
+   quietly picked up `flex: none` from an unrelated rule further down this
+   file and never really got the 1.5).
+   Divider rules now target .zone.market/.zone.positions by name instead of
+   the old `.zone + .zone` sibling rule — that generic rule would draw a
+   spurious left border down .extra's own left edge too, since .extra sits
+   at the same x position as .movers, not beside it. The narrow-width media
+   queries below still use the sibling rule for their single-column stack,
+   where it's the right selector again (every zone, .extra included, is a
+   `.zone` and wants a top divider from whatever's stacked above it). */
+.mcols {
+  display: grid;
+  /* positions is `auto`, not a fraction — same as its old `flex: none`
+     (grow:0, shrink:0, basis:auto): it sizes to the table's own
+     max-content width (~471px, measured) and never grows or shrinks past
+     that, so movers/market absorb all the give as the window resizes,
+     exactly like before. A fractional track here looked right at 1440px
+     but silently clipped the RETURN column at in-between widths like
+     iPad landscape (1112px), where its computed share fell under the
+     table's real minimum. */
+  grid-template-columns: 1fr 1.23fr auto;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "movers market positions" "extra extra positions";
+  gap: 24px 34px;
+  flex: 1; min-height: 0; padding-top: 16px; overflow: hidden;
+}
+.mcols .zone { min-width: 0; min-height: 0; }
+.zone.movers { grid-area: movers; }
+.zone.market { grid-area: market; border-left: 1px solid var(--rule); padding-left: 30px; }
+.zone.extra { grid-area: extra; display: flex; flex-direction: column; }
+.zone.positions { grid-area: positions; border-left: 1px solid var(--rule); padding-left: 30px; }
+
+/* Sector Allocation + Currency Exposure, relocated here from the Year page
+   (Round 47) — see PortfolioExtras in Display.jsx. The .ysector, .ydonut,
+   and .ycur- rules below are the same classes the Year page's own cards
+   used; nothing about the donut math or the currency bar changed, just
+   where it renders and, for the donut, how big. */
+.pf-block { display: flex; flex-direction: column; }
+.pf-block.spaced { margin-top: 20px; }
+.pf-block .ysubtitle { display: block; margin: 2px 0 10px; }
+/* Bigger than the Year page's own 148px version — Jon's call: "I'd like
+   the chart to be a bit larger since we have the space" now that it's on
+   its own page instead of sharing room with three other yearly-stat
+   cards. .ydonut-hole sizes itself off a percentage inset, so it scales
+   up for free; only the two fixed-px text sizes inside it need bumping to
+   match. */
+.pf-donut-wrap { width: 192px; height: 192px; }
+.pf-donut-wrap .ydonut-hole b { font-size: 24px; }
+.pf-donut-wrap .ydonut-hole span { font-size: 12px; }
 
 .mgrid { display: flex; flex-direction: column; gap: 1px; }
 /* flex-wrap is a safety net, not the primary narrow-width fix (see the
@@ -847,9 +911,8 @@
 .wrow .wt { font-size: 13px; color: var(--muted); min-width: 42px; text-align: right; }
 
 /* The middle panel between the movers column and the positions table — see
-   MarketZone in Display.jsx. Slightly wider than the plain `flex: 1` its
-   neighbors use so a real headline sentence has room before wrapping. */
-.zone.market { flex: 1.15; min-width: 0; }
+   MarketZone in Display.jsx. Column width itself is set on .mcols's own
+   grid-template-columns now (see above). */
 
 .mkt-indices { display: flex; flex-direction: column; gap: 1px; }
 .mkt-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 2px 0; font-variant-numeric: tabular-nums; }
@@ -1518,7 +1581,6 @@
   background: rgba(237,161,0,.09); border-left: 2px solid var(--accent);
   padding: 6px 10px; border-radius: 0 4px 4px 0;
 }
-.zone.positions { flex: 1.5; min-width: 0; }
 .zone.positions h2 { display: flex; align-items: baseline; gap: 8px; }
 .sortby { margin-left: auto; display: flex; gap: 3px; }
 .sortby button {
@@ -1570,7 +1632,11 @@
    the Finance columns, with a safety margin above the measured 900px
    clean point, without touching any other page. */
 @media (max-width: 980px) {
-  .page-money .mcols { flex-direction: column; gap: 20px; }
+  /* Back to a plain stacked flex column below 980px — the grid areas above
+     are for the 3-column desktop layout only. DOM order already reads
+     movers, market, extra, positions, so stacking needs nothing more than
+     switching display mode; no area reassignment required. */
+  .page-money .mcols { display: flex; flex-direction: column; gap: 20px; }
   .page-money .mcols .zone + .zone {
     border-left: 0; padding-left: 0;
     border-top: 1px solid var(--rule); padding-top: 16px;
