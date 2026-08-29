@@ -865,15 +865,25 @@
 .pf-block { display: flex; flex-direction: column; }
 .pf-block.spaced { margin-top: 20px; }
 .pf-block .ysubtitle { display: block; margin: 2px 0 10px; }
-/* Bigger than the Year page's own 148px version — Jon's call: "I'd like
-   the chart to be a bit larger since we have the space" now that it's on
-   its own page instead of sharing room with three other yearly-stat
-   cards. .ydonut-hole sizes itself off a percentage inset, so it scales
-   up for free; only the two fixed-px text sizes inside it need bumping to
-   match. */
-.pf-donut-wrap { width: 192px; height: 192px; }
-.pf-donut-wrap .ydonut-hole b { font-size: 24px; }
-.pf-donut-wrap .ydonut-hole span { font-size: 12px; }
+/* .ysector itself only ever set flex-direction — on the Year page it sat
+   on a div that also carried .ycard, which is what actually turned on
+   display:flex. This div only carries .pf-sector, so without its own
+   display:flex the row direction had nothing to apply to and the donut
+   and legend just stacked as ordinary block children — Jon's "needs to
+   be bigger... beside the text on desktop" report. flex-wrap (from
+   .ysector) does the rest for free: once the legend's own min-width no
+   longer fits beside the donut, it wraps to its own line below, which
+   reads as "pushed up above" the same way Jon asked for, with no
+   separate narrow-width rule to maintain. */
+.pf-sector { display: flex; }
+/* Bigger again — the first pass (148px on the Year page → 192px here)
+   still wasn't the size Jon was after now that it has real room to sit
+   beside the legend instead of stacked above it. .ydonut-hole sizes
+   itself off a percentage inset, so it scales up for free; only the two
+   fixed-px text sizes inside it need bumping to match. */
+.pf-donut-wrap { width: 240px; height: 240px; }
+.pf-donut-wrap .ydonut-hole b { font-size: 28px; }
+.pf-donut-wrap .ydonut-hole span { font-size: 13px; }
 
 .mgrid { display: flex; flex-direction: column; gap: 1px; }
 /* flex-wrap is a safety net, not the primary narrow-width fix (see the
