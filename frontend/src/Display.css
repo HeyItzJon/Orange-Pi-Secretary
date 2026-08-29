@@ -876,14 +876,18 @@
    reads as "pushed up above" the same way Jon asked for, with no
    separate narrow-width rule to maintain. */
 .pf-sector { display: flex; }
-/* Bigger again — the first pass (148px on the Year page → 192px here)
-   still wasn't the size Jon was after now that it has real room to sit
-   beside the legend instead of stacked above it. .ydonut-hole sizes
-   itself off a percentage inset, so it scales up for free; only the two
-   fixed-px text sizes inside it need bumping to match. */
-.pf-donut-wrap { width: 240px; height: 240px; }
-.pf-donut-wrap .ydonut-hole b { font-size: 28px; }
-.pf-donut-wrap .ydonut-hole span { font-size: 13px; }
+/* Bigger again — 148px on the Year page, 192px, then 240px, still left
+   real empty space unused once the legend stopped needing the full width
+   for itself (Jon: "look at this empty space"). .ydonut-hole sizes
+   itself off a percentage inset, so it scales up for free; only the
+   fixed-px text sizes inside it need bumping to match, plus the hole's
+   own sector-name text — the Year page had it at var(--faint), fine
+   against a short percent-only card, but at this size, wrapped across
+   two lines over a bright ring, it read as barely legible. Matched to
+   the percent's own brightness instead. */
+.pf-donut-wrap { width: 320px; height: 320px; }
+.pf-donut-wrap .ydonut-hole b { font-size: 36px; }
+.pf-donut-wrap .ydonut-hole span { font-size: 15px; color: var(--ink); }
 
 .mgrid { display: flex; flex-direction: column; gap: 1px; }
 /* flex-wrap is a safety net, not the primary narrow-width fix (see the
