@@ -1959,12 +1959,13 @@ function YearPage({ d }) {
   const cellTitle = (c) => {
     if (c.future) return c.date;
     if (c.dayPct == null) {
-      // Round 49: distinguish "the market genuinely wasn't open" (a weekend,
+      // Distinguish "the market genuinely wasn't open" (a weekend,
       // reliably detectable client-side; a weekday holiday too, though that
       // one's really coming from the backend never having recorded a row —
       // see money.js's marketOpen gate) from a true gap (a day before
-      // tracking existed). Both share the same pale swatch now, but the
-      // tooltip still tells the honest difference on hover/tap.
+      // tracking existed). Both render as the same grey "nodata" swatch
+      // (Display.css .b-nodata) — the tooltip is where the honest
+      // difference actually shows up.
       const dow = new Date(`${c.date}T00:00:00Z`).getUTCDay();
       return `${c.date} · ${dow === 0 || dow === 6 ? "market closed" : "no data"}`;
     }
@@ -2039,7 +2040,7 @@ function YearPage({ d }) {
 
           <div className="ylegend">
             <span className="ynote">
-              Colour is your holdings' actual daily move, not deposits or withdrawals. Pale means the market was closed or nothing's logged that day.
+              Colour is your holdings' actual daily move, not deposits or withdrawals. Grey means the market was closed or nothing's logged that day; white/pale means it was open but barely moved.
             </span>
             <span className="yscale">
               Worse

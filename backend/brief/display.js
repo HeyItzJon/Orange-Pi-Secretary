@@ -461,15 +461,22 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
  * folded into "flat" here, since a flat trading day is a real ±0.15%-or-
  * less move and a closed day has no move to report at all (see money.js's
  * `marketOpen` gate, and yearGrid's own comment, on why that number is
- * never guessed at). Round 49: the two now share the same pale swatch in
- * the CSS, because both are meant to *read* as "nothing happened" at a
- * glance — that was always the intent here, the color values just hadn't
- * matched it (nodata rendered as a near-invisible dark grey until enough
- * closed-market days existed, once this file started gating them properly,
- * to make that look like holes in the grid). The frontend tooltip still
- * tells them apart on hover/tap. From there: a light shade from ±0.15 up
- * to ±0.35, a darker shade from ±0.35 up to (and including) ±1, and past
- * ±1 — a real swing day — the darkest shade there is.
+ * never guessed at).
+ *
+ * Round 49 briefly gave "nodata" and "flat" the same pale CSS swatch on
+ * the idea that both "read as nothing happened." Reverted right after:
+ * Jon wants them visually distinct again — grey for nodata (almost always
+ * a weekend/holiday now that money.js gates history on marketOpen), pale
+ * white reserved for "flat" so that colour keeps meaning something rare
+ * and real (a trading day, just a quiet one) instead of also meaning "the
+ * market wasn't even open." Neither of those buckets ever counts toward
+ * up/down days or streaks either way — yearStats() filters "nodata" out
+ * entirely before it even looks at bucket letters, and "flat" already
+ * breaks a streak without counting as a win or loss — so this distinction
+ * is purely visual, not a change in what counts as what. From there: a
+ * light shade from ±0.15 up to ±0.35, a darker shade from ±0.35 up to (and
+ * including) ±1, and past ±1 — a real swing day — the darkest shade there
+ * is.
  */
 export function colorBucket(dayPct) {
   if (dayPct == null || Number.isNaN(dayPct)) return "nodata";
