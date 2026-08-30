@@ -1050,7 +1050,19 @@
    all. `.open` is a light outline, not a box-shadow, so it never fights
    with `.today`'s own inset ring on the one day that's both. */
 .ycell { border-radius: 3px; aspect-ratio: 1 / 1; cursor: pointer; }
-.ycell.b-nodata { background: var(--fill); }
+/* Round 49: was `var(--fill)` (dark grey, nearly invisible against the page
+   background) — fine for the rare pre-tracking gap this bucket originally
+   existed for, but wrong once backend/sources/money.js started routing
+   every closed-market day (weekends, and any US/TSX holiday) in here too —
+   roughly 2 days out of 7, at that dark a shade, read as the grid having
+   holes rather than "the market was shut". Matches .b-flat exactly now,
+   which is what the colorBucket doc comment in brief/display.js already
+   called these two states — "meant to look like nothing happened, one
+   mental bucket" — the CSS just hadn't caught up to that intent. Still a
+   real, separate bucket underneath (see yearGrid/colorBucket): the tooltip
+   still says "market closed" vs a plain trading day, nothing is conflated
+   in the data, only the two now share a swatch on purpose. */
+.ycell.b-nodata { background: #d9d7cc; }
 .ycell.b-future { background: transparent; border: 1px solid var(--rule); cursor: default; }
 .ycell.today { box-shadow: inset 0 0 0 2px var(--accent); }
 .ycell.open { outline: 2px solid var(--ink-2); outline-offset: 1px; }

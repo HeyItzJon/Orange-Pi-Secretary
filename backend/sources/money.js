@@ -386,6 +386,24 @@ export async function collectMoney(config) {
   const fx = await fxRates(rows.map((r) => r.currency), base);
   const { total, dayPct, prevTotal, positions } = valueBook(rows, fx, base);
 
+  // Yahoo freezes every quote field EXCEPT marketState when nothing is
+  // actually trading — a weekend, or a US/TSX holiday: same price, same
+  // prevClose, same dayChangePct as the last real session. Recording a
+  // history row from that unconditionally is exactly how Saturday ended up
+  // painted the same dark red as Friday on the year grid — dayPct comes out
+  // identical because it's freshly recomputed from identical frozen inputs,
+  // not because anything carried a value forward on purpose. marketState is
+  // the one field that DOES correctly change (Yahoo reports CLOSED), so
+  // it's hoisted here — before either history write below — and used to
+  // gate both. A day nothing was open gets no row at all, which the year
+  // grid already renders as "no data" (colorBucket(null), see
+  // brief/display.js) rather than inventing a number that never happened.
+  // Checked across the whole book, not one exchange's calendar: a US-only
+  // holiday with the TSX open (or vice versa) still records, because that
+  // day genuinely moved the total by however much the open market did.
+  const marketStatus = marketStatusLabel(rows);
+  const marketOpen = marketStatus != null;
+
   // A rolling daily total so the screen can say "week +2.1%". One row per
   // day — and, alongside the total, `dayPct`: the weighted move in what the
   // holdings themselves did (from valueBook, above), not the total-to-total
@@ -404,20 +422,25 @@ export async function collectMoney(config) {
     year: "numeric", month: "2-digit", day: "2-digit",
   }).format(now);
   const dayValue = total - prevTotal;
-  await recordPortfolioDay(stamp, { total, dayPct, dayValue, base });
+  if (marketOpen) await recordPortfolioDay(stamp, { total, dayPct, dayValue, base });
 
   // Per-holding daily history — new. Skip anything with no price today
-  // rather than record a fabricated data point for an unavailable ticker.
-  for (const p of positions) {
-    if (p.price == null) continue;
-    await recordHoldingDay(stamp, p.ticker, {
-      price: p.price,
-      dayChangePct: p.dayChangePct ?? null,
-      dayChangeValue: p.dayChangeValue ?? null,
-      shares: p.shares ?? null,
-      value: p.value ?? null,
-      currency: p.currency ?? null,
-    });
+  // rather than record a fabricated data point for an unavailable ticker,
+  // and (see marketOpen above) skip the whole loop on a day nothing traded
+  // — otherwise a frozen weekend quote writes a fake "today" row into
+  // holding_days too, the exact same bug one level down.
+  if (marketOpen) {
+    for (const p of positions) {
+      if (p.price == null) continue;
+      await recordHoldingDay(stamp, p.ticker, {
+        price: p.price,
+        dayChangePct: p.dayChangePct ?? null,
+        dayChangeValue: p.dayChangeValue ?? null,
+        shares: p.shares ?? null,
+        value: p.value ?? null,
+        currency: p.currency ?? null,
+      });
+    }
   }
 
   const history = await portfolioHistory();
@@ -434,10 +457,9 @@ export async function collectMoney(config) {
   // The raw enum straight off whichever row happened to be first — kept
   // only for the sources-panel diagnostic API (/api/sources), never shown
   // to a person. Yahoo's actual values ("PRE", "POSTPOST", ...) read as a
-  // bug when surfaced directly — see marketStatusLabel below for what the
-  // money page itself shows.
+  // bug when surfaced directly — see `marketStatus` (hoisted above, next to
+  // `marketOpen`) for what the money page itself shows.
   const marketState = rows.find((r) => r.marketState)?.marketState || null;
-  const marketStatus = marketStatusLabel(rows);
 
   // A related, possibly rebalance-helping ticker — see lib/stockIdeas.js.
   // Refreshed once a calendar day (lib/time.js), so most pulls just read

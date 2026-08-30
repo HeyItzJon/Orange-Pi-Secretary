@@ -455,15 +455,20 @@ const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 /**
  * Seven buckets either side of flat, symmetric by magnitude — a -0.5% day
  * and a +0.5% day get the same depth of shade, just red vs green. Re-tuned
- * to Jon's own round numbers: under ±0.15% is "flat" — the same
- * no-signal white a day with no data at all reads as (a closed market or a
- * gap before tracking existed is genuinely different information, still
- * kept as its own grey "nodata" bucket rather than folded into flat — see
- * yearGrid's own comment on why a missing number is never guessed at —
- * but the two are meant to *look* like nothing happened, which is the
- * point of "white or market closed" being one mental bucket even though
- * they're two data states). From there: a light shade from ±0.15 up to
- * ±0.35, a darker shade from ±0.35 up to (and including) ±1, and past
+ * to Jon's own round numbers: under ±0.15% is "flat". A day with no
+ * `dayPct` at all (closed market, or a gap before tracking existed) is a
+ * genuinely different data state — still its own "nodata" bucket, never
+ * folded into "flat" here, since a flat trading day is a real ±0.15%-or-
+ * less move and a closed day has no move to report at all (see money.js's
+ * `marketOpen` gate, and yearGrid's own comment, on why that number is
+ * never guessed at). Round 49: the two now share the same pale swatch in
+ * the CSS, because both are meant to *read* as "nothing happened" at a
+ * glance — that was always the intent here, the color values just hadn't
+ * matched it (nodata rendered as a near-invisible dark grey until enough
+ * closed-market days existed, once this file started gating them properly,
+ * to make that look like holes in the grid). The frontend tooltip still
+ * tells them apart on hover/tap. From there: a light shade from ±0.15 up
+ * to ±0.35, a darker shade from ±0.35 up to (and including) ±1, and past
  * ±1 — a real swing day — the darkest shade there is.
  */
 export function colorBucket(dayPct) {
