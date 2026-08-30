@@ -7,17 +7,16 @@ client_secret.json
 *credentials*.json
 *token*.json
 
-# --- your personal configuration ------------------------------------------
-# config.json holds real names, calendars and your vault path. The tracked
-# file is config.example.json — copy it to config.json and edit that.
-backend/config.json
+# --- personal data, tracked on purpose (see commit 8bf3e1b) ----------------
+# config.json and config/portfolio.json used to be gitignored, but that made
+# every new machine (the Pi transfer, most recently) a hand-copy job that was
+# easy to get wrong. It's a private repo Jon controls end to end, so both are
+# tracked like any other file now.
 
 # --- your data -------------------------------------------------------------
-backend/data/          # the item store: emails, events, prices
-backend/config/        # portfolio.json — your holdings and share counts
-
-# --- retired v1 code (kept locally for reference, not published) -----------
-_v1_removed/
+# the item store: emails, events, prices — regenerates from the sources
+# above, doesn't need to travel between machines, never committed.
+backend/data/
 
 # --- build output and dependencies ----------------------------------------
 node_modules/
