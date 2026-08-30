@@ -1663,6 +1663,10 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
       { id: "tasks", label: "Tasks", badge: tasks.inbox.total || null },
       { id: "money", label: "Portfolio", badge: null },
       { id: "year", label: "Stats", badge: null },
+      // ESP32 LED wall live control (Round 49 §6) — no badge: there's no
+      // single count on this page that would mean anything from the tab
+      // alone, same reasoning as Money/Year just above.
+      { id: "wall", label: "Wall", badge: null },
     ],
 
     // ---- page 1: Today

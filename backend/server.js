@@ -17,6 +17,10 @@ import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
 import { buildDisplay, shortTicker } from "./brief/display.js";
 import { buildItemDetail } from "./brief/detail.js";
 import { getTickerDetail } from "./lib/stockIdeaDetail.js";
+import {
+  setEnabledScreens, setPinnedScreen, pushNotification, clearNotification,
+  fireTestEvent, commandPayload, statusPayload, MatrixControlError,
+} from "./lib/matrixControl.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -182,6 +186,21 @@ app.get("/api/matrix", async (_req, res) => {
         }))
       : [];
 
+    // Headlines for a "News" screen — marketPulse is already being fetched
+    // above for the ticker, so this is free: no new source, no new call.
+    // Same truncate-for-display convention as todayEvents' title above.
+    const news = (marketPulse?.headlines || []).slice(0, 6).map((h) => ({
+      title: (h.title || "").slice(0, 60),
+      source: h.source || null,
+    }));
+
+    // Whether anything actually traded today, per the Round 49 weekend-
+    // color fix (sources/money.js's marketOpen gate) — free to include here
+    // since `money` is already fetched above. Lets the firmware show an
+    // honest "Markets are closed" screen on a weekend/holiday instead of a
+    // stale weekday portfolio number presented as current.
+    const marketOpen = money?.marketStatus != null;
+
     res.json({
       timestamp: now.getTime(),
       lastRefresh: money?.at || null,
@@ -192,8 +211,91 @@ app.get("/api/matrix", async (_req, res) => {
       events: todayEvents,
       dailyBusyPercent,
       holdings,
+      news,
+      marketOpen,
     });
   } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Live CONTROL for the ESP32 wall — separate from /api/matrix's DATA above.
+ * See lib/matrixControl.js's own header comment for the full design (Round
+ * 49 §6, "live control of the ESP32 displays from the web page", Tier 0).
+ *
+ * /api/matrix/command is what the firmware itself polls, fast (1-2s) — a
+ * small, cheap blob, no external calls, matching how /api/matrix already
+ * only reads cached meta. /api/matrix/status is the same information plus
+ * the bits only a human needs (the full screen catalog, when the device
+ * last actually checked in) — kept as its own route specifically so the web
+ * control page reading its own state never gets mistaken for a real device
+ * poll (see commandPayload/statusPayload's own comments on why only one of
+ * them is allowed to advance "last seen").
+ */
+app.get("/api/matrix/command", async (_req, res) => {
+  try {
+    res.json(await commandPayload());
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/matrix/status", async (_req, res) => {
+  try {
+    res.json(await statusPayload());
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/matrix/screens", async (req, res) => {
+  try {
+    res.json(await setEnabledScreens(req.body?.enabledScreens));
+  } catch (err) {
+    if (err instanceof MatrixControlError) return res.status(400).json({ error: err.message });
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/matrix/pin", async (req, res) => {
+  try {
+    res.json(await setPinnedScreen(req.body?.screen ?? null));
+  } catch (err) {
+    if (err instanceof MatrixControlError) return res.status(400).json({ error: err.message });
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/matrix/notify", async (req, res) => {
+  try {
+    res.json(await pushNotification(req.body?.text, req.body?.durationSeconds));
+  } catch (err) {
+    if (err instanceof MatrixControlError) return res.status(400).json({ error: err.message });
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/matrix/notify/clear", async (req, res) => {
+  try {
+    res.json(await clearNotification());
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/matrix/test", async (req, res) => {
+  try {
+    res.json(await fireTestEvent(req.body?.label));
+  } catch (err) {
+    if (err instanceof MatrixControlError) return res.status(400).json({ error: err.message });
     log.error(err.message);
     res.status(500).json({ error: err.message });
   }

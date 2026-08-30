@@ -2409,6 +2409,206 @@ function WeekPage({ d, onGoToDay }) {
   );
 }
 
+/* =========================================================== page: wall */
+
+// Live control for the ESP32 LED wall (Round 49 §6 of the Jarvis/voice/ESP
+// roadmap — matrixControl.js on the backend). This page owns its own
+// polling loop rather than riding the main /api/display cycle: the wall's
+// control state isn't part of the daily brief data model, and 5s here is a
+// completely different cadence than the dashboard's own refresh — same
+// "a page can do its own fetch()" pattern as SourcePanel below.
+//
+// /api/matrix/status is read-only and safe to poll freely — it's the ONE
+// endpoint that never advances the device's "last seen" clock (see
+// statusPayload's own comment in matrixControl.js), so refreshing this page
+// a lot never makes the wall look falsely online.
+function WallPage({ d }) {
+  const [status, setStatus] = useState(null);
+  const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(null); // action key currently in flight, or null
+  const [notifyText, setNotifyText] = useState("");
+  const [notifySeconds, setNotifySeconds] = useState(15);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/matrix/status");
+      if (!r.ok) throw new Error(`status ${r.status}`);
+      setStatus(await r.json());
+    } catch {
+      // Drop the poll silently and keep whatever's already on screen —
+      // one missed fetch every 5s isn't worth flashing an error banner
+      // over, and the next tick will most likely just succeed.
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  async function post(path, body) {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+    const json = await r.json().catch(() => ({}));
+    // The backend's MatrixControlError responses carry a real, readable
+    // {error: "..."} message (bad screen id, text too long, and so on) —
+    // surface that verbatim rather than a generic "request failed".
+    if (!r.ok) throw new Error(json.error || `request failed (${r.status})`);
+    return json;
+  }
+
+  // Every action funnels through here: marks it busy (for disabling just
+  // that control, not the whole page), clears any previous error, and
+  // re-polls status immediately on success so the UI doesn't wait out the
+  // rest of the 5s tick to reflect what it just did. Returns whether it
+  // succeeded, so callers can decide what to do next (e.g. only clear the
+  // notification input once the send actually worked).
+  async function run(action, fn) {
+    setBusy(action);
+    setErr(null);
+    try {
+      await fn();
+      await load();
+      return true;
+    } catch (e) {
+      setErr(e.message);
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!status) return <p className="empty big-empty">Loading wall control…</p>;
+
+  const enabledSet = new Set(status.enabledScreens);
+
+  const toggleScreen = (id) => {
+    const next = enabledSet.has(id)
+      ? status.enabledScreens.filter((s) => s !== id)
+      : [...status.enabledScreens, id];
+    run(`screens-${id}`, () => post("/api/matrix/screens", { enabledScreens: next }));
+  };
+
+  const pin = (id) => run(`pin-${id ?? "auto"}`, () => post("/api/matrix/pin", { screen: id }));
+
+  const sendNotification = async () => {
+    const text = notifyText.trim();
+    if (!text) return;
+    const ok = await run("notify", () => post("/api/matrix/notify", { text, durationSeconds: notifySeconds }));
+    if (ok) setNotifyText("");
+  };
+
+  const clearNotify = () => run("notify-clear", () => post("/api/matrix/notify/clear"));
+
+  const fireTest = (label) => run(`test-${label}`, () => post("/api/matrix/test", { label }));
+
+  return (
+    <div className="page-wall">
+      <div className="wallhead">
+        <h2>ESP32 Wall</h2>
+        <span className={`wstatus ${status.online ? "on" : "off"}`}>{status.online ? "Online" : "Offline"}</span>
+        <span className="wlastseen">last seen {ago(status.lastPolledAt)}</span>
+      </div>
+
+      {err && <p className="mwarn">{err}</p>}
+
+      <div className="wcols">
+        <section className="zone wscreens">
+          <h2>Screens</h2>
+          <div className="wscreen-list">
+            {status.screens.map((s) => (
+              <label key={s.id} className={`wscreen-row${s.hasData ? "" : " soon"}`}>
+                <input
+                  type="checkbox"
+                  checked={enabledSet.has(s.id)}
+                  disabled={!s.hasData || busy === `screens-${s.id}`}
+                  onChange={() => toggleScreen(s.id)}
+                />
+                <span className="wsname">{s.label}</span>
+                <span className="wsdesc">{s.hasData ? s.description : `${s.description} · coming soon`}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="zone wpin">
+          <h2>Pin a screen</h2>
+          <p className="wnote">Locks the wall on one screen instead of auto-rotating through everything enabled above.</p>
+          <div className="wpin-btns">
+            <button
+              className={!status.pinnedScreen ? "on" : ""}
+              disabled={busy === "pin-auto"}
+              onClick={() => pin(null)}
+            >
+              Auto-rotate
+            </button>
+            {status.enabledScreens.map((id) => {
+              const s = status.screens.find((sc) => sc.id === id);
+              return (
+                <button
+                  key={id}
+                  className={status.pinnedScreen === id ? "on" : ""}
+                  disabled={busy === `pin-${id}`}
+                  onClick={() => pin(id)}
+                >
+                  {s?.label || id}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="zone wnotify">
+          <h2>Push a notification</h2>
+          {status.notification ? (
+            <div className="wnotify-live">
+              <span className="wntext">{status.notification.text}</span>
+              <span className="wncount">{status.notification.secondsRemaining}s left</span>
+              <button className="wnclear" disabled={busy === "notify-clear"} onClick={clearNotify}>Clear</button>
+            </div>
+          ) : (
+            <div className="wnotify-form">
+              <input
+                type="text"
+                placeholder="Message for the wall…"
+                maxLength={60}
+                value={notifyText}
+                onChange={(e) => setNotifyText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") sendNotification(); }}
+              />
+              <select value={notifySeconds} onChange={(e) => setNotifySeconds(Number(e.target.value))}>
+                <option value={10}>10s</option>
+                <option value={15}>15s</option>
+                <option value={30}>30s</option>
+                <option value={60}>60s</option>
+                <option value={120}>120s</option>
+              </select>
+              <button disabled={busy === "notify" || !notifyText.trim()} onClick={sendNotification}>Send</button>
+            </div>
+          )}
+        </section>
+
+        <section className="zone wtest">
+          <h2>Test buttons</h2>
+          <p className="wnote">Prints straight to the ESP32's serial monitor — for bring-up before any screen actually renders.</p>
+          <div className="wtest-btns">
+            {["Button 1 Pressed", "Button 2 Pressed", "Button 3 Pressed"].map((label) => (
+              <button key={label} disabled={busy === `test-${label}`} onClick={() => fireTest(label)}>{label}</button>
+            ))}
+          </div>
+          {status.testEvent && (
+            <p className="wtest-last">Last fired: <b>{status.testEvent.label}</b> <span className="wtest-id">#{status.testEvent.id}</span></p>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
 /* ================================================================= sources */
 
 function ago(iso) {
@@ -2512,7 +2712,7 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
 
 /* =================================================================== shell */
 
-const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage };
+const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage, wall: WallPage };
 
 /**
  * Strip one id out of every Tasks-page list it could be sitting in,

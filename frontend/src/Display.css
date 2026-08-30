@@ -1301,6 +1301,82 @@
    .lgroup/.lghead/.lgin/.lgdate rules that styled it are removed with it —
    nothing else in this file uses them. */
 
+/* =========================================================== page: wall */
+
+.page-wall { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.wallhead { display: flex; align-items: baseline; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+.wallhead h2 { margin: 0; font-size: 21px; font-weight: 620; }
+.wstatus { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; }
+.wstatus.on { color: var(--up); background: rgba(60,180,90,.14); }
+.wstatus.off { color: var(--muted); background: var(--fill); }
+.wlastseen { font-size: 13.5px; color: var(--faint); }
+
+.wcols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px 34px;
+  padding-top: 18px;
+}
+.wcols .zone { min-width: 0; }
+.wcols .zone h2 {
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 10px;
+}
+.wnote { font-size: 13px; color: var(--faint); margin: -4px 0 12px; }
+
+.wscreen-list { display: flex; flex-direction: column; gap: 2px; }
+.wscreen-row {
+  display: flex; align-items: baseline; gap: 10px; padding: 7px 0;
+  border-bottom: 1px solid var(--rule); cursor: pointer;
+}
+.wscreen-row:last-child { border-bottom: none; }
+.wscreen-row input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
+.wscreen-row .wsname { font-size: 14.5px; color: var(--ink-2); min-width: 76px; }
+.wscreen-row .wsdesc { font-size: 13px; color: var(--muted); }
+.wscreen-row.soon { cursor: default; opacity: .55; }
+.wscreen-row.soon .wsname { color: var(--muted); }
+
+.wpin-btns, .wtest-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.wpin-btns button, .wtest-btns button, .wnotify-form button {
+  appearance: none; border: 1px solid var(--rule); background: transparent;
+  color: var(--muted); border-radius: 6px; padding: 6px 12px; font-size: 13.5px;
+  font: inherit; cursor: pointer;
+}
+.wpin-btns button:hover, .wtest-btns button:hover { color: var(--ink); border-color: var(--fill-2); }
+.wpin-btns button.on { color: var(--accent); border-color: var(--accent); background: rgba(237,161,0,.12); }
+.wpin-btns button[disabled], .wtest-btns button[disabled], .wnotify-form button[disabled] { opacity: .4; cursor: default; }
+
+.wnotify-form { display: flex; gap: 8px; align-items: center; }
+.wnotify-form input[type="text"] {
+  flex: 1; min-width: 0; background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--ink); font: inherit; font-size: 14px; padding: 6px 10px;
+}
+.wnotify-form select {
+  background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--ink); font: inherit; font-size: 13.5px; padding: 6px 8px; color-scheme: dark;
+}
+.wnotify-form button { color: var(--accent); border-color: var(--accent); }
+.wnotify-form button:hover:not([disabled]) { background: rgba(237,161,0,.12); }
+
+.wnotify-live {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  background: rgba(237,161,0,.1); border: 1px solid var(--accent); border-radius: 7px;
+}
+.wnotify-live .wntext { flex: 1; min-width: 0; font-size: 14.5px; color: var(--ink-2); }
+.wnotify-live .wncount { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.wnclear {
+  appearance: none; border: 1px solid var(--rule); background: transparent;
+  color: var(--muted); border-radius: 5px; padding: 3px 9px; font-size: 13px; cursor: pointer;
+}
+.wnclear:hover:not([disabled]) { color: var(--ink); border-color: var(--fill-2); }
+
+.wtest-last { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+.wtest-last .wtest-id { color: var(--faint); }
+
+@media (max-width: 980px) {
+  .wcols { grid-template-columns: 1fr; }
+}
+
 /* ========================================================== page: world */
 
 .page-world { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
