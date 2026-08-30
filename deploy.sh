@@ -13,6 +13,12 @@
 # Requires the one-time systemd setup described in pi-secretary.service
 # (same folder) — that's what makes the "restart" step below work without
 # you having to find and kill the old process by hand.
+#
+# The restart step needs sudo (restarting a system-level systemd unit
+# requires root). By default that means a password prompt every deploy;
+# install pi-secretary.sudoers (see that file's own comments) once to
+# make just that one restart command passwordless, without granting
+# broad sudo access.
 
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
@@ -36,7 +42,9 @@ echo "==> building frontend"
 echo "==> restarting pi-secretary"
 sudo systemctl restart pi-secretary
 sleep 1
-sudo systemctl --no-pager --full status pi-secretary || true
+# Reading a unit's status doesn't need root, so this doesn't ask for sudo —
+# only the restart above does.
+systemctl --no-pager --full status pi-secretary || true
 
 echo
 echo "==> done. Tail logs any time with: journalctl -u pi-secretary -f"

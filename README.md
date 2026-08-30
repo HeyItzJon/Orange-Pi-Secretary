@@ -86,6 +86,22 @@ unplug/power-loss reboot, and systemd restarts it on its own if it ever
 crashes. See the comments in `pi-secretary.service` for how it finds
 `node` regardless of whether it's installed via apt, NodeSource, or nvm.
 
+**Optional, but recommended** — make `deploy.sh`'s restart step
+passwordless, so it doesn't stop and wait for you to type a password
+every single deploy:
+
+```bash
+sudo visudo -c -f pi-secretary.sudoers   # sanity-check syntax first
+sudo cp pi-secretary.sudoers /etc/sudoers.d/pi-secretary
+sudo chmod 0440 /etc/sudoers.d/pi-secretary
+sudo visudo -c                            # confirm it installed clean
+```
+
+This only grants passwordless start/stop/restart of the `pi-secretary`
+unit specifically — not general sudo access. See the comments in
+`pi-secretary.sudoers` if `command -v systemctl` on your Pi isn't
+`/usr/bin/systemctl`, since the rule has to match that path exactly.
+
 **Every time new code is pushed**, on the Pi:
 
 ```bash
