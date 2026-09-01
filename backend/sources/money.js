@@ -222,26 +222,79 @@ async function quoteAll(tickers) {
   return out;
 }
 
+// A real FX pair moves a small fraction of a percent most pulls; it does
+// not move 15%+ between two 15-minute cycles. Unlike a bad stock quote
+// (which affects one position), a bad FX rate silently multiplies EVERY
+// position held in that currency — this is the mechanism behind Jon's
+// "it inflates all my holdings overnight" report (2026-09-01): a rate this
+// far from the last known-good one is far more likely a glitched/garbled
+// Yahoo response (a decimal-place slip, a thin off-hours snapshot, the
+// wrong instrument entirely) than a real overnight currency move, so it's
+// rejected rather than trusted just because it's a positive number.
+const FX_MAX_MOVE_FRACTION = 0.15;
+
+/**
+ * Pulled out on its own, pure, so this specific decision — trust the fresh
+ * rate, or fall back to the last known-good one — is unit-tested without
+ * mocking a network call. `priorRate == null` (nothing cached yet for this
+ * currency) always accepts, since there's nothing to sanity-check against.
+ */
+export function isPlausibleFxRate(rate, priorRate, maxMoveFraction = FX_MAX_MOVE_FRACTION) {
+  if (!(rate > 0)) return false;
+  if (priorRate == null) return true;
+  return Math.abs(rate - priorRate) / priorRate <= maxMoveFraction;
+}
+
 /**
  * Live FX for every currency in the book. Without this the total is a
  * meaningless mixed-unit sum — the bug this rewrite exists to kill.
+ *
+ * Caches every accepted rate (mirroring quoteAll's priceCache above), and
+ * falls back to that cache — rather than either a wrong number or dropping
+ * the currency's positions from the total entirely — whenever the live
+ * fetch fails outright, or comes back implausible per isPlausibleFxRate.
+ * The cache only ever holds rates that passed the sanity check, so it can
+ * never itself become the source of a bad number to compare future pulls
+ * against.
  */
 async function fxRates(currencies, base) {
   const rates = { [base]: 1 };
   const need = [...new Set(currencies)].filter((c) => c && c !== base);
   if (!need.length) return rates;
 
+  const fxCache = (await getMeta("fxCache", {})) || {};
   const pairs = need.map((c) => `${c}${base}=X`);
   try {
     const res = await yahoo.quote(pairs);
     for (const q of Array.isArray(res) ? res : [res]) {
       const from = String(q?.symbol || "").slice(0, 3);
-      if (q?.regularMarketPrice > 0) rates[from] = q.regularMarketPrice;
+      const candidate = q?.regularMarketPrice;
+      if (isPlausibleFxRate(candidate, fxCache[from] ?? null)) {
+        rates[from] = candidate;
+      } else if (candidate > 0) {
+        log.error(
+          `FX rate for ${from} looks wrong (${fxCache[from]} -> ${candidate}, ` +
+          `>${Math.round(FX_MAX_MOVE_FRACTION * 100)}% jump) — keeping the last known-good rate instead`
+        );
+      }
     }
   } catch (err) {
     log.warn(`FX lookup failed: ${err.message}`);
   }
-  for (const c of need) if (!rates[c]) log.error(`no FX rate for ${c} — those positions are excluded`);
+  for (const c of need) {
+    if (rates[c]) continue;
+    if (fxCache[c] != null) {
+      rates[c] = fxCache[c];
+      log.warn(`using cached FX rate for ${c} (${fxCache[c]}) — live lookup failed or looked wrong this pull`);
+    } else {
+      log.error(`no FX rate for ${c} — those positions are excluded`);
+    }
+  }
+
+  const nextCache = { ...fxCache };
+  for (const c of need) if (rates[c]) nextCache[c] = rates[c];
+  await setMeta("fxCache", nextCache);
+
   return rates;
 }
 

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { valueBook, marketStatusLabel, currencyExposure, holdingsFromVault } from "../sources/money.js";
+import { valueBook, marketStatusLabel, currencyExposure, holdingsFromVault, isPlausibleFxRate } from "../sources/money.js";
 
 let pass = 0, fail = 0;
 const group = (t) => console.log(`\n${t}\n`);
@@ -211,6 +211,41 @@ test("a position with no weight or no currency is skipped, not counted as its ow
     { ticker: "C", weightPct: 5, currency: null },
   ];
   assert.deepEqual(currencyExposure(positions), [{ currency: "CAD", pct: 100 }]);
+});
+
+group("isPlausibleFxRate — a bad FX quote must never silently multiply every holding in that currency");
+
+// Reported by Jon (2026-09-01): "it inflates all my holdings overnight."
+// A stock quote going bad only affects one position and is already flagged
+// (stale/unavailable); a bad FX rate multiplies EVERY position in that
+// currency, with nothing in the old code to catch it — any positive number
+// was trusted outright.
+
+test("a small, realistic day-to-day move is accepted", () => {
+  assert.equal(isPlausibleFxRate(1.39, 1.38), true);   // USD/CAD ticking up a cent
+  assert.equal(isPlausibleFxRate(1.36, 1.38), true);   // or down
+});
+
+test("a implausible jump from the last known-good rate is rejected", () => {
+  assert.equal(isPlausibleFxRate(138, 1.38), false);    // a decimal-place slip
+  assert.equal(isPlausibleFxRate(0.0138, 1.38), false); // the inverse rate by mistake
+  assert.equal(isPlausibleFxRate(1.9, 1.38), false);    // >15% in one pull, no real FX pair does this
+});
+
+test("zero or negative is always rejected outright, cache or no cache", () => {
+  assert.equal(isPlausibleFxRate(0, 1.38), false);
+  assert.equal(isPlausibleFxRate(-1.38, 1.38), false);
+  assert.equal(isPlausibleFxRate(0, null), false);
+});
+
+test("with nothing cached yet for this currency, any positive rate is accepted — there's nothing to compare against", () => {
+  assert.equal(isPlausibleFxRate(1.38, null), true);
+  assert.equal(isPlausibleFxRate(0.0001, null), true);
+});
+
+test("the tolerance is configurable, for a currency that's genuinely more volatile", () => {
+  assert.equal(isPlausibleFxRate(1.7, 1.38, 0.3), true);   // ~23% move, within a wider 30% band
+  assert.equal(isPlausibleFxRate(1.7, 1.38, 0.1), false);  // same move, too much for a tighter 10% band
 });
 
 group("holdingsFromVault — a Syncthing conflict copy must never reach the holdings table");
