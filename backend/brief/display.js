@@ -675,7 +675,9 @@ const TASK_CATEGORIES = new Set(["assessment", "deadline", "assignment", "opport
 /** Does this belong on the tasks page rather than the timeline? */
 export function isTaskLike(item) {
   if (item.source === "brightspace") return true;
-  if (item.source === "email") return Boolean(item.meta?.needsReply) || item.tier === "opportunity";
+  if (item.source === "email") {
+    return Boolean(item.meta?.needsReply) || item.tier === "opportunity" || Boolean(item.dueAt);
+  }
   if (item.source === "calendar") {
     // All-day calendar entries are how most people write down a due date.
     if (item.meta?.allDay) return true;
@@ -1092,6 +1094,35 @@ export function buildResolved(items, { tz }) {
       originLabel: ORIGIN_LABELS[item.source] || item.source,
       outcome: item.status === "done" ? "done" : (item.resolutionReason || "dismissed"),
       resolvedLabel: item.resolvedAt ? fmt(item.resolvedAt, tz, { month: "short", day: "numeric" }) : null,
+    }));
+  return { items: rows, total: rows.length };
+}
+
+/**
+ * ALSO CAME IN — email that reached the AI classifier but isn't task-like
+ * (no reply needed, no dueAt implied) and wasn't muted/newsletter-dropped
+ * either. Jon's own request, verbatim: "if there's any random emails that
+ * may interest me... even if it is kind of like just random information, it
+ * can be thrown into a nice big summary." Reuses the AI's own `oneLine` —
+ * already sitting in `item.title` (see sources/email.js's classify step) —
+ * rather than commissioning new AI prose for this list, so it's zero extra
+ * cost. Read from `live` so a dismissed digest row (same `dismiss` action
+ * every other list already uses) drops off here too. Capped and
+ * most-recent-first, same shape as buildFiledAway/buildResolved.
+ */
+export function buildAlsoCameIn(live, { tz }) {
+  const rows = live
+    .filter((item) => item.source === "email" && item.kind !== "system" && !isTaskLike(item))
+    .sort((a, b) => new Date(b.lastSeen || b.firstSeen || 0) - new Date(a.lastSeen || a.firstSeen || 0))
+    .slice(0, 30)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      who: item.meta?.from || null,
+      originLabel: ORIGIN_LABELS[item.source] || item.source,
+      dateLabel: (item.lastSeen || item.firstSeen)
+        ? fmt(item.lastSeen || item.firstSeen, tz, { month: "short", day: "numeric" })
+        : null,
     }));
   return { items: rows, total: rows.length };
 }
@@ -1592,6 +1623,7 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
   const tracked = buildTracked(live, { now, tz });
   const filedAway = buildFiledAway(live, { tz });
   const resolved = buildResolved(items, { tz });
+  const alsoCameIn = buildAlsoCameIn(live, { tz });
   // Origins panel counts — every task-like live item regardless of triage
   // state, same "how many is this app currently tracking from each source"
   // semantic the old buildTasks() counted.
@@ -1607,7 +1639,7 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
   // brief/brightspace.js's own header for why this is a plain, cheap,
   // uncached comparison rather than anything AI-assisted.
   const unscheduledBrightspaceCount = unscheduledCount(live, config, now);
-  const tasks = { inbox, tracked, filedAway, resolved, counts: taskCounts, status: taskStatus, unscheduledBrightspaceCount };
+  const tasks = { inbox, tracked, filedAway, resolved, alsoCameIn, counts: taskCounts, status: taskStatus, unscheduledBrightspaceCount };
 
   // `week` itself (the busy-vs-free forecast plus the looming list it's
   // meant to be read against — see weekForecast()'s own comment for why the

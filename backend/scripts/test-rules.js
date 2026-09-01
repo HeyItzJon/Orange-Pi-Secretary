@@ -511,7 +511,18 @@ test("but a newsletter from a VIP still gets through", () => {
 });
 
 test("muted senders are dropped outright", () => {
-  assert.equal(triage(msg({ from: "noreply@service.com", subject: "Interview" }), rules).score, 0);
+  const r = triage(msg({ from: "mailer-daemon@service.com", subject: "Interview" }), rules);
+  assert.equal(r.score, 0);
+  assert.equal(r.dropped, true, "mute is an absolute veto, distinct from an ordinary zero score");
+});
+
+test("an automated sender is no longer muted by default — it can still carry real info", () => {
+  // Round 54: noreply@/notifications@ etc. used to be hard-muted, which also
+  // ate shipping/appointment mail Jon wanted to see. Only mailer-daemon stays
+  // muted now; everything else rides the normal score, and non-task-like
+  // survivors land in the Tasks page digest instead of vanishing.
+  const r = triage(msg({ from: "noreply@service.com", subject: "Interview" }), rules);
+  assert.equal(r.dropped, false);
 });
 
 test("ordinary mail scores zero and never reaches the model", () => {

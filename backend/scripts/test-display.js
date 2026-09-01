@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import {
   buildDisplay, hourOfDay, distanceLabel, chunkFor, priorityWord, durationLabel, freshness,
-  isTaskLike, buildInbox, buildTracked, buildFiledAway, buildResolved, updatedLabel, dayKey, weekForecast,
+  isTaskLike, buildInbox, buildTracked, buildFiledAway, buildResolved, buildAlsoCameIn, updatedLabel, dayKey, weekForecast,
   filterLive, buildDayContext, buildDeadlinePool, sourceConfigured, originStatus,
 } from "../brief/display.js";
 
@@ -625,6 +625,21 @@ test("events are not tasks, but all-day entries and assessments are", () => {
     "the vault is life context now, not a task source");
 });
 
+test("round 54: an email with a dueAt is task-like even if it doesn't need a reply", () => {
+  // A physio appointment confirmation needs no response, but it does have a
+  // real date to show up for — see sources/email.js's loosened dueAt rule.
+  assert.equal(
+    isTaskLike(task({ source: "email", meta: { needsReply: false }, dueAt: dayAt(2, 9) })),
+    true,
+    "a stated appointment/event date makes email task-like even without needsReply"
+  );
+  assert.equal(
+    isTaskLike(task({ source: "email", meta: { needsReply: false }, dueAt: null })),
+    false,
+    "still not task-like with neither needsReply nor a dueAt"
+  );
+});
+
 test('"due" only matches the whole word, never inside another one', () => {
   assert.equal(isTaskLike(task({ source: "calendar", title: "Duel practice" })), false);
 });
@@ -713,6 +728,36 @@ test("Inbox is capped overall (config.display.maxInbox), with the overflow count
   assert.equal(i.items.length, 10);
   assert.equal(i.hidden, 40);
   assert.equal(i.total, 50);
+});
+
+test("Also came in: non-task-like email lands in the digest, using its existing oneLine", () => {
+  const r = buildAlsoCameIn([
+    task({
+      id: "fyi1", source: "email", kind: "fyi", title: "Physio: your Thursday slot was confirmed",
+      meta: { needsReply: false, from: "Riverside Physio" }, lastSeen: dayAt(0, 8),
+    }),
+    // A real task should never also show up in the digest.
+    task({ id: "reply1", source: "email", kind: "needs-reply", title: "Confirm your seat", meta: { needsReply: true } }),
+    task({ id: "cal1", source: "calendar", title: "Team standup" }),
+  ], { tz: TZ });
+  assert.equal(r.total, 1);
+  assert.equal(r.items[0].id, "fyi1");
+  assert.equal(r.items[0].title, "Physio: your Thursday slot was confirmed", "reuses the AI's existing oneLine — no new prose");
+  assert.equal(r.items[0].who, "Riverside Physio");
+  assert.equal(r.items[0].originLabel, "Email");
+});
+
+test("Also came in: most-recent-first, capped at 30", () => {
+  const rows = Array.from({ length: 35 }, (_, idx) =>
+    task({
+      id: `d${idx}`, source: "email", kind: "fyi", title: `Update ${idx}`,
+      meta: { needsReply: false }, lastSeen: dayAt(-idx, 8),
+    })
+  );
+  const r = buildAlsoCameIn(rows, { tz: TZ });
+  assert.equal(r.items.length, 30, "capped at 30, same as buildResolved's own cap");
+  assert.equal(r.total, 30, "total mirrors items.length post-cap, same convention buildResolved uses");
+  assert.equal(r.items[0].id, "d0", "the most recently seen item comes first");
 });
 
 test("the display model carries the tasks page and a badge count", () => {

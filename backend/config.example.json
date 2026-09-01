@@ -438,8 +438,8 @@
   "email": {
     "query": "in:inbox -in:trash -in:spam -category:promotions -category:social newer_than:14d",
     "maxResults": 40,
-    "minScore": 60,
-    "_minScore_note": "Emails scoring below this never reach the model. Lower it to widen the net, raise it to spend less.",
+    "minScore": 0,
+    "_minScore_note": "Emails scoring below this never reach the model (separate from rules.mute, which is an absolute veto regardless of score). Round 54 dropped the default to 0 — non-matching mail still reaches the AI classifier and, if not task-like, surfaces in the Tasks page 'Also came in' digest instead of vanishing. Raise it again to spend less / narrow the net.",
     "boostScope": "in:inbox newer_than:14d",
     "maxBoostResults": 20,
     "maxBoostTerms": 20,
@@ -614,11 +614,8 @@
         ]
       }
     },
+    "_mute_note": "Absolute veto regardless of minScore — mail from these addresses never reaches the model. Kept short on purpose: automated senders (noreply@, notifications@, etc.) often carry real info (shipping, appointment reminders) that belongs in the digest, not a full drop. Only true noise stays muted.",
     "mute": [
-      "noreply@",
-      "no-reply@",
-      "donotreply@",
-      "notifications@",
       "mailer-daemon"
     ]
   },

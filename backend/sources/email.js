@@ -121,9 +121,19 @@ export function triage(msg, rules, boosts = new Map()) {
     reasons.push(reason);
   };
 
-  // Hard mute — automated senders that never need a human.
+  // Hard mute — an absolute veto, regardless of minScore below. Deliberately
+  // short (round 54): this used to be five sender-shape patterns
+  // (noreply@/no-reply@/donotreply@/notifications@/mailer-daemon), which
+  // dropped real information along with the noise — a shipping update or a
+  // physio reminder just as often comes from a "noreply@" address as a
+  // password-reset email does. Jon's own call after noticing mail go
+  // missing: only mailer-daemon (a bounce/delivery-failure notice about
+  // your own OUTGOING mail, never informational content about your life)
+  // is still worth an automatic, silent drop. Everything else automated
+  // now reaches the AI classifier at minScore below, which reads the
+  // actual content instead of guessing from the address shape.
   for (const m of rules.mute || []) {
-    if (addr.includes(m.toLowerCase())) return { score: 0, tier: null, reasons: ["muted sender"] };
+    if (addr.includes(m.toLowerCase())) return { score: 0, tier: null, reasons: ["muted sender"], dropped: true };
   }
 
   // Named people in the From header.
@@ -159,16 +169,17 @@ export function triage(msg, rules, boosts = new Map()) {
     bump(rules.tierScores?.[boost] ?? 80, boost, "body or signature match");
   }
 
-  // Newsletters are dropped unless a person, domain or body rule claimed them.
+  // Newsletters are dropped unless a person, domain or body rule claimed
+  // them — the one other hard veto, same reasoning as mute above.
   const claimed = ["family", "work", "opportunity"].includes(tier);
   if (msg.isNewsletter && !claimed) {
-    return { score: 0, tier: null, reasons: ["newsletter"] };
+    return { score: 0, tier: null, reasons: ["newsletter"], dropped: true };
   }
 
   // Gmail's own IMPORTANT marker is a weak tiebreaker, never a promotion.
   if (score > 0 && msg.labelIds?.includes("IMPORTANT")) score += 2;
 
-  return { score, tier, reasons };
+  return { score, tier, reasons, dropped: false };
 }
 
 const CLASSIFY_SYSTEM = `You are an email triage assistant. For each numbered email you receive, decide what a busy university student who also works part-time needs to know.
@@ -179,7 +190,7 @@ Return json with this exact shape:
 Rules:
 - "needsReply": true only if a human specifically needs THIS person to respond or act. Notifications, receipts, confirmations and FYI mail are false.
 - A routine reminder that merely STATES a standing policy — a cancellation window, a late fee, a refund window, terms of service — is informational, not a request. Reading that policy is not an action the reader needs to take. Only set "needsReply" true, or invent a "dueAt", if the email is actually asking this specific reader to confirm, cancel, reschedule, or pay something — not because a policy or a date is merely mentioned somewhere in the text.
-- "dueAt": an ISO date (YYYY-MM-DD) ONLY if the email states or clearly implies a deadline THIS reader must act by. Otherwise null. Never invent one, and never derive one from a policy window (e.g. "cancel 24h prior") unless the email is actually asking for a cancellation decision right now.
+- "dueAt": an ISO date (YYYY-MM-DD) if EITHER the email states or clearly implies a deadline THIS reader must act by, OR it confirms a specific appointment, reservation, or scheduled event this reader is expected to attend (a physio appointment, a flight, a delivery window) — even if no reply or action is needed beforehand. Otherwise null. Never invent one, and never derive one from a policy window (e.g. "cancel 24h prior") unless the email is actually asking for a cancellation decision right now.
 - "oneLine": under 90 characters. State what it is and what it wants, in that order — and if it wants nothing beyond "for your information", say that plainly rather than manufacturing a task. Do NOT restate the subject line verbatim — add the information the subject leaves out. Never begin with "This email", "You have", or the sender's name.
 - Return exactly one result per email, in order, using the given "n".`;
 
@@ -242,11 +253,16 @@ export async function collectEmail(config, { force = false } = {}) {
   await rememberMessageIds(fresh);
 
   // --- 5: deterministic triage. Free, and it removes most of the volume ---
-  const minScore = cfg.minScore ?? 60;
+  // `dropped` (mute list, newsletter) is an absolute veto, independent of
+  // minScore — lowering minScore to widen the net must never let muted or
+  // newsletter mail back in just because both used to score 0.
+  const minScore = cfg.minScore ?? 0;
   const candidates = [];
   for (const msg of messages) {
     const t = triage(msg, rules, boosts);
-    if (t.score >= minScore) candidates.push({ msg, ...t });
+    if (t.dropped) continue;
+    if (t.score < minScore) continue;
+    candidates.push({ msg, ...t });
   }
 
   log.info(`${candidates.length}/${messages.length} passed triage (min score ${minScore})`);

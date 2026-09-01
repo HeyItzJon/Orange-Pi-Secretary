@@ -70,7 +70,7 @@ const rules = {
 
 test("a muted sender scores zero no matter what else matches", () => {
   const msg = { from: "Newsletter <noreply@spammy.com>", subject: "assignment due", snippet: "" };
-  assert.deepEqual(triage(msg, rules), { score: 0, tier: null, reasons: ["muted sender"] });
+  assert.deepEqual(triage(msg, rules), { score: 0, tier: null, reasons: ["muted sender"], dropped: true });
 });
 
 test("a named person in the From header scores that person's tier", () => {
@@ -104,7 +104,7 @@ test("a body/signature match (a full-text boost hit) scores its tier even with a
 
 test("an unclaimed newsletter is dropped entirely", () => {
   const msg = { from: "digest@newsletter.com", subject: "This week's picks", snippet: "", isNewsletter: true };
-  assert.deepEqual(triage(msg, rules), { score: 0, tier: null, reasons: ["newsletter"] });
+  assert.deepEqual(triage(msg, rules), { score: 0, tier: null, reasons: ["newsletter"], dropped: true });
 });
 
 test("a newsletter that also matches a real rule (family/work/opportunity) is NOT dropped", () => {

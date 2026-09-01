@@ -993,8 +993,14 @@ function InboxRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, sn
         <span className={`when${t.daysOut !== null && t.daysOut <= 1 ? " soon" : ""}`}>{t.due}</span>
       )}
       <span className="triage-acts">
-        <button className="act ok" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "priority"); }}>Priority</button>
-        <button className="act no" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "not-priority"); }}>Not priority</button>
+        {/* Labels only — "Important"/"Not important" reads better than the
+            old "Priority"/"Not priority" pairing, per Jon's own wording. The
+            action strings themselves ("priority"/"not-priority") are
+            unchanged: they're what's already stored against every real item
+            in the database, and renaming them would mean a migration for
+            zero user-visible benefit. */}
+        <button className="act ok" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "priority"); }}>Important</button>
+        <button className="act no" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "not-priority"); }}>Not important</button>
         <button
           ref={snoozeRef}
           className={`act later${snoozeOpen ? " open" : ""}`}
@@ -1009,12 +1015,18 @@ function InboxRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, sn
 }
 
 /**
- * TRACKED — things marked Priority. Sorted by the backend already (soonest
- * due first, undated after); a late one just reads that way in its own
- * `due` text ("overdue") rather than living in a separate section. The
- * remind-count line is the literal "I've reminded you N times" — see
- * lib/store.js's bumpRemindCounts() for how it's incremented (once a day,
- * not once a page-load).
+ * SORTED (internally still triage: "priority") — things marked Important.
+ * Sorted by the backend already (soonest due first, undated after); a late
+ * one just reads that way in its own `due` text ("overdue") rather than
+ * living in a separate section. The remind-count line is the literal "I've
+ * reminded you N times" — see lib/store.js's bumpRemindCounts() for how
+ * it's incremented (once a day, not once a page-load).
+ *
+ * Round 54: the "Wrong" outcome button is gone — Jon's own call ("we don't
+ * need the wrong, to be honest, because we're not gonna learn from our
+ * stuff anyways"). RESOLVED_OUTCOME_LABEL below still carries a `wrong`
+ * entry so any item already resolved that way keeps displaying correctly;
+ * it just can't be created from here anymore.
  */
 function TrackedRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, snoozeRef }) {
   // Same click-vs-action split as InboxRow above, same reason.
@@ -1036,7 +1048,7 @@ function TrackedRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, 
         </span>
         {(t.remindCount > 0 || t.trackedSinceLabel) && (
           <span className="remind-line">
-            {t.trackedSinceLabel && <>Tracked since {t.trackedSinceLabel}</>}
+            {t.trackedSinceLabel && <>Sorted since {t.trackedSinceLabel}</>}
             {t.remindCount > 0 && <> · reminded {t.remindCount}×</>}
           </span>
         )}
@@ -1047,7 +1059,6 @@ function TrackedRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, 
       <span className="tracked-acts">
         <button className="act ok" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "done"); }}>Done</button>
         <button className="act no" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "wontdo"); }}>Won't do</button>
-        <button className="act wrong" disabled={busy} onClick={(e) => { e.stopPropagation(); onAct(t.id, "wrong"); }}>Wrong</button>
         <button
           ref={snoozeRef}
           className={`act later${snoozeOpen ? " open" : ""}`}
@@ -1067,8 +1078,14 @@ function TrackedRow({ t, busy, onAct, onOpenDetail, snoozeOpen, onToggleSnooze, 
  *  `reopen` action the App-level act() already exposes, see server.js's own
  *  comment on why reopen resets triage/resolutionReason too), landing the
  *  item back in Inbox, undecided, exactly like reopening a done/dismissed
- *  item everywhere else in this app already does. */
-function LeanRow({ title, metaText, onReopen, busy }) {
+ *  item everywhere else in this app already does.
+ *
+ *  `onDismiss` — when passed instead — is the round-54 "Also came in"
+ *  digest's own way out: the same plain `dismiss` action (strike-counted,
+ *  never instantly permanent — see server.js's own comment on that) every
+ *  other dismissable row in this app already uses. A row only ever gets one
+ *  of the two actions, never both. */
+function LeanRow({ title, metaText, onReopen, onDismiss, busy }) {
   return (
     <div className="lean-row">
       <span className="lean-title" title={title}>{title}</span>
@@ -1078,21 +1095,70 @@ function LeanRow({ title, metaText, onReopen, busy }) {
           ↺ reopen
         </button>
       )}
+      {onDismiss && (
+        <button className="lean-dismiss" disabled={busy} onClick={onDismiss} title="Dismiss">
+          ✕
+        </button>
+      )}
     </div>
   );
 }
 
+// `wrong` is kept here even though round 54 dropped the button that creates
+// it (see TrackedRow's own comment) — an item resolved that way before this
+// round still needs a real label, not a raw "wrong" string, when it shows
+// up in Resolved.
 const RESOLVED_OUTCOME_LABEL = { done: "Done", wontdo: "Won't do", wrong: "Wrong", dismissed: "Dismissed" };
+
+// Display-only labels for config.json's domains.definitions, same mirroring
+// pattern SOURCE_LABELS above already uses — the frontend has no direct
+// read on the backend config, so this is kept in sync by hand. Order here
+// is also the group order the Sorted section renders in (school → work →
+// career → finance → social → projects → personal, then anything unknown
+// last) — see groupByDomain() below.
+const DOMAIN_LABELS = {
+  school: "School",
+  work: "Work",
+  career: "Career",
+  finance: "Finance",
+  social: "Social",
+  projects: "Projects",
+  personal: "Personal",
+};
+const DOMAIN_ORDER = Object.keys(DOMAIN_LABELS);
+
+/** Buckets Sorted's rows by item.domain (defaults to "personal" — same
+ *  default taskRow() itself falls back to on the backend), in DOMAIN_ORDER,
+ *  skipping any domain with nothing in it. An unrecognised domain string
+ *  still gets its own group at the end rather than being silently dropped —
+ *  same "never silently exclude" rule the rest of this app follows. */
+function groupByDomain(rows) {
+  const byDomain = new Map();
+  for (const row of rows) {
+    const d = row.domain || "personal";
+    if (!byDomain.has(d)) byDomain.set(d, []);
+    byDomain.get(d).push(row);
+  }
+  const ordered = DOMAIN_ORDER.filter((d) => byDomain.has(d)).map((d) => [d, byDomain.get(d)]);
+  const rest = [...byDomain.keys()].filter((d) => !DOMAIN_ORDER.includes(d)).sort();
+  return [...ordered, ...rest.map((d) => [d, byDomain.get(d)])];
+}
 
 /**
  * What you owe, as a real triage flow rather than a filing cabinet — see the
  * Tasks-page plan (project doc `tasks-page-overhaul-plan.md`) for the full
- * shape. INBOX asks a one-time question per item (Priority / Not priority /
- * Remind me later); TRACKED is the actual to-do list, sorted by due date,
- * with its own Done / Won't do / Wrong / Remind later; NOT PRIORITY and
- * RESOLVED are both filed away rather than deleted, collapsed behind a
- * toggle so they don't clutter the page nothing points you back to on
- * purpose (that's what the ↺ reopen link on each of their rows is for).
+ * shape, updated by round 54 (project doc `round-54-*.md`). INBOX asks a
+ * one-time question per item (Important / Not important / Remind me later);
+ * SORTED (internally still triage: "priority") is the actual to-do list,
+ * grouped by domain, sorted by due date within each group, with its own
+ * Done / Won't do / Remind later; NOT IMPORTANT and RESOLVED are both filed
+ * away rather than deleted, collapsed behind a toggle so they don't clutter
+ * the page nothing points you back to on purpose (that's what the ↺ reopen
+ * link on each of their rows is for). ALSO CAME IN is new in round 54 — a
+ * digest of email that reached the AI classifier but wasn't asking for a
+ * reply or naming a real date, so it never becomes a task, but still might
+ * be worth a glance (a physio reminder, shipping info, a GitHub notice) —
+ * see brief/display.js's buildAlsoCameIn() for the full rationale.
  *
  * `busyId` disables a row's own buttons while its request is in flight —
  * the same instant-optimistic-removal pattern act() already uses at the App
@@ -1106,6 +1172,10 @@ function TasksPage({ d, onAct }) {
   const [snoozeId, setSnoozeId] = useState(null);
   const [filedOpen, setFiledOpen] = useState(false);
   const [resolvedOpen, setResolvedOpen] = useState(false);
+  // Also came in starts open, unlike Filed away/Resolved — this is new
+  // information Jon hasn't seen before, not an archive to duck into
+  // occasionally, so it shouldn't default to hidden.
+  const [alsoOpen, setAlsoOpen] = useState(true);
   const snoozeAnchors = useRef(new Map());
   // On-demand AI detail — same ItemDetailModal, endpoint, and per-item cache
   // TodayPage uses (see its own comment and brief/detail.js). Jon's ask:
@@ -1153,6 +1223,11 @@ function TasksPage({ d, onAct }) {
   const tracked = tasks.tracked;
   const filedAway = tasks.filedAway;
   const resolved = tasks.resolved;
+  // Falls back to an empty shape so an older cached /api/display response
+  // (from before round 54) doesn't crash the page — same defensive pattern
+  // tasks.status/tasks.configured already use a bit further down.
+  const alsoCameIn = tasks.alsoCameIn || { items: [], total: 0 };
+  const sortedGroups = groupByDomain(tracked.items);
 
   return (
     <div className="page-tasks">
@@ -1189,35 +1264,63 @@ function TasksPage({ d, onAct }) {
         </section>
 
         <section className="tgroup">
-          <h2>Tracked<em>{tracked.total}</em></h2>
+          <h2>Sorted<em>{tracked.total}</em></h2>
           {tracked.total === 0 ? (
-            <p className="empty">Nothing tracked yet — mark something Priority in the Inbox above.</p>
+            <p className="empty">Nothing sorted yet — mark something Important in the Inbox above.</p>
           ) : (
-            tracked.items.map((t) => (
-              <Fragment key={t.id}>
-                <TrackedRow
-                  t={t}
-                  busy={busyId === t.id}
-                  onAct={act}
-                  onOpenDetail={openDetail}
-                  snoozeOpen={snoozeId === t.id}
-                  onToggleSnooze={toggleSnooze}
-                  snoozeRef={snoozeRefFor(t.id)}
-                />
-                {snoozeId === t.id && (
-                  <SnoozePopover
-                    anchorEl={snoozeAnchors.current.get(t.id)}
-                    onConfirm={(dateStr) => confirmSnooze(t.id, dateStr)}
-                    onCancel={() => setSnoozeId(null)}
-                  />
-                )}
-              </Fragment>
+            sortedGroups.map(([domain, rows]) => (
+              <div className="domain-group" key={domain}>
+                <h3 className="domain-heading">
+                  <span className={`dot d-${domain}`} /> {DOMAIN_LABELS[domain] || domain}
+                </h3>
+                {rows.map((t) => (
+                  <Fragment key={t.id}>
+                    <TrackedRow
+                      t={t}
+                      busy={busyId === t.id}
+                      onAct={act}
+                      onOpenDetail={openDetail}
+                      snoozeOpen={snoozeId === t.id}
+                      onToggleSnooze={toggleSnooze}
+                      snoozeRef={snoozeRefFor(t.id)}
+                    />
+                    {snoozeId === t.id && (
+                      <SnoozePopover
+                        anchorEl={snoozeAnchors.current.get(t.id)}
+                        onConfirm={(dateStr) => confirmSnooze(t.id, dateStr)}
+                        onCancel={() => setSnoozeId(null)}
+                      />
+                    )}
+                  </Fragment>
+                ))}
+              </div>
             ))
           )}
         </section>
       </div>
 
       <div className="tside">
+        <section className="zone">
+          <button className="collapse-toggle" onClick={() => setAlsoOpen((v) => !v)}>
+            <h2>{alsoOpen ? "▾" : "▸"} Also came in<em>{alsoCameIn.total}</em></h2>
+          </button>
+          {alsoOpen && (
+            alsoCameIn.total === 0 ? (
+              <p className="empty">Nothing else came in.</p>
+            ) : (
+              alsoCameIn.items.map((row) => (
+                <LeanRow
+                  key={row.id}
+                  title={row.title}
+                  metaText={[row.who, row.dateLabel].filter(Boolean).join(" · ")}
+                  onDismiss={() => act(row.id, "dismiss")}
+                  busy={busyId === row.id}
+                />
+              ))
+            )
+          )}
+        </section>
+
         <section className="zone">
           <button className="collapse-toggle" onClick={() => setFiledOpen((v) => !v)}>
             <h2>{filedOpen ? "▾" : "▸"} Filed away<em>{filedAway.total}</em></h2>

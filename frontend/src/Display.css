@@ -1694,8 +1694,6 @@
   width: auto; height: 27px; padding: 0 10px;
   font-size: 13px; font-weight: 560; white-space: nowrap;
 }
-.tracked-acts .act.wrong { color: var(--down); }
-.tracked-acts .act.wrong:hover { color: var(--down); border-color: var(--down); }
 .triage-acts .act.later, .tracked-acts .act.later { color: var(--accent); }
 .triage-acts .act.later:hover, .tracked-acts .act.later:hover,
 .triage-acts .act.later.open, .tracked-acts .act.later.open {
@@ -1751,6 +1749,27 @@
 }
 .lean-reopen:hover { color: var(--accent); }
 .lean-reopen[disabled] { opacity: .4; cursor: default; }
+
+/* Also came in (round 54) — same lean-row shape, a dismiss (✕) rather than
+   a reopen link, since a digest row never had a decision to undo. */
+.lean-dismiss {
+  appearance: none; border: none; background: transparent; color: var(--muted);
+  font-size: 13px; cursor: pointer; flex-shrink: 0; padding: 0;
+}
+.lean-dismiss:hover { color: var(--down); }
+.lean-dismiss[disabled] { opacity: .4; cursor: default; }
+
+/* Sorted, grouped by domain (round 54) — a quiet subheading per group, same
+   dot the rest of the app already uses per-domain so the colour is
+   consistent everywhere, not a second colour language just for this list. */
+.domain-group { margin-top: 14px; }
+.domain-group:first-child { margin-top: 0; }
+.domain-heading {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 640; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--faint); margin: 0 0 4px;
+}
+.domain-heading .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
 /* Deadlines, restacked: the interval leads, the date confirms it, the thing
    itself gets a full line instead of being clipped between two columns. */
