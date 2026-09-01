@@ -126,34 +126,42 @@ unplug-and-replug should come back on its own with nothing to fix by hand.
 
 ---
 
-## Reaching it remotely (Cloudflare Tunnel)
+## Reaching it remotely (Tailscale)
 
 Out of the box this only answers on your home network — the server binds no
 interface restriction, but nothing routes it past your router, and there's
 no login screen at all, so that's a feature, not an oversight: keeping it
 LAN-only is what makes the missing auth safe by default.
 
-To open it up from anywhere without exposing a raw port to the internet or
-giving up a login gate, run it behind a [Cloudflare
-Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
-with [Cloudflare
-Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/)
-in front of it. In short: `cloudflared` on the Pi opens an outbound-only
-connection to Cloudflare (no port forwarding, works fine behind CGNAT),
-Cloudflare hands you a real `https://` address, and Access requires an
-emailed one-time code before any request — including the very first
-page load — ever reaches the Pi.
+To open it up from anywhere without exposing anything to the public
+internet or buying a domain, put the Pi on a
+[Tailscale](https://tailscale.com) tailnet — a private mesh network only
+your own signed-in devices can join. `tailscale` on the Pi and the
+Tailscale app on your phone/laptop all join the same private network;
+nothing about the dashboard is ever reachable from the public internet,
+scanners, or anyone who isn't signed into your own account. No port
+forwarding, no domain, free (the personal plan covers up to 6 people with
+unlimited devices each).
 
-Full step-by-step (install, `tunnel create`, `config.yml`, `tunnel route
-dns`, running it as a systemd service the same way `pi-secretary.service`
-does, then the Access policy) is written up as a standalone guide rather
-than duplicated here — ask Claude for "the remote access guide" to get the
-artifact link, or see project doc `claude/round-55-remote-access.md`.
+An earlier pass at this used Cloudflare Tunnel + Access instead — a real
+`https://` address gated by an emailed login code — but that needs a
+domain added to a Cloudflare account as an active DNS zone. Dropped once
+that requirement was ruled out; Tailscale needs no domain at all and,
+since nothing is ever internet-facing, is the stronger security position
+of the two anyway.
+
+Full step-by-step (account + app on your devices, install script on the
+Pi, `tailscale up`, finding the address via MagicDNS, and an optional
+`tailscale serve` for a real HTTPS address that still stays tailnet-only)
+is written up as a standalone guide rather than duplicated here — ask
+Claude for "the remote access guide" to get the artifact link, or see
+project doc `claude/round-55-remote-access.md`.
 
 One thing that setup does **not** change: anyone already on your home
 Wi-Fi can still reach the dashboard directly at its LAN address, with no
-login, exactly like today. The tunnel only gates requests arriving from
-outside your network.
+login, exactly like today. Tailscale adds a new, private way in from
+outside your network — it doesn't touch what's already true on the
+inside of it.
 
 ---
 
