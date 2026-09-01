@@ -75,7 +75,7 @@ function frontmatter(text) {
  * because it is the thing you maintain by hand; the JSON was a snapshot
  * taken on one particular day and has been quietly rotting since.
  */
-async function holdingsFromVault(config) {
+export async function holdingsFromVault(config) {
   const { path: vaultPath } = resolveVaultPath(config);
   if (!vaultPath) return null;
   const dir = path.join(vaultPath, config.money?.holdingsFolder || "Areas/Finances/Investments");
@@ -89,8 +89,22 @@ async function holdingsFromVault(config) {
   }
 
   const holdings = [];
+  const seenAt = new Map(); // ticker -> filename it first came from, for a clear duplicate error below
   for (const e of entries) {
     if (!e.isFile() || !e.name.toLowerCase().endsWith(".md")) continue;
+    // Syncthing leaves a second copy behind — "Foo.sync-conflict-20260831-
+    // 182831-4O2AEP5.md" — next to the real note whenever it can't
+    // auto-merge an edit made on two devices at once. It's still a real
+    // `type: holding` note with the same ticker, so left in, it duplicates
+    // a position and `holdings.ticker` (a PRIMARY KEY, see lib/db.js) throws
+    // a raw "UNIQUE constraint failed" that surfaces as an opaque failure on
+    // the whole money pull. Skip it here; the underlying edit conflict is
+    // still there in the vault for you to resolve in Obsidian, this just
+    // stops it from taking the sync down while it's unresolved.
+    if (/\.sync-conflict-\d{8}-\d{6}-/i.test(e.name)) {
+      log.warn(`skipping Syncthing conflict copy, resolve it in the vault: ${e.name}`);
+      continue;
+    }
     let fm;
     try {
       fm = frontmatter(await fs.readFile(path.join(dir, e.name), "utf-8"));
@@ -98,8 +112,22 @@ async function holdingsFromVault(config) {
     if (!fm || fm.type !== "holding" || !fm.ticker) continue;
     const shares = Number(fm.shares);
     if (!Number.isFinite(shares) || shares <= 0) continue;   // sold out, or a stub
+    const ticker = String(fm.ticker).trim();
+    // A genuine duplicate — two different notes both claiming the same
+    // ticker, not a sync conflict (those are already filtered out above) —
+    // would still hit the same PRIMARY KEY error once it reached the
+    // database. Fail here instead, with a message that says which files and
+    // why, rather than letting a raw SQLite constraint message be the only
+    // trace of it.
+    if (seenAt.has(ticker)) {
+      throw new Error(
+        `duplicate ticker "${ticker}" in ${dir}: ${seenAt.get(ticker)} and ${e.name} both declare it. ` +
+        `Merge or rename one — each ticker can only be one row in the holdings table.`
+      );
+    }
+    seenAt.set(ticker, e.name);
     holdings.push({
-      ticker: String(fm.ticker).trim(),
+      ticker,
       shares,
       // The note declares its own currency, so we never have to infer it from
       // the ticker suffix — which would get NE/CN listings wrong.

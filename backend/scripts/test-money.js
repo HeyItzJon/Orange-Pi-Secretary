@@ -3,12 +3,19 @@
 // Run: node scripts/test-money.js
 
 import assert from "node:assert/strict";
-import { valueBook, marketStatusLabel, currencyExposure } from "../sources/money.js";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { valueBook, marketStatusLabel, currencyExposure, holdingsFromVault } from "../sources/money.js";
 
 let pass = 0, fail = 0;
 const group = (t) => console.log(`\n${t}\n`);
 function test(name, fn) {
   try { fn(); console.log(`  ok    ${name}`); pass++; }
+  catch (err) { console.log(`  FAIL  ${name}\n        ${err.message}`); fail++; }
+}
+async function atest(name, fn) {
+  try { await fn(); console.log(`  ok    ${name}`); pass++; }
   catch (err) { console.log(`  FAIL  ${name}\n        ${err.message}`); fail++; }
 }
 const near = (a, b, tol = 0.01) =>
@@ -204,6 +211,77 @@ test("a position with no weight or no currency is skipped, not counted as its ow
     { ticker: "C", weightPct: 5, currency: null },
   ];
   assert.deepEqual(currencyExposure(positions), [{ currency: "CAD", pct: 100 }]);
+});
+
+group("holdingsFromVault — a Syncthing conflict copy must never reach the holdings table");
+
+// A real incident (2026-08-31): Syncthing left "ASML.TO.sync-conflict-
+// 20260831-182831-4O2AEP5.md" next to "ASML.TO.md" after an edit landed on
+// two devices at once. Both are valid `type: holding` notes with the same
+// ticker, so the vault walk picked up both and the second INSERT into
+// `holdings` (ticker is a PRIMARY KEY, see lib/db.js) threw a raw "UNIQUE
+// constraint failed: holdings.ticker" that took the whole money pull down —
+// the Sources panel showed that SQLite string verbatim with no indication
+// it was a sync conflict, not a real duplicate.
+async function withVault(files, fn) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-secretary-test-vault-"));
+  const savedEnv = process.env.VAULT_PATH;
+  try {
+    for (const [name, content] of Object.entries(files)) {
+      await fs.writeFile(path.join(dir, name), content, "utf-8");
+    }
+    process.env.VAULT_PATH = dir;
+    await fn(dir);
+  } finally {
+    if (savedEnv === undefined) delete process.env.VAULT_PATH;
+    else process.env.VAULT_PATH = savedEnv;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+}
+const note = (ticker, shares = 10, extra = "") => `---
+type: holding
+ticker: ${ticker}
+currency: CAD
+shares: ${shares}
+${extra}---
+`;
+
+await atest("a Syncthing conflict copy of a real holding is skipped, not treated as a second position", async () => {
+  await withVault({
+    "ASML.TO.md": note("ASML.TO"),
+    "ASML.TO.sync-conflict-20260831-182831-4O2AEP5.md": note("ASML.TO"),
+    "CCO.TO.md": note("CCO.TO", 29.5538),
+  }, async () => {
+    const holdings = await holdingsFromVault({ money: { holdingsFolder: "." } });
+    assert.deepEqual(holdings.map((h) => h.ticker).sort(), ["ASML.TO", "CCO.TO"]);
+  });
+});
+
+await atest("two genuinely different notes claiming the same ticker still fail loudly, with a message that names both files", async () => {
+  await withVault({
+    "ASML-old.md": note("ASML.TO"),
+    "ASML-new.md": note("ASML.TO"),
+  }, async () => {
+    await assert.rejects(
+      () => holdingsFromVault({ money: { holdingsFolder: "." } }),
+      (err) => {
+        assert.match(err.message, /duplicate ticker "ASML\.TO"/);
+        assert.match(err.message, /ASML-old\.md/);
+        assert.match(err.message, /ASML-new\.md/);
+        return true;
+      }
+    );
+  });
+});
+
+await atest("a normal vault with no conflicts is unaffected", async () => {
+  await withVault({
+    "AMD.md": note("AMD", 3),
+    "CCO.TO.md": note("CCO.TO", 29.5538),
+  }, async () => {
+    const holdings = await holdingsFromVault({ money: { holdingsFolder: "." } });
+    assert.deepEqual(holdings.map((h) => h.ticker).sort(), ["AMD", "CCO.TO"]);
+  });
 });
 
 console.log(`\n${pass} passed${fail ? `, ${fail} FAILED` : ""}\n`);
