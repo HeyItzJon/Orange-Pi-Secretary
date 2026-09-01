@@ -126,6 +126,37 @@ unplug-and-replug should come back on its own with nothing to fix by hand.
 
 ---
 
+## Reaching it remotely (Cloudflare Tunnel)
+
+Out of the box this only answers on your home network — the server binds no
+interface restriction, but nothing routes it past your router, and there's
+no login screen at all, so that's a feature, not an oversight: keeping it
+LAN-only is what makes the missing auth safe by default.
+
+To open it up from anywhere without exposing a raw port to the internet or
+giving up a login gate, run it behind a [Cloudflare
+Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/)
+with [Cloudflare
+Access](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/)
+in front of it. In short: `cloudflared` on the Pi opens an outbound-only
+connection to Cloudflare (no port forwarding, works fine behind CGNAT),
+Cloudflare hands you a real `https://` address, and Access requires an
+emailed one-time code before any request — including the very first
+page load — ever reaches the Pi.
+
+Full step-by-step (install, `tunnel create`, `config.yml`, `tunnel route
+dns`, running it as a systemd service the same way `pi-secretary.service`
+does, then the Access policy) is written up as a standalone guide rather
+than duplicated here — ask Claude for "the remote access guide" to get the
+artifact link, or see project doc `claude/round-55-remote-access.md`.
+
+One thing that setup does **not** change: anyone already on your home
+Wi-Fi can still reach the dashboard directly at its LAN address, with no
+login, exactly like today. The tunnel only gates requests arriving from
+outside your network.
+
+---
+
 ## Watching Syncthing (the syncthing-watchdog timer)
 
 Syncthing's own packaged unit already restarts itself on a crash
