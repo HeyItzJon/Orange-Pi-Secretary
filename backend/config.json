@@ -1,8 +1,8 @@
 {
-  "_comment": "Secretary config. Everything you'd want to tune lives here — no code changes needed. Restart the server, or POST /api/config/reload, after editing.",
+  "_comment": "Secretary config. Everything you'd want to tune lives here \u2014 no code changes needed. Restart the server, or POST /api/config/reload, after editing.",
   "timezone": "America/Toronto",
   "ai": {
-    "_comment": "The model is used for exactly two things: classifying emails that already passed your rules, and writing one summary line. Set provider to 'off' to run the whole system with zero AI calls — the brief still works.",
+    "_comment": "The model is used for exactly two things: classifying emails that already passed your rules, and writing one summary line. Set provider to 'off' to run the whole system with zero AI calls \u2014 the brief still works.",
     "provider": "deepseek",
     "_provider_options": [
       "deepseek",
@@ -24,23 +24,23 @@
     "_maxRepeats_note": "After this many briefs an unchanged, undated item goes QUIET: it still appears in its lane, collapsed behind a \"show N quieter\" toggle. Anything with a deadline, or written in CAPS, is never quieted.",
     "retainDays": 90,
     "horizonDays": 60,
-    "_horizonDays_note": "Anything dated further out than this waits its turn. Nothing else is ever removed — repeated items are marked quiet and collapsed, not dropped."
+    "_horizonDays_note": "Anything dated further out than this waits its turn. Nothing else is ever removed \u2014 repeated items are marked quiet and collapsed, not dropped."
   },
   "brightspace": {
-    "_comment": "Secondary enrichment layer: syllabus grading/topic context on items you tap, plus a count of Brightspace deadlines with no matching Google Calendar entry yet. Never a replacement for Calendar — see backend/sources/brightspace.js.",
+    "_comment": "Secondary enrichment layer: syllabus grading/topic context on items you tap, plus a count of Brightspace deadlines with no matching Google Calendar entry yet. Never a replacement for Calendar \u2014 see backend/sources/brightspace.js.",
     "enabled": true,
-    "_enabled_note": "The .ics URL itself lives in .env as BRIGHTSPACE_ICS_URL (run `npm run set-brightspace-url`), never here — it's a credential, and .env is the one file that never travels between machines on a git pull. This flag alone doesn't gate anything in code yet; it's here for when a manual pause switch is worth adding.",
+    "_enabled_note": "The .ics URL itself lives in .env as BRIGHTSPACE_ICS_URL (run `npm run set-brightspace-url`), never here \u2014 it's a credential, and .env is the one file that never travels between machines on a git pull. This flag alone doesn't gate anything in code yet; it's here for when a manual pause switch is worth adding.",
     "syllabiDir": "backend/data/syllabi",
-    "_syllabiDir_note": "Where `npm run parse-syllabi` looks for PDFs. Already covered by backend/data/'s own .gitignore rule — syllabus PDFs never get committed.",
+    "_syllabiDir_note": "Where `npm run parse-syllabi` looks for PDFs. Already covered by backend/data/'s own .gitignore rule \u2014 syllabus PDFs never get committed.",
     "auditWindowDays": 14,
-    "_auditWindowDays_note": "How far out the \"not on your calendar yet\" count looks. A Brightspace deadline further out than this isn't counted as missing — it's just not due soon enough to flag yet.",
+    "_auditWindowDays_note": "How far out the \"not on your calendar yet\" count looks. A Brightspace deadline further out than this isn't counted as missing \u2014 it's just not due soon enough to flag yet.",
     "courseCodeMatchWindowDays": 2,
-    "_courseCodeMatchWindowDays_note": "A Brightspace item counts as already-scheduled if a calendar item with the same course code falls within this many days of it — loose enough that your own reminder a day early (or the Brightspace cutoff being a day later than your own entry) still counts as a match.",
+    "_courseCodeMatchWindowDays_note": "A Brightspace item counts as already-scheduled if a calendar item with the same course code falls within this many days of it \u2014 loose enough that your own reminder a day early (or the Brightspace cutoff being a day later than your own entry) still counts as a match.",
     "maxPastDays": 14,
-    "_maxPastDays_note": "A Brightspace .ics feed commonly carries your ENTIRE enrollment history, not just the current term — old courses' assignment dates never expire out of it on their own. Anything due more than this many days ago is dropped at collection time rather than kept around forever as a permanently-open, permanently-unmatched item."
+    "_maxPastDays_note": "A Brightspace .ics feed commonly carries your ENTIRE enrollment history, not just the current term \u2014 old courses' assignment dates never expire out of it on their own. Anything due more than this many days ago is dropped at collection time rather than kept around forever as a permanently-open, permanently-unmatched item."
   },
   "categories": {
-    "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names — this is the only place they appear.",
+    "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",
     "_matching": "calendarPatterns match the calendar's name, titlePatterns match the event title or email subject, tiers match an email's rule tier. All are case-insensitive substring matches.",
     "definitions": [
       {
@@ -431,13 +431,13 @@
       "personal": "personal",
       "system": "personal"
     },
-    "_fromCategory_note": "Categories that are about IMPORTANCE rather than subject (critical, important, deadline) are deliberately absent — they should never decide a lane, so those items fall through to pattern matching."
+    "_fromCategory_note": "Categories that are about IMPORTANCE rather than subject (critical, important, deadline) are deliberately absent \u2014 they should never decide a lane, so those items fall through to pattern matching."
   },
   "ranking": {
     "_comment": "Added on top of the category weight to produce one score per item. Every contribution is recorded on the item as _rankWhy, so you can always see why something ranked where it did.",
     "needsReplyBoost": 12,
     "emphasisBoost": 15,
-    "_emphasisBoost_note": "You write things in CAPS when they matter. A title that is ≥70% uppercase (and longer than 3 letters) gets this, so your own convention is respected without listing any specific event.",
+    "_emphasisBoost_note": "You write things in CAPS when they matter. A title that is \u226570% uppercase (and longer than 3 letters) gets this, so your own convention is respected without listing any specific event.",
     "unmissableBoost": 10,
     "changedBoost": 6,
     "maxFatiguePenalty": 8
@@ -509,7 +509,7 @@
         "searchBody": true
       }
     ],
-    "_people_note": "searchBody also finds them in signatures. Only distinctive terms (7+ characters, or a multi-word phrase) are ever body-searched — 'mom' and 'dad' would match half the inbox, so they stay header-only.",
+    "_people_note": "searchBody also finds them in signatures. Only distinctive terms (7+ characters, or a multi-word phrase) are ever body-searched \u2014 'mom' and 'dad' would match half the inbox, so they stay header-only.",
     "domains": [
       {
         "match": "ottawa.ca",
@@ -637,10 +637,10 @@
       "CANNOT MISS"
     ],
     "horizonDays": 14,
-    "_note": "The calendar's own name is never printed in the brief — for the default calendar that name is your email address, which tells you nothing. It's used to derive the category chip instead."
+    "_note": "The calendar's own name is never printed in the brief \u2014 for the default calendar that name is your email address, which tells you nothing. It's used to derive the category chip instead."
   },
   "dismissal": {
-    "_comment": "No single dismiss — your own click, or the system's own automatic 'this looks gone' guess — makes an item vanish forever on the first try. Every dismiss counts a strike; only after this many strikes on the SAME item does it lock in for good (permanentlySuppressed). Below that, a dismissed item can still come back on its own if it turns out to be a wrong guess, or if its content genuinely changes. Use scripts/force-dismiss.js, or the 'suppress' action, to skip the count and lock something in immediately instead of waiting it out.",
+    "_comment": "No single dismiss \u2014 your own click, or the system's own automatic 'this looks gone' guess \u2014 makes an item vanish forever on the first try. Every dismiss counts a strike; only after this many strikes on the SAME item does it lock in for good (permanentlySuppressed). Below that, a dismissed item can still come back on its own if it turns out to be a wrong guess, or if its content genuinely changes. Use scripts/force-dismiss.js, or the 'suppress' action, to skip the count and lock something in immediately instead of waiting it out.",
     "afterCount": 3
   },
   "money": {
@@ -655,9 +655,9 @@
     "holdingsFolder": "Areas/Finances/Investments",
     "_holdings_note": "Shares come from the vault's `type: holding` notes, so the book follows what you actually maintain. config/portfolio.json is only a fallback.",
     "holdingsRefreshDays": 1,
-    "_holdingsRefreshDays_note": "The vault is only re-read the first time a pull is checked after local midnight (config.timezone), not on a rolling N-hours-since-last-time clock — a sync at 11:58 PM won't push the next one to nearly midnight the following day. Raise this to check less often than daily. Run `npm run sync-holdings` for an immediate forced refresh after editing a holding note.",
+    "_holdingsRefreshDays_note": "The vault is only re-read the first time a pull is checked after local midnight (config.timezone), not on a rolling N-hours-since-last-time clock \u2014 a sync at 11:58 PM won't push the next one to nearly midnight the following day. Raise this to check less often than daily. Run `npm run sync-holdings` for an immediate forced refresh after editing a holding note.",
     "stockIdeaCount": 1,
-    "_stockIdeaCount_note": "How many candidates show on the money page's 'worth a look' spot. Ranked by lib/stockIdeas.js — real Yahoo similarity data plus your real sector weights, never an AI pitch.",
+    "_stockIdeaCount_note": "How many candidates show on the money page's 'worth a look' spot. Ranked by lib/stockIdeas.js \u2014 real Yahoo similarity data plus your real sector weights, never an AI pitch.",
     "stockIdeaShortlist": 8,
     "_stockIdeaShortlist_note": "How many candidates get the (more expensive) sector+price lookup before ranking. Raise it to consider more candidates per refresh; lower it to spend fewer Yahoo calls.",
     "stockIdeaRefreshDays": 1,
@@ -665,7 +665,7 @@
     "stockIdeaConcentrationPenalty": 0.6,
     "_stockIdeaConcentrationPenalty_note": "0 = ignore sector weight entirely, rank purely on Yahoo similarity. 1 = a candidate in a sector you're already heavily weighted in is discounted almost to zero. This is the main tuning knob for 'smart, not random' vs. 'actually helps rebalance.'",
     "stockIdeaSummarySentences": 2,
-    "_stockIdeaSummarySentences_note": "How many sentences of Yahoo's own business-summary blurb show under a candidate — the plain-English 'what does this company actually do' line. Straight from Yahoo's text, nothing rewritten or generated.",
+    "_stockIdeaSummarySentences_note": "How many sentences of Yahoo's own business-summary blurb show under a candidate \u2014 the plain-English 'what does this company actually do' line. Straight from Yahoo's text, nothing rewritten or generated.",
     "stockIdeaSummaryMaxChars": 220,
     "_stockIdeaSummaryMaxChars_note": "Hard length cap on that summary regardless of sentence count, so one run-on sentence can't blow out the layout.",
     "stockIdeaScreenerId": "aggressive_small_caps",
@@ -683,53 +683,28 @@
     "_comment": "The Finances page's market-context panel (phase 1 — see claude/finances-page-ai-plan.md). Real index/VIX numbers and real RSS headlines, zero signup. DeepSeek only ever narrates these into one daily sentence — it never predicts, recommends, or invents a figure. See lib/marketTake.js.",
     "enabled": true,
     "feeds": [
-      {
-        "name": "CNBC",
-        "url": "https://www.cnbc.com/id/20910258/device/rss/rss.html"
-      },
-      {
-        "name": "MarketWatch",
-        "url": "https://feeds.content.dowjones.io/public/rss/mw_topstories"
-      },
-      {
-        "name": "Yahoo Finance",
-        "url": "https://finance.yahoo.com/news/rssindex"
-      },
-      {
-        "name": "Financial Post",
-        "url": "https://financialpost.com/feed"
-      }
+      { "name": "CNBC", "url": "https://www.cnbc.com/id/20910258/device/rss/rss.html" },
+      { "name": "MarketWatch", "url": "https://feeds.content.dowjones.io/public/rss/mw_topstories" },
+      { "name": "Yahoo Finance", "url": "https://finance.yahoo.com/news/rssindex" },
+      { "name": "Financial Post", "url": "https://financialpost.com/feed" }
     ],
     "_feeds_note": "Plain RSS, fetched in parallel, no API key. A dead feed is named in the sources panel and `npm run doctor` rather than silently shrinking the page — same convention as everywhere else in this app.",
     "feedTimeoutMs": 7000,
     "headlineCount": 6,
     "_headlineCount_note": "How many real headlines show in the 'In the news' block, after de-duplicating the same wire story picked up by more than one feed.",
     "indices": [
-      {
-        "symbol": "^GSPC",
-        "label": "S&P 500"
-      },
-      {
-        "symbol": "^GSPTSE",
-        "label": "TSX"
-      },
-      {
-        "symbol": "^IXIC",
-        "label": "Nasdaq"
-      }
+      { "symbol": "^GSPC", "label": "S&P 500" },
+      { "symbol": "^GSPTSE", "label": "TSX" },
+      { "symbol": "^IXIC", "label": "Nasdaq" }
     ],
     "vixSymbol": "^VIX",
-    "vixThresholds": {
-      "calm": 15,
-      "normal": 20,
-      "jumpy": 30
-    },
+    "vixThresholds": { "calm": 15, "normal": 20, "jumpy": 30 },
     "_vixThresholds_note": "VIX below 'calm' reads as calm, below 'normal' as normal, below 'jumpy' as jumpy, anything at or above that as volatile. Rule-based bucketing, same idea as the year view's colorBucket() — never a judgment call handed to the model.",
     "takeRefreshDays": 1,
     "_takeRefreshDays_note": "How often the one AI-written 'Today's take' sentence refreshes — once a calendar day by default, same lib/time.js math as money.stockIdeaRefreshDays. The real numbers above still refresh on the normal 15-minute pull; only this one sentence is rationed. `npm run refresh-market-news` forces an immediate refresh."
   },
   "display": {
-    "_comment": "The three-page screen at /display. Small, mostly looked-at rather than operated — but there IS a cursor and a refresh button, because the same URL is how you debug the pipeline on a laptop.",
+    "_comment": "The three-page screen at /display. Small, mostly looked-at rather than operated \u2014 but there IS a cursor and a refresh button, because the same URL is how you debug the pipeline on a laptop.",
     "days": 3,
     "_days_note": "How many days after today to show. 3 fits a 1024x600 panel; an 800x480 panel drops the third automatically.",
     "maxDeadlines": 8,
@@ -743,7 +718,7 @@
     "pauseAfterInputSeconds": 120,
     "maxTasksPerGroup": 8,
     "undatedMaxAgeDays": 2,
-    "_undatedMaxAgeDays_note": "How many days an undated Start-here candidate stays eligible before it ages out on its own, provided it has not been marked done or dismissed. Dated items are unaffected — their own due date decides that.",
+    "_undatedMaxAgeDays_note": "How many days an undated Start-here candidate stays eligible before it ages out on its own, provided it has not been marked done or dismissed. Dated items are unaffected \u2014 their own due date decides that.",
     "topWeights": 5,
     "maxMoneyAlerts": 5
   },
