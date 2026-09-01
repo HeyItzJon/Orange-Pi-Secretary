@@ -2892,11 +2892,13 @@ function SystemPage() {
   const deployStatus = health.deploy?.status || "idle";
   const deployBusy = busy === "deploy" || deployStatus === "running";
 
-  const unitRow = (label, unit) => (
+  const unitRow = (label, unit, detail) => (
     <div className={`syrow${unit?.active === false ? " bad" : unit?.active ? "" : " unk"}`} key={label}>
       <span className="syname">{label}</span>
       <span className="systate">
-        {unit?.active === true ? "running" : unit?.active === false ? unit.status || "down" : "unknown"}
+        {unit?.active === true
+          ? detail ? `running · ${detail}` : "running"
+          : unit?.active === false ? unit.status || "down" : "unknown"}
       </span>
     </div>
   );
@@ -2928,7 +2930,7 @@ function SystemPage() {
           </ul>
         </div>
       ) : (
-        <p className="syok">Nothing wrong — CPU, memory, disk, Syncthing, the watchdog, and every source all look healthy.</p>
+        <p className="syok">Nothing wrong — CPU, memory, disk, Syncthing, the watchdog, Tailscale, and every source all look healthy.</p>
       )}
 
       <div className="sycols">
@@ -3001,6 +3003,7 @@ function SystemPage() {
             {unitRow("pi-secretary", health.mainService)}
             {unitRow("Syncthing", health.syncthing)}
             {unitRow("Syncthing watchdog", health.watchdog)}
+            {unitRow("Tailscale", health.tailscale, health.tailscale?.ip)}
           </div>
         </section>
 
@@ -3084,6 +3087,13 @@ export default function Display() {
   const [dayOffset, setDayOffset] = useState(0);
   const lastHeal = useRef(0);
   const lastInput = useRef(0);
+  // The header tab bar scrolls horizontally on a phone (see .tabs in
+  // Display.css) instead of squeezing seven tabs into equal slivers — this
+  // keeps the active one scrolled into view whenever the page changes,
+  // whether that change came from tapping a tab, the footer dots, a swipe,
+  // a keyboard shortcut, or auto-rotation, so switching pages never leaves
+  // the highlighted tab scrolled off-screen.
+  const activeTabRef = useRef(null);
 
   const reload = useCallback(async () => {
     try {
@@ -3194,6 +3204,14 @@ export default function Display() {
     go(idx != null && idx >= 0 ? idx : 0);
   }, [d, go]);
 
+  // Scroll the active tab into view whenever the page changes — matters
+  // only on the phone width where .tabs overflows and scrolls (see
+  // Display.css) rather than squeezing every tab into an equal, unreadable
+  // sliver; a no-op on wider screens where all tabs already fit.
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  }, [page]);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === "ArrowRight") go(page + 1);
@@ -3251,6 +3269,7 @@ export default function Display() {
           {d.pages.map((p, i) => (
             <button
               key={p.id}
+              ref={i === page ? activeTabRef : null}
               className={`tab${i === page ? " on" : ""}`}
               onClick={(e) => { e.stopPropagation(); go(i); }}
             >

@@ -68,6 +68,37 @@ async function readUnitActive(unit) {
   }
 }
 
+// Tailscale isn't a single systemd unit the way Syncthing is: `tailscaled`
+// (the daemon) can be "active" while Tailscale itself is logged out or
+// paused, so this checks both the daemon unit and the daemon's own idea of
+// its state (`tailscale status --json`'s BackendState) rather than trusting
+// systemctl alone. Any failure reading that JSON (CLI not installed, not
+// logged in, no permission) is treated as "not connected" rather than a
+// crash — same posture as readUnitActive above.
+async function readTailscaleStatus(cfg) {
+  const unit = cfg.tailscaleUnit || "tailscaled";
+  const daemon = await readUnitActive(unit);
+
+  let backendState = null;
+  let ip = null;
+  try {
+    const { stdout } = await execFileAsync("tailscale", ["status", "--json"]);
+    const parsed = JSON.parse(stdout);
+    backendState = parsed.BackendState || null;
+    ip = parsed.Self?.TailscaleIPs?.[0] || null;
+  } catch {
+    // tailscale CLI missing, not logged in, or its output didn't parse —
+    // daemon.active (from systemctl) still carries whatever we could tell.
+  }
+
+  return {
+    unit,
+    active: daemon.active && backendState === "Running",
+    status: backendState || daemon.status,
+    ip,
+  };
+}
+
 async function readDisk(mountPoint) {
   try {
     const { stdout } = await execFileAsync("df", ["-Pk", mountPoint]);
@@ -105,7 +136,7 @@ export async function collectSystemHealth(config, sourceNames) {
   const cfg = config.systemHealth || {};
   const now = Date.now();
 
-  const [cpuTempC, disk, syncthing, watchdog, mainService, sources, deploy] = await Promise.all([
+  const [cpuTempC, disk, syncthing, watchdog, mainService, tailscale, sources, deploy] = await Promise.all([
     readCpuTempC(),
     readDisk(cfg.diskMountPoint || "/"),
     readUnitActive(cfg.syncthingUnit),
@@ -115,6 +146,7 @@ export async function collectSystemHealth(config, sourceNames) {
     // which is why this checks watchdogUnit (a .timer) and not a .service.
     readUnitActive(cfg.watchdogUnit),
     readUnitActive(cfg.mainServiceUnit),
+    readTailscaleStatus(cfg),
     Promise.all(
       (sourceNames || []).map(async (s) => ({
         name: s,
@@ -142,6 +174,7 @@ export async function collectSystemHealth(config, sourceNames) {
     syncthing,
     watchdog,
     mainService,
+    tailscale,
     sources,
     everyMinutes: config.schedule?.pullEveryMinutes ?? 15,
     deploy,
@@ -200,6 +233,10 @@ export function evaluateProblems(health, config) {
 
   if (health.mainService?.active === false && health.mainService?.unit) {
     add("critical", "service", `${health.mainService.unit} is not running`);
+  }
+
+  if (health.tailscale?.active === false && health.tailscale?.unit) {
+    add("warning", "tailscale", `Tailscale isn't connected (${health.tailscale.status || "unknown"}) — remote access via Tailscale won't work until this is fixed`);
   }
 
   if (health.deploy?.status === "failed") {

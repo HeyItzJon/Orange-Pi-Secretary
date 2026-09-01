@@ -694,6 +694,8 @@
     "watchdogUnit": "syncthing-watchdog.timer",
     "_watchdogUnit_note": "The .timer unit, not the paired .service — the oneshot service is correctly 'inactive' between runs, so 'is the watchdog running' has to mean 'is the timer scheduled.'",
     "mainServiceUnit": "pi-secretary.service",
+    "tailscaleUnit": "tailscaled",
+    "_tailscaleUnit_note": "The tailscaled daemon's systemd unit name — stock on every platform Tailscale installs to, shouldn't need changing. The System page also checks `tailscale status --json` for whether it is actually logged in and connected, not just running.",
     "diskMountPoint": "/",
     "cpuTempWarnC": 70,
     "cpuTempCriticalC": 80,

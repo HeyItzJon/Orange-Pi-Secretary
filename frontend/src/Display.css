@@ -1862,8 +1862,22 @@
      date and clock give way and the tabs get the full width. */
   .top { flex-wrap: wrap; gap: 6px 10px; }
   .top .date, .top .liveclock, .top .updated { display: none; }
-  .tabs { order: -1; width: 100%; justify-content: space-between; }
-  .tab { flex: 1; text-align: center; padding: 7px 4px; }
+  /* Seven tabs (Today/Tasks/Money/Year/Week/Wall/System) no longer fit a
+     phone-width row — flex:1 used to squeeze all seven into unreadable
+     equal-width slivers with nothing to indicate more existed off to the
+     side. Scrolling horizontally instead keeps every tab at a normal,
+     tappable size; the active one is kept scrolled into view (see
+     activeTabRef in Display.jsx) so switching pages by keyboard, footer
+     dot, or swipe never leaves it hidden off-screen. */
+  .tabs {
+    order: -1; width: 100%; justify-content: flex-start;
+    overflow-x: auto; overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none; /* Firefox */
+  }
+  .tabs::-webkit-scrollbar { display: none; } /* Chrome/Safari — same "scroll works, bar doesn't clutter the header" call as elsewhere */
+  .tab { flex: 0 0 auto; text-align: center; padding: 7px 14px; scroll-snap-align: start; }
   /* .mhead's desktop layout puts the big total and the week/month/holdings
      line side by side, sized for a wide panel; at phone width the two
      columns had nowhere to go, and .ccy's desktop position (a small

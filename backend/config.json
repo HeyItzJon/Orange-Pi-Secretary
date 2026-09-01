@@ -728,6 +728,7 @@
     "watchdogUnit": "syncthing-watchdog.timer",
     "_watchdogUnit_note": "The .timer unit, not the paired .service — the oneshot service is correctly 'inactive' between runs, so 'is the watchdog running' has to mean 'is the timer scheduled.'",
     "mainServiceUnit": "pi-secretary.service",
+    "tailscaleUnit": "tailscaled",
     "diskMountPoint": "/",
     "cpuTempWarnC": 70,
     "cpuTempCriticalC": 80,

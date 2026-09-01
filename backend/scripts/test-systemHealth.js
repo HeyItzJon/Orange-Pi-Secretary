@@ -120,6 +120,33 @@ test("main service down is critical", () => {
   assert.equal(problems[0].area, "service");
 });
 
+group("evaluateProblems — Tailscale (round 55 follow-up)");
+
+test("Tailscale connected: no problem", () => {
+  const health = baseHealth({ tailscale: { unit: "tailscaled", active: true, status: "Running", ip: "100.82.115.119" } });
+  assert.deepEqual(evaluateProblems(health, CFG), []);
+});
+
+test("Tailscale configured but not connected is a warning naming the state", () => {
+  const health = baseHealth({ tailscale: { unit: "tailscaled", active: false, status: "NeedsLogin", ip: null } });
+  const problems = evaluateProblems(health, CFG);
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0].level, "warning");
+  assert.equal(problems[0].area, "tailscale");
+  assert.match(problems[0].message, /NeedsLogin/);
+});
+
+test("Tailscale not configured at all (no unit name) is silently skipped, not flagged", () => {
+  const health = baseHealth({ tailscale: { unit: null, active: null, status: "not configured", ip: null } });
+  assert.deepEqual(evaluateProblems(health, CFG), []);
+});
+
+test("Tailscale missing from the health snapshot entirely (older caller, or a hand-built test object) is skipped, not a crash", () => {
+  const health = baseHealth();
+  delete health.tailscale;
+  assert.deepEqual(evaluateProblems(health, CFG), []);
+});
+
 group("evaluateProblems — the deploy button (round 53 follow-up)")
 
 test("idle or succeeded deploy status is not a problem", () => {
