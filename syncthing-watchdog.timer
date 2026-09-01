@@ -1,0 +1,19 @@
+# syncthing-watchdog.timer — round 53. Fires syncthing-watchdog.service
+# every 5 minutes. See syncthing-watchdog.service's own comments for the
+# one-time install steps; this is the unit that actually gets enabled.
+
+[Unit]
+Description=Run the Syncthing watchdog every 5 minutes
+
+[Timer]
+# A couple minutes after boot is plenty — no rush, and it avoids racing
+# the network coming up.
+OnBootSec=2min
+OnUnitActiveSec=5min
+# Lets systemd batch this with other timers instead of waking the Pi at
+# the exact second — a watchdog checking every ~5min has no reason to
+# insist on to-the-second accuracy.
+AccuracySec=30sec
+
+[Install]
+WantedBy=timers.target

@@ -725,6 +725,20 @@
     "topWeights": 5,
     "maxMoneyAlerts": 5
   },
+  "systemHealth": {
+    "_comment": "The System page (round 53 — Jon: 'a full dashboard that will highlight any problems I need to fix'). Pure threshold config; lib/systemHealth.js's evaluateProblems() is the only place that reads these.",
+    "syncthingUnit": "syncthing@jonbourgy.service",
+    "watchdogUnit": "syncthing-watchdog.timer",
+    "_watchdogUnit_note": "The .timer unit, not the paired .service — the oneshot service is correctly 'inactive' between runs, so 'is the watchdog running' has to mean 'is the timer scheduled.'",
+    "mainServiceUnit": "pi-secretary.service",
+    "diskMountPoint": "/",
+    "cpuTempWarnC": 70,
+    "cpuTempCriticalC": 80,
+    "memoryWarnPct": 85,
+    "diskWarnPct": 85,
+    "sourceStaleAfterHours": 1,
+    "_sourceStaleAfterHours_note": "Same reasoning as display.staleAfterHours: pulls run every 15 min, so a source that hasn't run in over an hour is broken, not merely quiet. Falls back to display.staleAfterHours if omitted."
+  },
   "vault": {
     "path": "C:\\Users\\jonmb\\Documents\\Obsidian\\Jon's Synced Vault",
     "watchFolders": [

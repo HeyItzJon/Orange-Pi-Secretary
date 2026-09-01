@@ -2710,9 +2710,138 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
   );
 }
 
+/**
+ * Round 53 — Jon: "a full dashboard that will highlight any problems I
+ * need to fix." Self-polls /api/system-health every 15s (host stats don't
+ * move fast enough to need WallPage's 5s cadence). A problems banner up
+ * top when anything's wrong, nothing extra when everything's fine — the
+ * point is that a quiet page means a quiet Pi.
+ */
+function SystemPage() {
+  const [health, setHealth] = useState(null);
+  const [err, setErr] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/system-health");
+      if (!r.ok) throw new Error(`status ${r.status}`);
+      setHealth(await r.json());
+      setErr(null);
+    } catch (e) {
+      // Keep whatever's already on screen rather than blanking the page
+      // over one missed poll — same reasoning as WallPage's load().
+      setErr(e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  if (!health) return <p className="empty big-empty">Loading system health…</p>;
+
+  const problems = health.problems || [];
+  const critical = problems.filter((p) => p.level === "critical");
+  const warnings = problems.filter((p) => p.level === "warning");
+
+  const unitRow = (label, unit) => (
+    <div className={`syrow${unit?.active === false ? " bad" : unit?.active ? "" : " unk"}`} key={label}>
+      <span className="syname">{label}</span>
+      <span className="systate">
+        {unit?.active === true ? "running" : unit?.active === false ? unit.status || "down" : "unknown"}
+      </span>
+    </div>
+  );
+
+  return (
+    <div className="page-system">
+      <div className="syshead">
+        <h2>System</h2>
+        <span className="syupdated">updated {ago(health.generatedAt)}</span>
+      </div>
+
+      {err && <p className="mwarn">Couldn't reach the backend just now — showing the last known state ({err}).</p>}
+
+      {problems.length > 0 ? (
+        <div className="syproblems">
+          <h3>{critical.length > 0 ? "Needs attention" : "Worth a look"}</h3>
+          <ul>
+            {problems.map((p, i) => (
+              <li key={i} className={p.level}>
+                <span className="sylevel">{p.level === "critical" ? "!" : "·"}</span> {p.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="syok">Nothing wrong — CPU, memory, disk, Syncthing, the watchdog, and every source all look healthy.</p>
+      )}
+
+      <div className="sycols">
+        <section className="zone syhost">
+          <h2>Host</h2>
+          <div className="systat-list">
+            <div className="systat">
+              <span className="systat-label">CPU temp</span>
+              <span className="systat-val">{health.cpuTempC == null ? "n/a" : `${health.cpuTempC}°C`}</span>
+            </div>
+            <div className="systat">
+              <span className="systat-label">Memory</span>
+              <span className="systat-val">{health.memory?.usedPct == null ? "n/a" : `${health.memory.usedPct}% used`}</span>
+            </div>
+            <div className="systat">
+              <span className="systat-label">Disk ({health.disk?.mountPoint || "/"})</span>
+              <span className="systat-val">{health.disk?.usedPct == null ? "n/a" : `${health.disk.usedPct}% used`}</span>
+            </div>
+            <div className="systat">
+              <span className="systat-label">Load avg</span>
+              <span className="systat-val">{health.loadavg ? health.loadavg.map((n) => n.toFixed(2)).join(" / ") : "n/a"}</span>
+            </div>
+            <div className="systat">
+              <span className="systat-label">System up since</span>
+              <span className="systat-val">{ago(health.systemBootAt)}</span>
+            </div>
+            <div className="systat">
+              <span className="systat-label">App restarted</span>
+              <span className="systat-val">{ago(health.processStartedAt)}</span>
+            </div>
+            <div className="systat">
+              <span className="systat-label">Pull frequency</span>
+              <span className="systat-val">every {health.everyMinutes}min</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="zone syservices">
+          <h2>Services</h2>
+          <div className="syrow-list">
+            {unitRow("pi-secretary", health.mainService)}
+            {unitRow("Syncthing", health.syncthing)}
+            {unitRow("Syncthing watchdog", health.watchdog)}
+          </div>
+        </section>
+
+        <section className="zone sysources">
+          <h2>Sources</h2>
+          <div className="syrow-list">
+            {(health.sources || []).map((s) => (
+              <div className={`syrow${s.lastError ? " bad" : ""}`} key={s.name}>
+                <span className="syname">{SOURCE_LABELS[s.name] || s.name}</span>
+                <span className="systate">{s.lastError ? <b className="fail">{s.lastError.message || s.lastError}</b> : ago(s.lastRun)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 /* =================================================================== shell */
 
-const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage, wall: WallPage };
+const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage, wall: WallPage, system: SystemPage };
 
 /**
  * Strip one id out of every Tasks-page list it could be sitting in,

@@ -1377,6 +1377,56 @@
   .wcols { grid-template-columns: 1fr; }
 }
 
+/* ========================================================= page: system */
+
+.page-system { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.syshead { display: flex; align-items: baseline; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+.syshead h2 { margin: 0; font-size: 21px; font-weight: 620; }
+.syupdated { font-size: 13.5px; color: var(--faint); }
+
+.syok { font-size: 14px; color: var(--muted); margin: 16px 0 0; }
+
+.syproblems { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--rule); background: var(--fill); }
+.syproblems h3 {
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 8px;
+}
+.syproblems ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.syproblems li { font-size: 14px; color: var(--ink-2); display: flex; gap: 8px; }
+.syproblems li .sylevel { width: 14px; flex-shrink: 0; text-align: center; font-weight: 700; color: var(--muted); }
+.syproblems li.critical { color: var(--down); }
+.syproblems li.critical .sylevel { color: var(--down); }
+
+.sycols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px 34px;
+  padding-top: 18px;
+}
+.sycols .zone { min-width: 0; }
+.sycols .zone h2 {
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 10px;
+}
+
+.systat-list { display: flex; flex-direction: column; gap: 2px; }
+.systat { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.systat:last-child { border-bottom: none; }
+.systat-label { font-size: 13.5px; color: var(--muted); }
+.systat-val { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+.syrow-list { display: flex; flex-direction: column; gap: 2px; }
+.syrow { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.syrow:last-child { border-bottom: none; }
+.syname { font-size: 13.5px; color: var(--ink-2); }
+.systate { font-size: 13px; color: var(--muted); }
+.syrow.bad .systate { color: var(--down); }
+.syrow.bad .systate .fail { color: var(--down); font-weight: 500; }
+
+@media (max-width: 980px) {
+  .sycols { grid-template-columns: 1fr; }
+}
+
 /* ========================================================== page: world */
 
 .page-world { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }

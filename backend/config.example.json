@@ -690,6 +690,21 @@
     "topWeights": 5,
     "maxMoneyAlerts": 5
   },
+  "systemHealth": {
+    "_comment": "The System page (round 53 — Jon: 'a full dashboard that will highlight any problems I need to fix'). Pure threshold config; lib/systemHealth.js's evaluateProblems() is the only place that reads these.",
+    "syncthingUnit": "syncthing@jonbourgy.service",
+    "_syncthingUnit_note": "Same convention as pi-secretary.service's hardcoded User=jonbourgy — update the username here to match your own Pi account if it differs.",
+    "watchdogUnit": "syncthing-watchdog.timer",
+    "_watchdogUnit_note": "The .timer unit, not the paired .service — the oneshot service is correctly 'inactive' between runs, so 'is the watchdog running' has to mean 'is the timer scheduled.'",
+    "mainServiceUnit": "pi-secretary.service",
+    "diskMountPoint": "/",
+    "cpuTempWarnC": 70,
+    "cpuTempCriticalC": 80,
+    "memoryWarnPct": 85,
+    "diskWarnPct": 85,
+    "sourceStaleAfterHours": 1,
+    "_sourceStaleAfterHours_note": "Same reasoning as display.staleAfterHours: pulls run every 15 min, so a source that hasn't run in over an hour is broken, not merely quiet. Falls back to display.staleAfterHours if omitted."
+  },
   "vault": {
     "path": "C:\\Users\\you\\Documents\\Obsidian\\Your Vault",
     "_path_note": "This file is normally tracked in git so `git pull` alone brings over a working setup (see README) \u2014 but that means this exact path travels to every machine that pulls it, which breaks the moment two machines don't share a filesystem layout (a laptop and a Linux server, say). Set VAULT_PATH in that machine's own .env (never tracked) to override this on a per-machine basis without editing this shared file \u2014 see lib/paths.js's resolveVaultPath.",

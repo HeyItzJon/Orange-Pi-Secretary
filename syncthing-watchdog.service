@@ -1,0 +1,34 @@
+# syncthing-watchdog.service — round 53. A tiny oneshot that starts
+# syncthing@jonbourgy.service if it's ever found stopped; triggered on a
+# schedule by syncthing-watchdog.timer, not enabled/started directly.
+#
+# One-time install (see the README's "Watching Syncthing" section for the
+# full walkthrough):
+#
+#   sudo cp syncthing-watchdog.service /etc/systemd/system/
+#   sudo cp syncthing-watchdog.timer /etc/systemd/system/
+#   sudo chmod +x /home/jonbourgy/Orange-Pi-Secretary/syncthing-watchdog.sh
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now syncthing-watchdog.timer
+#
+# Only the .timer gets enabled/started — this .service is meant to be
+# triggered, never `systemctl start`ed as a long-running thing itself.
+# Between runs `systemctl status syncthing-watchdog.service` correctly
+# shows "inactive" — that's expected for any oneshot, not a fault; the
+# System page checks the .timer's own active state instead, which is
+# what actually answers "is the watchdog scheduled at all."
+
+[Unit]
+Description=Syncthing watchdog — start syncthing@jonbourgy.service if it isn't running
+# No point checking before basic networking is up — Syncthing itself
+# wouldn't be reachable yet either way.
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Runs as root (no User= line) so it can `systemctl start` a system unit
+# without needing its own sudoers rule — scoped to exactly this one
+# script, which itself only ever touches syncthing@jonbourgy.service.
+ExecStart=/home/jonbourgy/Orange-Pi-Secretary/syncthing-watchdog.sh
+StandardOutput=journal
+StandardError=journal

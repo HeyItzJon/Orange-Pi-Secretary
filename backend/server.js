@@ -21,6 +21,7 @@ import {
   setEnabledScreens, setPinnedScreen, pushNotification, clearNotification,
   fireTestEvent, commandPayload, statusPayload, MatrixControlError,
 } from "./lib/matrixControl.js";
+import { collectSystemHealth, evaluateProblems } from "./lib/systemHealth.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -324,6 +325,21 @@ app.get("/api/sources", async (_req, res) => {
       holdingCount: m.holdingCount, stale: m.stale, unavailable: m.unavailable, fx: m.fx,
     }),
   });
+});
+
+// Round 53 — the System page. One combined snapshot (host stats, the
+// Syncthing/watchdog/main-service units, per-source status) plus the
+// derived problem list, so the frontend gets a ready-to-render dashboard
+// in a single poll rather than assembling it from several endpoints.
+app.get("/api/system-health", async (_req, res) => {
+  try {
+    const health = await collectSystemHealth(config, SOURCE_NAMES);
+    const problems = evaluateProblems(health, config);
+    res.json({ ...health, problems });
+  } catch (err) {
+    log.error(`GET /api/system-health failed: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/items", async (req, res) => {

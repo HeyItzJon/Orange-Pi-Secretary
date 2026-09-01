@@ -126,6 +126,68 @@ unplug-and-replug should come back on its own with nothing to fix by hand.
 
 ---
 
+## Watching Syncthing (the syncthing-watchdog timer)
+
+Syncthing's own packaged unit already restarts itself on a crash
+(`Restart=on-failure`), but that's not the same as "always running" — a
+clean `systemctl stop`, or a plain `kill -15` sent from an SSH session, is
+not a crash, so systemd correctly does nothing and Syncthing just stays
+down. That's exactly what happened once already (see
+`claude/round-52-syncthing-conflict-holdings-fix.md`'s addendum): stopped
+around 6pm, still down 17 hours later, because nothing was watching for
+"stopped on purpose or by accident" — only for "crashed."
+
+`syncthing-watchdog.sh` is that missing check: a tiny script, run on a
+timer, that starts `syncthing@jonbourgy.service` back up if it's ever
+found not active. It's idempotent — if Syncthing's already running, it's a
+silent no-op.
+
+**One-time setup**, after pulling this commit on the Pi:
+
+```bash
+sudo cp syncthing-watchdog.service /etc/systemd/system/
+sudo cp syncthing-watchdog.timer /etc/systemd/system/
+chmod +x syncthing-watchdog.sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now syncthing-watchdog.timer
+```
+
+Only the `.timer` gets enabled — it fires the `.service` every 5 minutes.
+Check on it any time with:
+
+```bash
+systemctl status syncthing-watchdog.timer     # should read "active (waiting)"
+journalctl -u syncthing-watchdog.service -n 20   # what the last few runs did
+```
+
+Between runs, `systemctl status syncthing-watchdog.service` correctly
+reads "inactive" — that's normal for any oneshot triggered by a timer, not
+a fault. The System page (see below) checks the `.timer`'s own active
+state for exactly that reason, so the watchdog's own status is something
+you can see at a glance rather than another invisible fire-and-forget
+script.
+
+---
+
+## The System page
+
+`/display`'s System tab (`GET /api/system-health`, `lib/systemHealth.js`)
+is a live dashboard of the Pi itself: CPU temperature, memory and disk
+use, load average, how long since the last boot and the last app restart,
+the configured pull frequency, and whether `pi-secretary`, Syncthing, and
+the syncthing-watchdog timer are each actually running — plus the same
+per-source last-run/last-error status the Sources panel already shows,
+in one place. A "Worth a look" / "Needs attention" banner up top lists
+anything currently past a configured threshold (`config.json`'s
+`systemHealth` section); a quiet page means a quiet Pi. Thresholds are
+pure config — `lib/systemHealth.js`'s `evaluateProblems()` is the only
+code that reads them, and it's unit tested directly
+(`scripts/test-systemHealth.js`). No notifications are wired up yet on
+top of this — the problem list is built to be ping-able later, once
+that's built — this page is read-only for now.
+
+---
+
 ## How a brief is assembled
 
 ```

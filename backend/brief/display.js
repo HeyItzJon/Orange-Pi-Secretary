@@ -1667,6 +1667,13 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
       // single count on this page that would mean anything from the tab
       // alone, same reasoning as Money/Year just above.
       { id: "wall", label: "Wall", badge: null },
+      // Round 53 — host/service health dashboard. No badge here either:
+      // its own page self-polls /api/system-health directly (see
+      // lib/systemHealth.js), which this compose pipeline doesn't touch —
+      // wiring a live problem count into the tab would mean shelling out
+      // to systemctl/df on every /api/display build, not just when the
+      // System page itself is open.
+      { id: "system", label: "System", badge: null },
     ],
 
     // ---- page 1: Today
