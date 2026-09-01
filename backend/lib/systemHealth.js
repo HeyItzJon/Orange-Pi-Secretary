@@ -105,7 +105,7 @@ export async function collectSystemHealth(config, sourceNames) {
   const cfg = config.systemHealth || {};
   const now = Date.now();
 
-  const [cpuTempC, disk, syncthing, watchdog, mainService, sources] = await Promise.all([
+  const [cpuTempC, disk, syncthing, watchdog, mainService, sources, deploy] = await Promise.all([
     readCpuTempC(),
     readDisk(cfg.diskMountPoint || "/"),
     readUnitActive(cfg.syncthingUnit),
@@ -123,6 +123,12 @@ export async function collectSystemHealth(config, sourceNames) {
         lastError: await getMeta(`lastError_${s}`, null),
       }))
     ),
+    // Round 53 follow-up — the System page's "Deploy latest" button (see
+    // POST /api/system/deploy in server.js). Written by that route and by
+    // the boot-time reconcile step it also added (a deploy that's still
+    // "running" when the app starts up must actually have succeeded — the
+    // restart it triggered is what's booting right now).
+    getMeta("deployStatus", { status: "idle" }),
   ]);
 
   return {
@@ -138,6 +144,7 @@ export async function collectSystemHealth(config, sourceNames) {
     mainService,
     sources,
     everyMinutes: config.schedule?.pullEveryMinutes ?? 15,
+    deploy,
   };
 }
 
@@ -193,6 +200,10 @@ export function evaluateProblems(health, config) {
 
   if (health.mainService?.active === false && health.mainService?.unit) {
     add("critical", "service", `${health.mainService.unit} is not running`);
+  }
+
+  if (health.deploy?.status === "failed") {
+    add("warning", "deploy", `Last deploy failed (exit ${health.deploy.exitCode ?? "?"}) — see backend/data/last-deploy.log`);
   }
 
   for (const s of health.sources || []) {

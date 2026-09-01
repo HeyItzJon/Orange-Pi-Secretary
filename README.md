@@ -184,7 +184,31 @@ pure config — `lib/systemHealth.js`'s `evaluateProblems()` is the only
 code that reads them, and it's unit tested directly
 (`scripts/test-systemHealth.js`). No notifications are wired up yet on
 top of this — the problem list is built to be ping-able later, once
-that's built — this page is read-only for now.
+that's built.
+
+The page isn't fully read-only: two controls, added right after Jon saw
+the first version.
+
+**"Deploy latest"**, next to "App restarted", runs the real `deploy.sh` —
+`POST /api/system/deploy` spawns it exactly as `./deploy.sh` over SSH
+would: pull, install, test, rebuild, then `sudo systemctl restart
+pi-secretary`. That last step kills the very process serving the request,
+so the route can't observe a *successful* run finish — it can only ever
+see a run that failed before reaching the restart (bad pull, failing
+tests, a broken build), which it records in full (exit code, last ~4000
+chars of output) in `backend/data/last-deploy.log` and in the `deploy`
+field of `/api/system-health`. Success is instead inferred on the next
+boot: if the app starts up and finds `deployStatus` still marked
+"running", that can only mean the restart it triggered is what's booting
+right now — see `reconcileDeployStatus()` in `server.js`. The page's own
+banner reads this alongside a failed poll to show "restarting…" rather
+than a generic connection error while that happens.
+
+**Pull frequency**, a dropdown next to "Pull frequency" itself
+(`POST /api/config/pull-frequency`), edits `config.schedule.pullEveryMinutes`
+in `config.json` in place and takes effect within about 20 seconds —
+`lib/scheduler.js`'s tick loop re-reads it fresh every tick rather than
+once at boot, specifically so this doesn't need a restart.
 
 ---
 

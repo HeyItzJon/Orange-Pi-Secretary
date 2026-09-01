@@ -2717,9 +2717,13 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
  * top when anything's wrong, nothing extra when everything's fine — the
  * point is that a quiet page means a quiet Pi.
  */
+const PULL_FREQUENCY_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
+
 function SystemPage() {
   const [health, setHealth] = useState(null);
   const [err, setErr] = useState(null);
+  const [busy, setBusy] = useState(null); // "deploy" | "pull-freq" | null
+  const [actionErr, setActionErr] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -2729,7 +2733,12 @@ function SystemPage() {
       setErr(null);
     } catch (e) {
       // Keep whatever's already on screen rather than blanking the page
-      // over one missed poll — same reasoning as WallPage's load().
+      // over one missed poll — same reasoning as WallPage's load(). This
+      // is also exactly what happens for a beat or two mid-deploy, once
+      // deploy.sh's own restart step kills and replaces this very
+      // process — see the "restarting" banner below, which reads this
+      // same `err` alongside health.deploy.status to tell that apart
+      // from an ordinary blip.
       setErr(e.message);
     }
   }, []);
@@ -2740,11 +2749,45 @@ function SystemPage() {
     return () => clearInterval(t);
   }, [load]);
 
+  async function post(path, body) {
+    const r = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+    const json = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(json.error || `request failed (${r.status})`);
+    return json;
+  }
+
+  async function run(action, fn) {
+    setBusy(action);
+    setActionErr(null);
+    try {
+      await fn();
+      await load();
+    } catch (e) {
+      setActionErr(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const deploy = () => run("deploy", () => post("/api/system/deploy"));
+  const changeFrequency = (minutes) => run("pull-freq", () => post("/api/config/pull-frequency", { minutes }));
+
   if (!health) return <p className="empty big-empty">Loading system health…</p>;
 
   const problems = health.problems || [];
   const critical = problems.filter((p) => p.level === "critical");
   const warnings = problems.filter((p) => p.level === "warning");
+
+  // health.deploy.status stays "running" across many polls for as long as
+  // deploy.sh is actually mid-flight (see /api/system/deploy's server-side
+  // comment for why); busy === "deploy" only covers the instant before
+  // that first "running" poll lands.
+  const deployStatus = health.deploy?.status || "idle";
+  const deployBusy = busy === "deploy" || deployStatus === "running";
 
   const unitRow = (label, unit) => (
     <div className={`syrow${unit?.active === false ? " bad" : unit?.active ? "" : " unk"}`} key={label}>
@@ -2762,7 +2805,13 @@ function SystemPage() {
         <span className="syupdated">updated {ago(health.generatedAt)}</span>
       </div>
 
-      {err && <p className="mwarn">Couldn't reach the backend just now — showing the last known state ({err}).</p>}
+      {err && deployStatus === "running" ? (
+        <p className="mwarn">Restarting with the new deploy — this page will reconnect on its own in a few seconds…</p>
+      ) : err ? (
+        <p className="mwarn">Couldn't reach the backend just now — showing the last known state ({err}).</p>
+      ) : null}
+
+      {actionErr && <p className="mwarn">{actionErr}</p>}
 
       {problems.length > 0 ? (
         <div className="syproblems">
@@ -2805,11 +2854,40 @@ function SystemPage() {
             </div>
             <div className="systat">
               <span className="systat-label">App restarted</span>
-              <span className="systat-val">{ago(health.processStartedAt)}</span>
+              <span className="systat-val">
+                {ago(health.processStartedAt)}
+                <button className="sydeploy-btn" disabled={deployBusy} onClick={deploy}>
+                  {deployStatus === "running" ? "Deploying…" : busy === "deploy" ? "Starting…" : "Deploy latest"}
+                </button>
+              </span>
             </div>
+            {deployStatus !== "idle" && (
+              <div className="sydeploy-status">
+                {deployStatus === "running" && "Deploying — pulling code, installing, testing, rebuilding, then restarting. This can take a couple minutes."}
+                {deployStatus === "succeeded" && `Last deploy succeeded ${ago(health.deploy.finishedAt)}`}
+                {deployStatus === "failed" && (
+                  <>
+                    Last deploy failed (exit {health.deploy.exitCode ?? "?"}) {ago(health.deploy.finishedAt)} — see <code>backend/data/last-deploy.log</code>
+                    {health.deploy.tail && <span className="sydeploy-tail">{health.deploy.tail.split("\n").slice(-4).join("\n")}</span>}
+                  </>
+                )}
+              </div>
+            )}
             <div className="systat">
               <span className="systat-label">Pull frequency</span>
-              <span className="systat-val">every {health.everyMinutes}min</span>
+              <span className="systat-val">
+                every{" "}
+                <select
+                  value={health.everyMinutes}
+                  disabled={busy === "pull-freq"}
+                  onChange={(e) => changeFrequency(Number(e.target.value))}
+                >
+                  {(PULL_FREQUENCY_OPTIONS.includes(health.everyMinutes) ? PULL_FREQUENCY_OPTIONS : [health.everyMinutes, ...PULL_FREQUENCY_OPTIONS].sort((a, b) => a - b)).map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>{" "}
+                min
+              </span>
             </div>
           </div>
         </section>

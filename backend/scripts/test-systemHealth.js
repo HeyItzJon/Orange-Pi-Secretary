@@ -33,6 +33,7 @@ function baseHealth(overrides = {}) {
     watchdog: { unit: "syncthing-watchdog.timer", active: true, status: "active" },
     mainService: { unit: "pi-secretary.service", active: true, status: "active" },
     sources: [],
+    deploy: { status: "idle" },
     ...overrides,
   };
 }
@@ -117,6 +118,25 @@ test("main service down is critical", () => {
   assert.equal(problems.length, 1);
   assert.equal(problems[0].level, "critical");
   assert.equal(problems[0].area, "service");
+});
+
+group("evaluateProblems — the deploy button (round 53 follow-up)")
+
+test("idle or succeeded deploy status is not a problem", () => {
+  assert.deepEqual(evaluateProblems(baseHealth({ deploy: { status: "idle" } }), CFG), []);
+  assert.deepEqual(evaluateProblems(baseHealth({ deploy: { status: "succeeded", exitCode: 0 } }), CFG), []);
+});
+
+test("a running deploy is not (yet) a problem", () => {
+  assert.deepEqual(evaluateProblems(baseHealth({ deploy: { status: "running" } }), CFG), []);
+});
+
+test("a failed deploy is a warning naming the exit code", () => {
+  const problems = evaluateProblems(baseHealth({ deploy: { status: "failed", exitCode: 1 } }), CFG);
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0].level, "warning");
+  assert.equal(problems[0].area, "deploy");
+  assert.match(problems[0].message, /exit 1/);
 });
 
 group("evaluateProblems — per-source staleness and errors");

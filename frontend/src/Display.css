@@ -1413,7 +1413,31 @@
 .systat { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
 .systat:last-child { border-bottom: none; }
 .systat-label { font-size: 13.5px; color: var(--muted); }
-.systat-val { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.systat-val { font-size: 14px; color: var(--ink-2); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 10px; }
+
+.sydeploy-btn {
+  appearance: none; border: 1px solid var(--rule); background: transparent;
+  color: var(--accent); border-radius: 6px; padding: 3px 10px; font-size: 12.5px;
+  font: inherit; font-variant-numeric: normal; cursor: pointer; white-space: nowrap;
+}
+.sydeploy-btn:hover:not([disabled]) { border-color: var(--accent); background: rgba(237,161,0,.12); }
+.sydeploy-btn[disabled] { opacity: .5; cursor: default; color: var(--muted); }
+
+.sydeploy-status {
+  font-size: 12.5px; color: var(--muted); line-height: 1.5;
+  padding: 0 0 10px; border-bottom: 1px solid var(--rule);
+}
+.sydeploy-status code { font-size: 12px; background: var(--fill); padding: 1px 5px; border-radius: 4px; }
+.sydeploy-tail {
+  display: block; margin-top: 6px; padding: 8px 10px; border-radius: 6px;
+  background: var(--fill); color: var(--down); font-family: monospace; font-size: 11.5px;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+.systat-val select {
+  background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--ink); font: inherit; font-size: 13.5px; padding: 3px 6px; color-scheme: dark;
+}
 
 .syrow-list { display: flex; flex-direction: column; gap: 2px; }
 .syrow { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--rule); }

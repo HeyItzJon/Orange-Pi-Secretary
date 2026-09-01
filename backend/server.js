@@ -9,9 +9,10 @@ import cors from "cors";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { spawn } from "node:child_process";
 
 import { logger } from "./lib/log.js";
-import { init as initStore, getMeta, getItem, patchItem, dismissItem, suppressPermanently, triageItem, resolveTrackedItem, snoozeItem, allItems, portfolioHistory } from "./lib/store.js";
+import { init as initStore, getMeta, setMeta, getItem, patchItem, dismissItem, suppressPermanently, triageItem, resolveTrackedItem, snoozeItem, allItems, portfolioHistory } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
 import { buildDisplay, shortTicker } from "./brief/display.js";
@@ -27,6 +28,8 @@ const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = path.join(__dirname, "config.json");
 const FRONTEND_DIST = path.join(__dirname, "..", "frontend", "dist");
+const REPO_ROOT = path.join(__dirname, "..");
+const DEPLOY_LOG_PATH = path.join(__dirname, "data", "last-deploy.log");
 
 let config = {};
 async function loadConfig() {
@@ -542,6 +545,116 @@ app.post("/api/config/reload", async (_req, res) => {
   }
 });
 
+// Round 53 follow-up — Jon: "maybe I could adjust the pulse frequency,
+// like, with a plus minus or a dropdown menu." Writes straight to
+// config.json (round-trip parse/edit/write so every other key and every
+// _note survives untouched) AND mutates the live `config` object's
+// existing schedule sub-object in place — not a reassignment — so the
+// already-running scheduler (which holds the same object reference from
+// its own startScheduler(config) call at boot) picks it up too.
+// lib/scheduler.js's tick() re-reads config.schedule.pullEveryMinutes
+// fresh every 20s specifically so this takes effect within a tick or
+// two, no restart required.
+app.post("/api/config/pull-frequency", async (req, res) => {
+  const minutes = Number(req.body?.minutes);
+  if (!Number.isInteger(minutes) || minutes < 1 || minutes > 180) {
+    return res.status(400).json({ error: "minutes must be a whole number between 1 and 180" });
+  }
+  try {
+    // A targeted text replace, not a JSON.parse-then-stringify round trip
+    // — config.json is hand-formatted (compact arrays-of-objects, real
+    // em-dashes, a "_note" convention throughout) and JSON.stringify has
+    // no idea any of that matters. Re-serializing the whole file would
+    // silently reformat every line the moment this button gets used
+    // once, not just the one number that's actually changing.
+    const text = await fs.readFile(CONFIG_PATH, "utf-8");
+    const pattern = /("pullEveryMinutes"\s*:\s*)\d+/;
+    if (!pattern.test(text)) {
+      throw new Error('could not find "pullEveryMinutes" in config.json to update — edit it by hand instead');
+    }
+    await fs.writeFile(CONFIG_PATH, text.replace(pattern, `$1${minutes}`), "utf-8");
+
+    config.schedule = config.schedule || {};
+    config.schedule.pullEveryMinutes = minutes;
+
+    log.info(`pull frequency changed to every ${minutes} min`);
+    res.json({ ok: true, pullEveryMinutes: minutes });
+  } catch (err) {
+    log.error(`POST /api/config/pull-frequency failed: ${err.message}`);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Round 53 follow-up — Jon: "could I potentially have a restart button,
+// which just does the deploy." Runs the real deploy.sh (git pull, deps,
+// tests, frontend build, then `sudo systemctl restart pi-secretary` —
+// see that script's own comments) as a child process, exactly what a
+// manual `./deploy.sh` over SSH does.
+//
+// One real wrinkle: deploy.sh's own last step restarts THIS process. Once
+// that happens, systemd tears down pi-secretary.service's whole cgroup —
+// including this spawned child — so we lose the ability to observe a
+// *successful* run finishing (its trailing `echo "done"` never gets to
+// run). That's fine: by the time the restart line executes, deploy.sh has
+// already done everything that matters (pull, install, test, build), so
+// the deploy itself is not at risk — only this route's own visibility
+// into the last few cosmetic lines is. A FAILED run (bad pull, failing
+// tests, a broken build) exits before ever reaching the restart, so this
+// process survives to see it and record the real exit code — see the
+// 'close' handler below. The success case is instead reconciled at boot:
+// if the app is starting up and finds a deploy still marked "running" in
+// meta, that can only mean the restart it triggered actually happened —
+// see reconcileDeployStatus() near the bottom of this file.
+let deployChild = null;
+
+app.post("/api/system/deploy", async (_req, res) => {
+  if (deployChild) {
+    return res.status(409).json({ error: "a deploy is already running" });
+  }
+  const startedAt = new Date().toISOString();
+  await setMeta("deployStatus", { status: "running", startedAt, finishedAt: null, exitCode: null, tail: "" });
+
+  const child = spawn("bash", ["deploy.sh"], { cwd: REPO_ROOT, stdio: ["ignore", "pipe", "pipe"] });
+  deployChild = child;
+  log.info("deploy started via /api/system/deploy");
+
+  let full = "";
+  let tail = "";
+  const onData = (chunk) => {
+    const text = chunk.toString();
+    full += text;
+    tail = (full.length > 4000 ? full.slice(-4000) : full);
+  };
+  child.stdout.on("data", onData);
+  child.stderr.on("data", onData);
+
+  child.on("close", async (code) => {
+    deployChild = null;
+    try {
+      await fs.writeFile(DEPLOY_LOG_PATH, full, "utf-8");
+    } catch (err) {
+      log.warn(`could not write ${DEPLOY_LOG_PATH}: ${err.message}`);
+    }
+    // Only reached when deploy.sh exited on its own — see the comment
+    // above the route for why a successful run doesn't get here.
+    await setMeta("deployStatus", {
+      status: code === 0 ? "succeeded" : "failed",
+      startedAt, finishedAt: new Date().toISOString(), exitCode: code, tail,
+    });
+    log.info(`deploy finished with exit code ${code}`);
+  });
+
+  child.on("error", async (err) => {
+    deployChild = null;
+    log.error(`deploy failed to start: ${err.message}`);
+    await setMeta("deployStatus", {
+      status: "failed", startedAt, finishedAt: new Date().toISOString(), exitCode: null, tail: err.message,
+    });
+  });
+
+  res.json({ ok: true, startedAt });
+});
+
 // ------------------------------------------------------------- frontend
 
 app.use(express.static(FRONTEND_DIST));
@@ -555,9 +668,26 @@ app.get(/^\/(?!api\/).*/, (_req, res) => {
 
 const PORT = process.env.PORT || 3001;
 
+// Round 53 follow-up — see the big comment above POST /api/system/deploy
+// for why a successful deploy can't mark itself "succeeded" (the restart
+// it triggers kills the process doing the marking). If we're booting up
+// and deployStatus still says "running", the only way that's possible is
+// that the restart it kicked off is what's happening right now — so this
+// is where that gets resolved, every boot, whether or not a deploy was
+// actually involved this time (a totally normal restart just finds
+// nothing to reconcile and does nothing).
+async function reconcileDeployStatus() {
+  const d = await getMeta("deployStatus", null);
+  if (d && d.status === "running") {
+    await setMeta("deployStatus", { ...d, status: "succeeded", finishedAt: new Date().toISOString() });
+    log.info("boot: a deploy was still marked running — the fact we're booting means it succeeded, marking it resolved");
+  }
+}
+
 (async () => {
   await loadConfig();
   await initStore();
+  await reconcileDeployStatus();
 
   app.listen(PORT, () => {
     log.info(`http://localhost:${PORT}`);

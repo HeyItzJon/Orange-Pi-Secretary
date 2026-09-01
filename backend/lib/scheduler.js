@@ -40,14 +40,20 @@ function localParts(tz, at = new Date()) {
 
 export function startScheduler(config) {
   const tz = config.timezone || "America/Toronto";
-  const s = config.schedule || {};
-  const every = Math.max(1, s.pullEveryMinutes ?? 15);
-  const briefTime = s.briefTime || "06:40";
 
   let lastTick = null;
   let running = false;
 
   async function tick() {
+    // Read fresh every tick (20s) rather than hoisting once at startup —
+    // round 53's System page can change config.schedule.pullEveryMinutes
+    // live (POST /api/config/pull-frequency, see server.js), by editing
+    // the same config object in place. Re-reading here is what makes that
+    // take effect within a tick or two instead of needing a restart.
+    const s = config.schedule || {};
+    const every = Math.max(1, s.pullEveryMinutes ?? 15);
+    const briefTime = s.briefTime || "06:40";
+
     const { hhmm, minutes, day } = localParts(tz);
     if (hhmm === lastTick) return;
     lastTick = hhmm;
@@ -100,6 +106,8 @@ export function startScheduler(config) {
   timer.unref?.();
   tick();                                   // don't wait up to 15 min after a restart
 
-  log.info(`scheduler up (${tz}) — all sources every ${every} min · brief ${briefTime}`);
+  const bootEvery = Math.max(1, config.schedule?.pullEveryMinutes ?? 15);
+  const bootBriefTime = config.schedule?.briefTime || "06:40";
+  log.info(`scheduler up (${tz}) — all sources every ${bootEvery} min · brief ${bootBriefTime}`);
   return () => clearInterval(timer);
 }
