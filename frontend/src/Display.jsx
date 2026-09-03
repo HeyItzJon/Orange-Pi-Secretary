@@ -2821,6 +2821,14 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
  * brief/ask.js): one AI call per question, answering only from the same
  * live facts /api/display renders from — no agent loop, no tool-calling.
  *
+ * Design brief (Jon's words): "a hybrid between Siri, Gemini, chat, and
+ * like a smart website chat support thing in the corner" — an orb (not a
+ * text button) that opens into a proper chat surface, not a bare popup.
+ * Kept inside this app's existing colour budget rather than a literal
+ * rainbow Siri gradient (see the palette note atop Display.css) — the
+ * "alive" feeling comes from motion (the idle glow, the typing dots, the
+ * message fade-in) and shape, not from adding new colours.
+ *
  * `messages` (and thus the conversation) lives in the parent (Display()),
  * not here, so it survives this component re-rendering; what's local here
  * is just the in-progress input box and the busy/error state of whichever
@@ -2829,6 +2837,28 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
  * only the last 10 turns) so a long session can't balloon every
  * subsequent prompt forever.
  */
+const ASK_SUGGESTIONS = [
+  "What's today look like?",
+  "What's due this week?",
+  "How's my portfolio doing?",
+];
+
+function SparkleIcon({ size = 18 }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
+      <path d="M12 2c.45 3.1 1.13 5.24 2.02 6.4 1 1.28 3.02 2.13 5.98 2.6-2.96.47-4.98 1.32-5.98 2.6-.89 1.16-1.57 3.3-2.02 6.4-.45-3.1-1.13-5.24-2.02-6.4-1-1.28-3.02-2.13-5.98-2.6 2.96-.47 4.98-1.32 5.98-2.6C10.87 7.24 11.55 5.1 12 2z" />
+    </svg>
+  );
+}
+
+function ArrowUpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </svg>
+  );
+}
+
 function AskPanel({ open, onOpenChange }) {
   const [messages, setMessages] = useState([]); // [{role: "user" | "assistant", content}]
   const [input, setInput] = useState("");
@@ -2845,11 +2875,14 @@ function AskPanel({ open, onOpenChange }) {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  const send = useCallback(async () => {
-    const text = input.trim();
-    if (!text || busy) return;
+  // Takes the question text directly (rather than always reading `input`)
+  // so a suggestion chip can fire this without round-tripping through the
+  // input box first.
+  const ask = useCallback(async (text) => {
+    const q = text.trim();
+    if (!q || busy) return;
     const history = messages;
-    setMessages((m) => [...m, { role: "user", content: text }]);
+    setMessages((m) => [...m, { role: "user", content: q }]);
     setInput("");
     setBusy(true);
     setErr(null);
@@ -2857,7 +2890,7 @@ function AskPanel({ open, onOpenChange }) {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history }),
+        body: JSON.stringify({ message: q, history }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `${res.status} ${res.statusText}`);
@@ -2867,7 +2900,7 @@ function AskPanel({ open, onOpenChange }) {
     } finally {
       setBusy(false);
     }
-  }, [input, busy, messages]);
+  }, [busy, messages]);
 
   if (!open) {
     return (
@@ -2876,31 +2909,50 @@ function AskPanel({ open, onOpenChange }) {
         onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}
         title="Ask about your schedule, tasks, or portfolio"
       >
-        Ask
+        <SparkleIcon size={22} />
       </button>
     );
   }
 
   return (
-    <div className="panel ask-panel" onClick={(e) => e.stopPropagation()}>
-      <div className="phead">
-        <h3>Ask</h3>
-        <button className="x" onClick={() => onOpenChange(false)} title="close">×</button>
+    <div className="ask-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="ask-head">
+        <span className="ask-avatar"><SparkleIcon size={15} /></span>
+        <span className="ask-heading">
+          <b>Ask</b>
+          <small>Your schedule, tasks, and portfolio</small>
+        </span>
+        <button className="ask-x" onClick={() => onOpenChange(false)} title="close">×</button>
       </div>
 
       <div className="ask-list" ref={listRef}>
         {messages.length === 0 && !busy && (
-          <p className="empty">Ask about today, what's due, or how your portfolio's doing.</p>
+          <div className="ask-empty">
+            <p>Ask me anything about what's on your plate.</p>
+            <div className="ask-chips">
+              {ASK_SUGGESTIONS.map((s) => (
+                <button key={s} className="ask-chip" onClick={() => ask(s)}>{s}</button>
+              ))}
+            </div>
+          </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={`ask-msg ${m.role}`}>{m.content}</div>
+          <div key={i} className={`ask-row ${m.role}`}>
+            {m.role === "assistant" && <span className="ask-avatar sm"><SparkleIcon size={12} /></span>}
+            <div className="ask-msg">{m.content}</div>
+          </div>
         ))}
-        {busy && <div className="ask-msg assistant ask-thinking">thinking…</div>}
+        {busy && (
+          <div className="ask-row assistant">
+            <span className="ask-avatar sm"><SparkleIcon size={12} /></span>
+            <div className="ask-msg ask-typing"><i /><i /><i /></div>
+          </div>
+        )}
       </div>
 
       {err && <p className="ask-err">Couldn't get an answer — {err}</p>}
 
-      <form className="ask-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
+      <form className="ask-form" onSubmit={(e) => { e.preventDefault(); ask(input); }}>
         <input
           ref={inputRef}
           className="ask-input"
@@ -2909,7 +2961,9 @@ function AskPanel({ open, onOpenChange }) {
           placeholder="Ask a question…"
           disabled={busy}
         />
-        <button className="ask-send" type="submit" disabled={busy || !input.trim()}>Send</button>
+        <button className="ask-send" type="submit" disabled={busy || !input.trim()} title="Send">
+          <ArrowUpIcon />
+        </button>
       </form>
     </div>
   );
@@ -3367,6 +3421,10 @@ export default function Display() {
 
   const Page = PAGES[d.pages[page]?.id] || TodayPage;
   const rotating = Date.now() - lastInput.current > 120 * 1000;
+  // The Wall page is the unmanned, wall-mounted view (see WallPage above —
+  // "nobody standing in front of it"); a floating chat invite has nothing
+  // to do there, so it's the one page this doesn't show on.
+  const showAsk = d.pages[page]?.id !== "wall";
 
   return (
     <div className="disp" onClick={() => setPanel(false)}>
@@ -3446,7 +3504,7 @@ export default function Display() {
         />
       )}
 
-      <AskPanel open={askOpen} onOpenChange={setAskOpen} />
+      {showAsk && <AskPanel open={askOpen} onOpenChange={setAskOpen} />}
     </div>
   );
 }
