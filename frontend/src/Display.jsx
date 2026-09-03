@@ -2814,6 +2814,108 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
 }
 
 /**
+ * Round 55 follow-up — Jon: "a helper chat that has access to all the
+ * site information," to ask about his schedule, tasks, and portfolio in
+ * plain language, from a floating panel available on every page rather
+ * than a dedicated tab. Backend is POST /api/ask (see server.js +
+ * brief/ask.js): one AI call per question, answering only from the same
+ * live facts /api/display renders from — no agent loop, no tool-calling.
+ *
+ * `messages` (and thus the conversation) lives in the parent (Display()),
+ * not here, so it survives this component re-rendering; what's local here
+ * is just the in-progress input box and the busy/error state of whichever
+ * request is in flight. The full `messages` array is sent back as
+ * `history` on every question — capped server-side (buildAskPrompt keeps
+ * only the last 10 turns) so a long session can't balloon every
+ * subsequent prompt forever.
+ */
+function AskPanel({ open, onOpenChange }) {
+  const [messages, setMessages] = useState([]); // [{role: "user" | "assistant", content}]
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const listRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, busy]);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  const send = useCallback(async () => {
+    const text = input.trim();
+    if (!text || busy) return;
+    const history = messages;
+    setMessages((m) => [...m, { role: "user", content: text }]);
+    setInput("");
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, history }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `${res.status} ${res.statusText}`);
+      setMessages((m) => [...m, { role: "assistant", content: json.answer }]);
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }, [input, busy, messages]);
+
+  if (!open) {
+    return (
+      <button
+        className="ask-fab"
+        onClick={(e) => { e.stopPropagation(); onOpenChange(true); }}
+        title="Ask about your schedule, tasks, or portfolio"
+      >
+        Ask
+      </button>
+    );
+  }
+
+  return (
+    <div className="panel ask-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="phead">
+        <h3>Ask</h3>
+        <button className="x" onClick={() => onOpenChange(false)} title="close">×</button>
+      </div>
+
+      <div className="ask-list" ref={listRef}>
+        {messages.length === 0 && !busy && (
+          <p className="empty">Ask about today, what's due, or how your portfolio's doing.</p>
+        )}
+        {messages.map((m, i) => (
+          <div key={i} className={`ask-msg ${m.role}`}>{m.content}</div>
+        ))}
+        {busy && <div className="ask-msg assistant ask-thinking">thinking…</div>}
+      </div>
+
+      {err && <p className="ask-err">Couldn't get an answer — {err}</p>}
+
+      <form className="ask-form" onSubmit={(e) => { e.preventDefault(); send(); }}>
+        <input
+          ref={inputRef}
+          className="ask-input"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Ask a question…"
+          disabled={busy}
+        />
+        <button className="ask-send" type="submit" disabled={busy || !input.trim()}>Send</button>
+      </form>
+    </div>
+  );
+}
+
+/**
  * Round 53 — Jon: "a full dashboard that will highlight any problems I
  * need to fix." Self-polls /api/system-health every 15s (host stats don't
  * move fast enough to need WallPage's 5s cadence). A problems banner up
@@ -3078,6 +3180,12 @@ export default function Display() {
   // whenever either is true, so a pinned-open panel never disappears just
   // because a hover elsewhere happened to end.
   const [hoverPanel, setHoverPanel] = useState(false);
+  // Round 55 follow-up — Jon: "a helper chat that has access to all the
+  // site information," available on every page as a floating panel rather
+  // than a dedicated tab (Jon's call). Conversation state lives here (not
+  // inside AskPanel) so switching top-level pages — which doesn't unmount
+  // this component, only <Page> below — never resets it.
+  const [askOpen, setAskOpen] = useState(false);
   // Which day the Today page's carousel is turned to — lifted up here
   // (rather than living inside TodayPage) for two reasons: TodayPage itself
   // unmounts every time you switch tabs (Today/Week/Tasks/...), which would
@@ -3218,7 +3326,7 @@ export default function Display() {
       else if (e.key === "ArrowLeft") go(page - 1);
       else if (e.key >= "1" && e.key <= String(count)) go(Number(e.key) - 1);
       else if (e.key.toLowerCase() === "r") refresh();
-      else if (e.key === "Escape") setPanel(false);
+      else if (e.key === "Escape") { setPanel(false); setAskOpen(false); }
       else return;
       e.preventDefault();
     };
@@ -3337,6 +3445,8 @@ export default function Display() {
           onMouseLeave={() => setHoverPanel(false)}
         />
       )}
+
+      <AskPanel open={askOpen} onOpenChange={setAskOpen} />
     </div>
   );
 }

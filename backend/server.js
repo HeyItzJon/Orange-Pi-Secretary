@@ -23,6 +23,8 @@ import {
   fireTestEvent, commandPayload, statusPayload, MatrixControlError,
 } from "./lib/matrixControl.js";
 import { collectSystemHealth, evaluateProblems } from "./lib/systemHealth.js";
+import { buildAskContext, buildAskPrompt } from "./brief/ask.js";
+import { ask } from "./lib/ai.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -74,33 +76,74 @@ app.post("/api/brief/rebuild", async (req, res) => {
   }
 });
 
+// Everything both /api/display and /api/ask need to know about the
+// current state of the world — pulled out so the chat endpoint (round 55
+// follow-up) reads from exactly the same live data the dashboard itself
+// renders from, rather than a second, potentially-drifting copy of this
+// same Promise.all.
+async function loadCurrentFacts() {
+  const names = SOURCE_NAMES;
+  const [items, money, marketPulse, history, brief, runs, errs] = await Promise.all([
+    allItems(),
+    getMeta("moneySummary", null),
+    getMeta("marketPulse", null),
+    portfolioHistory(),
+    getMeta("lastBrief", null),
+    Promise.all(names.map((s) => getMeta(`lastRun_${s}`, null))),
+    Promise.all(names.map((s) => getMeta(`lastError_${s}`, null))),
+  ]);
+  const sources = Object.fromEntries(names.map((s, i) => [s, runs[i]]));
+  const errors = Object.fromEntries(names.map((s, i) => [s, errs[i]]));
+  // Priorities and insights (day titles, the Week page's notes, renamed
+  // deadlines — see brief/insights.js) are both computed during compose
+  // (cached on a hash of the open work) rather than here, so hitting either
+  // endpoint every minute is still free.
+  const priorities = brief?.priorities || [];
+  const insights = brief?.insights || null;
+  return { items, money, marketPulse, history, sources, errors, priorities, insights };
+}
+
 /**
  * The always-on screen. Same data as /api/brief, arranged for a small display
  * with no input: fixed zones, a day strip, plain-language priorities.
  */
 app.get("/api/display", async (_req, res) => {
   try {
-    const names = SOURCE_NAMES;
-    const [items, money, marketPulse, history, brief, runs, errs] = await Promise.all([
-      allItems(),
-      getMeta("moneySummary", null),
-      getMeta("marketPulse", null),
-      portfolioHistory(),
-      getMeta("lastBrief", null),
-      Promise.all(names.map((s) => getMeta(`lastRun_${s}`, null))),
-      Promise.all(names.map((s) => getMeta(`lastError_${s}`, null))),
-    ]);
-    const sources = Object.fromEntries(names.map((s, i) => [s, runs[i]]));
-    const errors = Object.fromEntries(names.map((s, i) => [s, errs[i]]));
-    // Priorities and insights (day titles, the Week page's notes, renamed
-    // deadlines — see brief/insights.js) are both computed during compose
-    // (cached on a hash of the open work) rather than here, so hitting this
-    // endpoint every minute is still free.
-    const priorities = brief?.priorities || [];
-    const insights = brief?.insights || null;
+    const { items, money, marketPulse, priorities, sources, errors, history, insights } = await loadCurrentFacts();
     res.json(buildDisplay({ items, money, marketPulse, priorities, sources, errors, history, config, now: new Date(), insights }));
   } catch (err) {
     log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Round 55 follow-up — Jon: "a helper chat that has access to all the
+// site information," to ask about his schedule, tasks, and portfolio in
+// plain language. buildAskContext() (brief/ask.js) turns the same live
+// facts /api/display renders from into a compact, model-friendly
+// snapshot — not that endpoint's own rendered output, which is shaped for
+// seven UI pages, not a question. One AI call per question, same cost
+// shape as the on-demand item-detail lookups elsewhere in this app — no
+// agent loop, no tool-calling, the model only ever answers from what's
+// handed to it. `history` is kept client-side (see Display.jsx) and sent
+// back each turn rather than stored here; capped inside buildAskPrompt()
+// so a long chat session can't balloon every subsequent prompt forever.
+app.post("/api/ask", async (req, res) => {
+  const question = String(req.body?.message || "").trim();
+  if (!question) return res.status(400).json({ error: "message is required" });
+  const history = Array.isArray(req.body?.history) ? req.body.history : [];
+
+  try {
+    const { items, money, marketPulse } = await loadCurrentFacts();
+    const context = buildAskContext({ items, money, marketPulse, now: new Date(), config });
+    const { system, user } = buildAskPrompt({ context, question, history });
+    const answer = await ask({ system, user, config, json: false, maxTokens: 500, cacheAs: null });
+    if (answer == null) {
+      return res.status(502).json({ error: "The AI provider didn't answer — check DEEPSEEK_API_KEY and try again." });
+    }
+    res.json({ answer });
+  } catch (err) {
+    log.error(`POST /api/ask failed: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1513,6 +1513,59 @@
 
 /* ====================================================== smaller panels */
 
+/* ===================================================== ask panel (chat)
+   Round 55 follow-up — a floating button on every page/tab rather than a
+   page of its own (Jon's call), so `position: fixed` here instead of
+   .panel's `absolute`: the deck scrolls on a phone now (see the phone
+   query below), and a floating button has to stay anchored to the
+   viewport through that, not the document. Reuses .panel/.phead/.x for
+   the chrome (border, background, header, close button) — only the
+   layout properties that need to differ are overridden below, so this
+   stays visually consistent with the Sources panel for free. */
+.ask-fab {
+  position: fixed; right: 20px; bottom: 20px; z-index: 25;
+  appearance: none; border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--accent); color: var(--plane);
+  font: inherit; font-size: 14.5px; font-weight: 640; letter-spacing: .02em;
+  padding: 12px 20px; cursor: pointer; box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.ask-fab:hover { filter: brightness(1.08); }
+
+.ask-panel {
+  position: fixed; right: 20px; bottom: 20px; top: auto; left: auto;
+  width: 380px; max-width: calc(100vw - 26px);
+  height: 480px; max-height: calc(100vh - 40px);
+  display: flex; flex-direction: column; z-index: 25;
+}
+.ask-list {
+  flex: 1; overflow-y: auto; margin: 6px -4px 8px; padding: 2px 4px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.ask-list .empty { color: var(--muted); font-size: 14px; line-height: 1.5; margin: auto 0; }
+.ask-msg {
+  font-size: 14.5px; line-height: 1.45; padding: 8px 11px; border-radius: 10px;
+  max-width: 88%; white-space: pre-wrap;
+}
+.ask-msg.user { align-self: flex-end; background: var(--fill); color: var(--ink); }
+.ask-msg.assistant { align-self: flex-start; background: var(--raise); border: 1px solid var(--rule); color: var(--ink-2); }
+.ask-msg.ask-thinking { color: var(--muted); font-style: italic; }
+.ask-err { color: var(--down); font-size: 13px; margin: 0 0 8px; }
+.ask-form { display: flex; gap: 8px; }
+.ask-input {
+  flex: 1; min-width: 0; background: var(--fill); border: 1px solid var(--rule);
+  border-radius: 8px; color: var(--ink); font: inherit; font-size: 14.5px;
+  padding: 9px 11px;
+}
+.ask-input:focus { outline: none; border-color: var(--accent); }
+.ask-input:disabled { opacity: .6; }
+.ask-send {
+  appearance: none; border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--raise); color: var(--ink-2); font: inherit; font-size: 14.5px;
+  padding: 9px 14px; cursor: pointer; flex-shrink: 0;
+}
+.ask-send:hover:not(:disabled) { color: var(--ink); border-color: var(--fill); }
+.ask-send:disabled { opacity: .5; cursor: default; }
+
 @media (max-width: 1100px) {
   .mtotal .val { font-size: 40px; }
   .story .title { font-size: 14.5px; }
@@ -1954,6 +2007,11 @@
   /* The header wraps to two rows here (tabs, then the refresh button on its
      own line) — the panel needs to clear both, not just the first. */
   .panel { top: 92px; right: 13px; width: calc(100vw - 26px); max-width: 420px; }
+  /* The ask panel floats bottom-anchored, not header-anchored, so it
+     doesn't need the two-row header clearance above — it just goes full
+     width and a bit shorter so it never covers the whole screen. */
+  .ask-fab { right: 14px; bottom: 14px; padding: 11px 18px; }
+  .ask-panel { right: 13px; left: 13px; bottom: 14px; width: auto; max-width: none; height: 60vh; max-height: 60vh; }
 }
 
 /* The deck is a page you scroll now, not a panel that must fit exactly. Zones
