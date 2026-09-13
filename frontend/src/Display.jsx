@@ -1632,8 +1632,16 @@ function MoneyPage({ d }) {
           {/* Standardized backend-side (sources/money.js's marketStatusLabel)
               to one of five phrases: pre-market, markets open, US markets
               open, TSX open, post-market — never Yahoo's raw enum
-              lowercased, which is how "market postpost" happened. */}
-          {p.marketStatus && <span className="quiet">{p.marketStatus}</span>}
+              lowercased, which is how "market postpost" happened. null
+              means nothing is open and it isn't pre/post-market either
+              (weekend, holiday, or just no data) — same gate the ESP32
+              wall uses for its own "closed" state (server.js's
+              `marketOpen = money?.marketStatus != null`), so this slot
+              said nothing at all on those days instead of naming them.
+              Round 73 (Jon: "I needed to say market closed today"). */}
+          {p.marketStatus
+            ? <span className="quiet">{p.marketStatus}</span>
+            : <span className="quiet">Markets Closed</span>}
         </div>
       </div>
 
