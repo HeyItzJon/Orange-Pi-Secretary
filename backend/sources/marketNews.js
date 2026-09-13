@@ -33,6 +33,7 @@ import YahooFinance from "yahoo-finance2";
 import { logger } from "../lib/log.js";
 import { getMeta, setMeta } from "../lib/store.js";
 import { getMarketTake } from "../lib/marketTake.js";
+import { getNewsDigest } from "../lib/newsDigest.js";
 
 const log = logger("marketNews");
 const yahoo = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
@@ -48,6 +49,8 @@ export const DEFAULT_INDICES = [
   { symbol: "^GSPC", label: "S&P 500" },
   { symbol: "^GSPTSE", label: "TSX" },
   { symbol: "^IXIC", label: "Nasdaq" },
+  { symbol: "^DJI", label: "Dow Jones" },
+  { symbol: "^RUT", label: "Russell 2000" },
 ];
 
 export const DEFAULT_VIX_SYMBOL = "^VIX";
@@ -233,7 +236,19 @@ export async function collectMarketNews(config, { force = false } = {}) {
 
   const previous = await getMeta("marketPulse", null);
   const take = await getMarketTake(config, pulse, { previous, force });
-  await setMeta("marketPulse", { ...pulse, take: take?.text ?? null, takeAt: take?.at ?? null });
+  // Round 74: 3 DeepSeek-compressed headlines for the LED wall's News
+  // screen (lib/newsDigest.js) — cached by content hash, so this only
+  // actually calls the model when the headline set has changed since the
+  // last pull, same cost discipline as `take` above without pinning it to
+  // a once-a-day gate (headlines need to stay current through the day).
+  const digest = await getNewsDigest(config, pulse, { previous });
+  await setMeta("marketPulse", {
+    ...pulse,
+    take: take?.text ?? null,
+    takeAt: take?.at ?? null,
+    newsDigest: digest?.headlines ?? null,
+    newsDigestAt: digest?.at ?? null,
+  });
 
   log.info(
     `${headlines.length} headline(s) from ${feeds.length - feedErrors.length}/${feeds.length} feed(s)` +

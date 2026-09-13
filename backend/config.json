@@ -695,7 +695,9 @@
     "indices": [
       { "symbol": "^GSPC", "label": "S&P 500" },
       { "symbol": "^GSPTSE", "label": "TSX" },
-      { "symbol": "^IXIC", "label": "Nasdaq" }
+      { "symbol": "^IXIC", "label": "Nasdaq" },
+      { "symbol": "^DJI", "label": "Dow Jones" },
+      { "symbol": "^RUT", "label": "Russell 2000" }
     ],
     "vixSymbol": "^VIX",
     "vixThresholds": { "calm": 15, "normal": 20, "jumpy": 30 },

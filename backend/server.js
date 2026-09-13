@@ -162,6 +162,28 @@ app.post("/api/ask", async (req, res) => {
  * If you want fresher numbers, raise config.schedule.pullEveryMinutes rather
  * than adding a fetch here — this route just reads what's already cached.
  */
+// "FRI 4:00PM" — compact day+time for the wall's stale-price label
+// (round 74). Includes the weekday since "last known price" over a
+// weekend or holiday is not today's time, and a bare hour would look
+// like it just refreshed instead of being the actual last trade.
+function formatLastPriceLabel(iso, tz) {
+  if (!iso) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(new Date(iso));
+  const get = (type) => parts.find((p) => p.type === type)?.value || "";
+  const weekday = get("weekday").toUpperCase();
+  const hour = get("hour");
+  const minute = get("minute");
+  const dayPeriod = get("dayPeriod").toUpperCase();
+  if (!weekday || !hour || !minute || !dayPeriod) return null;
+  return `${weekday} ${hour}:${minute}${dayPeriod}`;
+}
+
 app.get("/api/matrix", async (_req, res) => {
   try {
     const now = new Date();
@@ -181,8 +203,11 @@ app.get("/api/matrix", async (_req, res) => {
         }
       : null;
 
-    // Market indices (TSX / NASDAQ / S&P) — from marketPulse, refreshed by
-    // sources/marketNews.js on the same 15-minute cycle. No fetch here.
+    // Market indices (S&P 500 / Nasdaq / TSX / Dow / Russell 2000) — from
+    // marketPulse, refreshed by sources/marketNews.js on the same
+    // 15-minute cycle. No fetch here. This was always built and sent;
+    // round 74 is just the first time the firmware has a real Markets
+    // screen to read it instead of the renderComingSoonFwd placeholder.
     const shortLabel = (label) => (label === "S&P 500" ? "S&P" : label.toUpperCase());
     const markets = (marketPulse?.indices || [])
       .filter((i) => i.pct != null)
@@ -190,6 +215,15 @@ app.get("/api/matrix", async (_req, res) => {
         symbol: shortLabel(i.label),
         changePercent: Math.round(i.pct * 100) / 100,
       }));
+
+    // VIX — same marketPulse blob, not previously surfaced on this route.
+    // Sent separately from markets[] (round 74) so the wall can color it
+    // by its own calm/normal/jumpy/volatile bucket instead of a % change —
+    // VIX doesn't have a directional "up is good" reading the way an
+    // index does.
+    const vix = marketPulse?.vix
+      ? { value: Math.round(marketPulse.vix.value * 10) / 10, bucket: marketPulse.vix.bucket }
+      : null;
 
     // Top 3 gainers / losers by TODAY's move, from the positions the money
     // source already priced this pull — same dayChangePct the Finances page
@@ -276,11 +310,17 @@ app.get("/api/matrix", async (_req, res) => {
 
     // Headlines for a "News" screen — marketPulse is already being fetched
     // above for the ticker, so this is free: no new source, no new call.
-    // Same truncate-for-display convention as todayEvents' title above.
-    const news = (marketPulse?.headlines || []).slice(0, 6).map((h) => ({
-      title: (h.title || "").slice(0, 60),
-      source: h.source || null,
-    }));
+    // Round 74: prefers the 3 DeepSeek-compressed headlines
+    // (lib/newsDigest.js, computed once per marketNews pull and cached by
+    // content hash — not on every /api/matrix poll), falling back to the
+    // 3 newest raw headlines, FULL LENGTH, if the digest hasn't produced
+    // anything yet. The old `.slice(0, 60)` truncation is gone — combined
+    // with the firmware joining every headline with " / " into one scroll
+    // string, that's what was cutting titles off mid-word (Jon: "make
+    // sure the full titles are there").
+    const news = marketPulse?.newsDigest?.length
+      ? marketPulse.newsDigest
+      : (marketPulse?.headlines || []).slice(0, 3).map((h) => ({ title: h.title || "", source: h.source || null }));
 
     // Whether anything actually traded today, per the Round 49 weekend-
     // color fix (sources/money.js's marketOpen gate) — free to include here
@@ -289,11 +329,28 @@ app.get("/api/matrix", async (_req, res) => {
     // stale weekday portfolio number presented as current.
     const marketOpen = money?.marketStatus != null;
 
+    // Round 74 — Jon: "so we know that these prices... are not current,
+    // and they are the last known price." quotedAt is each position's
+    // real last-trade timestamp from Yahoo (sources/money.js's
+    // regularMarketTime), frozen at whatever it was when the market
+    // actually stopped trading — NOT this poll's own `at` timestamp,
+    // which would just read as "recent" even hours or days into a closed
+    // market. Only computed/sent when closed; the weekday is included
+    // since "last known" over a weekend or holiday isn't today.
+    const lastQuotedAt = (money?.positions || [])
+      .map((p) => p.quotedAt)
+      .filter(Boolean)
+      .sort()
+      .pop();
+    const lastPriceLabel =
+      !marketOpen && lastQuotedAt ? formatLastPriceLabel(lastQuotedAt, config.timezone) : null;
+
     res.json({
       timestamp: now.getTime(),
       lastRefresh: money?.at || null,
       portfolio,
-      markets, // TSX, NASDAQ, S&P with % change
+      markets, // S&P, NASDAQ, TSX, DOW, RUSSELL with % change
+      vix, // { value, bucket } or null — round 74
       gainers, // Top 3 holdings up today
       losers, // Top 3 holdings down today
       events: todayEvents,
@@ -302,6 +359,7 @@ app.get("/api/matrix", async (_req, res) => {
       holdings,
       news,
       marketOpen,
+      lastPriceLabel, // e.g. "FRI 4:00PM" — only set when marketOpen is false (round 74)
     });
   } catch (err) {
     log.error(err.message);
