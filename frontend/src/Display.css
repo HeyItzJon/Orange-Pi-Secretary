@@ -1337,14 +1337,39 @@
 .wscreen-row.soon .wsname { color: var(--muted); }
 
 .wpin-btns, .wtest-btns { display: flex; flex-wrap: wrap; gap: 8px; }
-.wpin-btns button, .wtest-btns button, .wnotify-form button {
+.wpin-btns button, .wtest-btns button, .wnotify-form button, .wpinrow-btns button {
   appearance: none; border: 1px solid var(--rule); background: transparent;
   color: var(--muted); border-radius: 6px; padding: 6px 12px; font-size: 13.5px;
   font: inherit; cursor: pointer;
 }
-.wpin-btns button:hover, .wtest-btns button:hover { color: var(--ink); border-color: var(--fill-2); }
-.wpin-btns button.on { color: var(--accent); border-color: var(--accent); background: rgba(237,161,0,.12); }
-.wpin-btns button[disabled], .wtest-btns button[disabled], .wnotify-form button[disabled] { opacity: .4; cursor: default; }
+.wpin-btns button:hover, .wtest-btns button:hover, .wpinrow-btns button:hover { color: var(--ink); border-color: var(--fill-2); }
+.wpin-btns button.on, .wpinrow-btns button.on { color: var(--accent); border-color: var(--accent); background: rgba(237,161,0,.12); }
+.wpin-btns button[disabled], .wtest-btns button[disabled], .wnotify-form button[disabled], .wpinrow-btns button[disabled] { opacity: .4; cursor: default; }
+
+/* Round 75 — "push a page or pin a page depending": the full pinnable
+   catalog (data screens + bench-only ones) as one row per screen, each
+   with its own Pin/Push pair, plus the push-duration select and live
+   "pushing X, Ns left" banner above it. */
+.wpush-controls { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
+.wpush-controls select {
+  background: transparent; border: 1px solid var(--rule); border-radius: 6px;
+  color: var(--ink); font: inherit; font-size: 13.5px; padding: 6px 8px; color-scheme: dark;
+}
+.wpush-live {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted);
+  background: rgba(237,161,0,.1); border: 1px solid var(--accent); border-radius: 6px;
+  padding: 4px 10px;
+}
+.wpush-live b { color: var(--ink-2); }
+
+.wpinrows { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+.wpinrow {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 7px 0; border-bottom: 1px solid var(--rule);
+}
+.wpinrow:last-child { border-bottom: none; }
+.wpinrow .wpname { font-size: 14.5px; color: var(--ink-2); min-width: 0; }
+.wpinrow-btns { display: flex; gap: 6px; flex-shrink: 0; }
 
 .wnotify-form { display: flex; gap: 8px; align-items: center; }
 .wnotify-form input[type="text"] {

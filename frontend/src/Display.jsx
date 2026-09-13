@@ -2539,6 +2539,16 @@ function WallPage({ d }) {
   const [busy, setBusy] = useState(null); // action key currently in flight, or null
   const [notifyText, setNotifyText] = useState("");
   const [notifySeconds, setNotifySeconds] = useState(15);
+  // Round 75 — Jon: "the website has an out of date wall control panel
+  // interface... every single screen possibility... the alert, the
+  // notification, everything... should be controllable... push a page or
+  // pin a page depending." pushSeconds/alert* back the two new sections
+  // below (Pin/push and Alert) the same way notifyText/notifySeconds
+  // already back the notification form above.
+  const [pushSeconds, setPushSeconds] = useState(20);
+  const [alertText, setAlertText] = useState("");
+  const [alertSeverity, setAlertSeverity] = useState("medium");
+  const [alertSeconds, setAlertSeconds] = useState(30);
 
   const load = useCallback(async () => {
     try {
@@ -2606,6 +2616,12 @@ function WallPage({ d }) {
 
   const pin = (id) => run(`pin-${id ?? "auto"}`, () => post("/api/matrix/pin", { screen: id }));
 
+  // Round 75 — the "push" half of "push a page or pin a page depending":
+  // jump the wall to a screen right now for pushSeconds, without touching
+  // whatever's pinned or in rotation underneath it.
+  const pushScreenNow = (id) => run(`push-${id}`, () => post("/api/matrix/push", { screen: id, durationSeconds: pushSeconds }));
+  const clearPush = () => run("push-clear", () => post("/api/matrix/push/clear"));
+
   const sendNotification = async () => {
     const text = notifyText.trim();
     if (!text) return;
@@ -2614,6 +2630,19 @@ function WallPage({ d }) {
   };
 
   const clearNotify = () => run("notify-clear", () => post("/api/matrix/notify/clear"));
+
+  // Round 75 — Jon: "the alert... everything that we have in the LED
+  // panel code should be controllable from the website." The firmware's
+  // renderAlert() (hazard-stripe border, severity colors) has been ready
+  // since before this round; this is the first UI that can trigger it.
+  const sendAlert = async () => {
+    const text = alertText.trim();
+    if (!text) return;
+    const ok = await run("alert", () => post("/api/matrix/alert", { text, severity: alertSeverity, durationSeconds: alertSeconds }));
+    if (ok) setAlertText("");
+  };
+
+  const clearAlertNow = () => run("alert-clear", () => post("/api/matrix/alert/clear"));
 
   const fireTest = (label) => run(`test-${label}`, () => post("/api/matrix/test", { label }));
 
@@ -2647,8 +2676,34 @@ function WallPage({ d }) {
         </section>
 
         <section className="zone wpin">
-          <h2>Pin a screen</h2>
-          <p className="wnote">Locks the wall on one screen instead of auto-rotating through everything enabled above.</p>
+          <h2>Pin / push a screen</h2>
+          <p className="wnote">
+            Pin locks the wall on one screen indefinitely instead of auto-rotating. Push jumps
+            there right now for a bit ({pushSeconds}s) and then falls back to whatever was
+            already pinned or rotating — round-75 addition, Jon: "push a page or pin a page
+            depending." Every screen the firmware knows how to render is listed here, not just
+            the ones enabled for rotation above — that includes the bench-only/ambient ones
+            (Clock, Day Overview, Commuting, Stars, Balls), which were never eligible for
+            rotation in the first place but the firmware has always been willing to show.
+          </p>
+          <div className="wpush-controls">
+            <span className="wnote" style={{ margin: 0 }}>Push duration:</span>
+            <select value={pushSeconds} onChange={(e) => setPushSeconds(Number(e.target.value))}>
+              <option value={10}>10s</option>
+              <option value={20}>20s</option>
+              <option value={30}>30s</option>
+              <option value={60}>60s</option>
+              <option value={120}>120s</option>
+            </select>
+            {status.pushedScreen && (
+              <span className="wpush-live">
+                pushing <b>{(status.screens.find((s) => s.id === status.pushedScreen.id)
+                  || status.benchScreens.find((s) => s.id === status.pushedScreen.id))?.label || status.pushedScreen.id}</b>
+                {" "}· {status.pushedScreen.secondsRemaining}s left
+                <button className="wnclear" disabled={busy === "push-clear"} onClick={clearPush}>Clear</button>
+              </span>
+            )}
+          </div>
           <div className="wpin-btns">
             <button
               className={!status.pinnedScreen ? "on" : ""}
@@ -2657,19 +2712,28 @@ function WallPage({ d }) {
             >
               Auto-rotate
             </button>
-            {status.enabledScreens.map((id) => {
-              const s = status.screens.find((sc) => sc.id === id);
-              return (
-                <button
-                  key={id}
-                  className={status.pinnedScreen === id ? "on" : ""}
-                  disabled={busy === `pin-${id}`}
-                  onClick={() => pin(id)}
-                >
-                  {s?.label || id}
-                </button>
-              );
-            })}
+          </div>
+          <div className="wpinrows">
+            {[...status.screens, ...status.benchScreens].map((s) => (
+              <div key={s.id} className="wpinrow">
+                <span className="wpname">{s.label}</span>
+                <div className="wpinrow-btns">
+                  <button
+                    className={status.pinnedScreen === s.id ? "on" : ""}
+                    disabled={busy === `pin-${s.id}`}
+                    onClick={() => pin(s.id)}
+                  >
+                    Pin
+                  </button>
+                  <button
+                    disabled={busy === `push-${s.id}`}
+                    onClick={() => pushScreenNow(s.id)}
+                  >
+                    Push
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -2699,6 +2763,45 @@ function WallPage({ d }) {
                 <option value={120}>120s</option>
               </select>
               <button disabled={busy === "notify" || !notifyText.trim()} onClick={sendNotification}>Send</button>
+            </div>
+          )}
+        </section>
+
+        <section className="zone walert">
+          <h2>Push an alert</h2>
+          <p className="wnote">
+            The full-screen hazard overlay (striped border, severity color, big warning icon) —
+            takes over the wall like a notification but reads as urgent, not informational.
+          </p>
+          {status.alert ? (
+            <div className="wnotify-live">
+              <span className="wntext">[{status.alert.severity}] {status.alert.text}</span>
+              <span className="wncount">{status.alert.secondsRemaining}s left</span>
+              <button className="wnclear" disabled={busy === "alert-clear"} onClick={clearAlertNow}>Clear</button>
+            </div>
+          ) : (
+            <div className="wnotify-form">
+              <input
+                type="text"
+                placeholder="Alert message…"
+                maxLength={80}
+                value={alertText}
+                onChange={(e) => setAlertText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") sendAlert(); }}
+              />
+              <select value={alertSeverity} onChange={(e) => setAlertSeverity(e.target.value)}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+              <select value={alertSeconds} onChange={(e) => setAlertSeconds(Number(e.target.value))}>
+                <option value={15}>15s</option>
+                <option value={30}>30s</option>
+                <option value={60}>60s</option>
+                <option value={120}>120s</option>
+                <option value={300}>300s</option>
+              </select>
+              <button disabled={busy === "alert" || !alertText.trim()} onClick={sendAlert}>Send</button>
             </div>
           )}
         </section>
