@@ -273,9 +273,6 @@ app.get("/api/matrix", async (_req, res) => {
       })
       .sort((a, b) => a.time.localeCompare(b.time));
 
-    // Daily busy score (0-100)
-    const dailyBusyPercent = brief?.insights?.busyPercent || 0;
-
     // Day Overview's hoursBusy/hoursFree — round 72, closes the round-64
     // punch-list gap. Same weekForecast() math the Week page already uses
     // (see brief/display.js's buildDayContext for the identical filterLive
@@ -297,6 +294,16 @@ app.get("/api/matrix", async (_req, res) => {
       hoursBusy: todayForecast?.busyHours ?? 0,
       hoursFree: todayForecast?.freeHours ?? 0,
     };
+
+    // Daily busy score (0-100) — round 75 fix — Jon: "the busy score on
+    // the LED panel is not updating. It still says zero, whereas the
+    // website says four." Was reading brief.insights.busyPercent, a field
+    // refreshInsights() never produces (dead code, always 0). The website
+    // itself displays todayForecast.busyness directly as "Busy Score N/10"
+    // (Display.jsx) -- reuse that same value here, computed above, and
+    // scale x10 since the firmware unscales this field by /10 to get its
+    // own 0-10 score.
+    const dailyBusyPercent = Math.round((todayForecast?.busyness ?? 0) * 10);
 
     // Top holdings (top 5 by value) — same shape the Holdings page already uses
     const holdings = money?.positions
