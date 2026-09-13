@@ -15,7 +15,7 @@ import { logger } from "./lib/log.js";
 import { init as initStore, getMeta, setMeta, getItem, patchItem, dismissItem, suppressPermanently, triageItem, resolveTrackedItem, snoozeItem, allItems, portfolioHistory } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
-import { buildDisplay, shortTicker } from "./brief/display.js";
+import { buildDisplay, shortTicker, weekForecast, filterLive, isTaskLike } from "./brief/display.js";
 import { buildItemDetail } from "./brief/detail.js";
 import { getTickerDetail } from "./lib/stockIdeaDetail.js";
 import {
@@ -213,15 +213,56 @@ app.get("/api/matrix", async (_req, res) => {
 
     const todayEvents = items
       .filter((i) => i.source === "calendar" && i.dueAt?.startsWith(today) && i.status === "open")
-      .map((e) => ({
-        time: e.clockTime || e.dueAt?.slice(11, 16) || "",
-        title: (e.title || "").slice(0, 30), // truncate for display
-        busyLevel: e.meta?.busyLevel || "medium", // "busy" | "medium" | "light"
-      }))
+      .map((e) => {
+        // dur: real end-minus-start minutes when we know the end time —
+        // skip all-day events, there's no meaningful timeline-sliver width
+        // for those. Clamped to a sane 5-600min range so a bad/missing end
+        // time can't paint a degenerate or day-spanning bar. desc: the same
+        // concise note/time/location/attendee one-liner already built for
+        // the Tasks/Day list rows (e.detail from sources/calendar.js),
+        // truncated to fit the wall's second scrolling line. cal: the real
+        // calendar bucket, already computed at ingestion (sources/
+        // calendar.js's calendarSwatch() call) — round 72, closes the
+        // round-62 gap (wrong/fallback event colors on the wall).
+        const hasRealDuration = e.meta?.end && !e.meta?.allDay;
+        const dur = hasRealDuration
+          ? Math.min(600, Math.max(5, Math.round((new Date(e.meta.end) - new Date(e.dueAt)) / 60000)))
+          : 30;
+        return {
+          time: e.clockTime || e.dueAt?.slice(11, 16) || "",
+          title: (e.title || "").slice(0, 30), // truncate for display
+          busyLevel: e.meta?.busyLevel || "medium", // "busy" | "medium" | "light"
+          cal: e.swatch || "",
+          dur,
+          desc: (e.detail || "").slice(0, 60),
+        };
+      })
       .sort((a, b) => a.time.localeCompare(b.time));
 
     // Daily busy score (0-100)
     const dailyBusyPercent = brief?.insights?.busyPercent || 0;
+
+    // Day Overview's hoursBusy/hoursFree — round 72, closes the round-64
+    // punch-list gap. Same weekForecast() math the Week page already uses
+    // (see brief/display.js's buildDayContext for the identical filterLive
+    // -> calendar-only -> weekForecast pattern), just asked for a single
+    // day (today) instead of the 7-day window. commuteMin is deliberately
+    // NOT included here — no real ETA source wired up yet (Jon: "I haven't
+    // figured out the logic for that"); the Commuting screen keeps
+    // degrading gracefully to "COMMUTE ETA COMING SOON" until it exists.
+    const liveItems = filterLive(items, now);
+    const calendarEvents = liveItems
+      .filter((i) => i.source === "calendar" && i.dueAt && i.kind !== "system")
+      .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt));
+    const todayForecast = weekForecast(calendarEvents, liveItems.filter(isTaskLike), {
+      now,
+      tz: config.timezone,
+      days: 1,
+    }).days[0];
+    const dayOverview = {
+      hoursBusy: todayForecast?.busyHours ?? 0,
+      hoursFree: todayForecast?.freeHours ?? 0,
+    };
 
     // Top holdings (top 5 by value) — same shape the Holdings page already uses
     const holdings = money?.positions
@@ -257,6 +298,7 @@ app.get("/api/matrix", async (_req, res) => {
       losers, // Top 3 holdings down today
       events: todayEvents,
       dailyBusyPercent,
+      dayOverview,
       holdings,
       news,
       marketOpen,
