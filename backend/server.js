@@ -19,7 +19,8 @@ import { buildDisplay, shortTicker, weekForecast, filterLive, isTaskLike } from 
 import { buildItemDetail } from "./brief/detail.js";
 import { getTickerDetail } from "./lib/stockIdeaDetail.js";
 import {
-  setEnabledScreens, setPinnedScreen, pushNotification, clearNotification,
+  setEnabledScreens, setPinnedScreen, pushScreen, clearPushedScreen,
+  pushNotification, clearNotification, pushAlert, clearAlert,
   fireTestEvent, commandPayload, statusPayload, MatrixControlError,
 } from "./lib/matrixControl.js";
 import { collectSystemHealth, evaluateProblems } from "./lib/systemHealth.js";
@@ -426,6 +427,29 @@ app.post("/api/matrix/pin", async (req, res) => {
   }
 });
 
+// Round 75 — the "push" half of "push a page or pin a page depending":
+// jump to a screen right now for a short, bounded window without
+// disturbing whatever pin/rotation state was already active. See
+// matrixControl.js's pushScreen() for the full design comment.
+app.post("/api/matrix/push", async (req, res) => {
+  try {
+    res.json(await pushScreen(req.body?.screen, req.body?.durationSeconds));
+  } catch (err) {
+    if (err instanceof MatrixControlError) return res.status(400).json({ error: err.message });
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/matrix/push/clear", async (req, res) => {
+  try {
+    res.json(await clearPushedScreen());
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/matrix/notify", async (req, res) => {
   try {
     res.json(await pushNotification(req.body?.text, req.body?.durationSeconds));
@@ -439,6 +463,30 @@ app.post("/api/matrix/notify", async (req, res) => {
 app.post("/api/matrix/notify/clear", async (req, res) => {
   try {
     res.json(await clearNotification());
+  } catch (err) {
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Round 75 — Jon: "the alert... everything that we have in the LED panel
+// code should be controllable from the website." The firmware has fully
+// implemented alert rendering (renderAlert(), severity levels, the
+// hazard-stripe border) since before this round; matrixControl.js's
+// pushAlert()/clearAlert() are what finally send it.
+app.post("/api/matrix/alert", async (req, res) => {
+  try {
+    res.json(await pushAlert(req.body?.text, req.body?.severity, req.body?.durationSeconds));
+  } catch (err) {
+    if (err instanceof MatrixControlError) return res.status(400).json({ error: err.message });
+    log.error(err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/matrix/alert/clear", async (req, res) => {
+  try {
+    res.json(await clearAlert());
   } catch (err) {
     log.error(err.message);
     res.status(500).json({ error: err.message });
