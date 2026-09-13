@@ -38,6 +38,35 @@ const SCREEN_IDS = new Set(SCREENS.map((s) => s.id));
 const DATA_SCREEN_IDS = new Set(SCREENS.filter((s) => s.hasData).map((s) => s.id));
 const DEFAULT_ENABLED = SCREENS.filter((s) => s.hasData).map((s) => s.id);
 
+// Round 75 — Jon: "we need to have every single screen possibility,
+// including the extra ones... everything that we have in the LED panel
+// code should be controllable from the website." These are the firmware's
+// LOCAL_ONLY / ambient screens (esp32-led-wall.ino's own comment: "stars"/
+// "balls" are ambient demo effects, not data screens") — they render from
+// on-device state, not /api/matrix data, so they never belong in the
+// rotation-membership toggle list above (there's nothing for the backend
+// to enable/disable), but the firmware has always been willing to render
+// any of them the moment pinnedScreen names one (loop() just does
+// renderScreen(pinnedScreen, ...) with no allowlist check). The only thing
+// missing was a way to reach them from the web page — this catalog is
+// that: pin- and push-only, kept separate from SCREENS so the Screens
+// section's checkboxes don't imply you can add these to auto-rotation.
+export const BENCH_SCREENS = [
+  { id: "clock", label: "Clock", description: "Large digital clock — no live data needed" },
+  { id: "dayoverview", label: "Day Overview (bench)", description: "Hours busy/free for today, computed on-device" },
+  { id: "commuting", label: "Commuting (bench)", description: "Commute ETA placeholder screen" },
+  { id: "stars", label: "Stars", description: "Ambient starfield effect" },
+  { id: "balls", label: "Balls", description: "Ambient bouncing-balls effect" },
+];
+const BENCH_IDS = new Set(BENCH_SCREENS.map((s) => s.id));
+// Everything pin/push can legally target: the six data screens above plus
+// the five bench-only ones. Deliberately does NOT require enabledScreens
+// membership (see setPinnedScreen below) — pinning or pushing a screen
+// already bypasses rotation entirely, so there was never a real reason to
+// also demand it be in rotation, and bench screens could never be in
+// rotation in the first place.
+const ALL_PIN_IDS = new Set([...SCREEN_IDS, ...BENCH_IDS]);
+
 // The wall is 192px wide (three 64px panels) at a small pixel font — a long
 // notification just scrolls off into nothing useful. 60 chars is generous
 // even so; firmware can always show less.
@@ -46,10 +75,36 @@ const MIN_NOTIFICATION_SECONDS = 3;
 const MAX_NOTIFICATION_SECONDS = 120;
 const MAX_TEST_LABEL_CHARS = 40;
 
+// Alerts get two wrapped lines across most of the panel width (see the
+// firmware's renderAlert()/wrapTwoLines()), so they can run longer than a
+// one-line notification.
+const MAX_ALERT_CHARS = 80;
+const MIN_ALERT_SECONDS = 5;
+const MAX_ALERT_SECONDS = 300;
+const ALERT_SEVERITIES = new Set(["low", "medium", "high"]);
+
+// "Push a page" — Jon: "we can select pages, have them within the
+// rotation, and then we can push a page or pin a page depending." Pin
+// (setPinnedScreen, below) locks the wall on one screen indefinitely; push
+// is the short-lived version — jump to a screen right now for a bit, then
+// fall back to whatever pin/rotation was already active, without disturbing
+// that state. Same expiresAt-recomputed-at-read pattern as notifications.
+const MIN_PUSH_SECONDS = 5;
+const MAX_PUSH_SECONDS = 120;
+const DEFAULT_PUSH_SECONDS = 20;
+
 export class MatrixControlError extends Error {}
 
 function defaults() {
-  return { enabledScreens: [...DEFAULT_ENABLED], pinnedScreen: null, notification: null, testEvent: null, lastPolledAt: null };
+  return {
+    enabledScreens: [...DEFAULT_ENABLED],
+    pinnedScreen: null,
+    pushedScreen: null,
+    notification: null,
+    alert: null,
+    testEvent: null,
+    lastPolledAt: null,
+  };
 }
 
 // Merged over the defaults rather than returned as-is, so a field added
@@ -84,10 +139,12 @@ export async function setEnabledScreens(ids) {
 
   const state = await readRaw();
   state.enabledScreens = cleaned;
-  // A pin pointing at a screen that just got disabled would otherwise keep
-  // showing it forever — clear it rather than leave a dangling reference
-  // nothing in the UI still explains.
-  if (state.pinnedScreen && !cleaned.includes(state.pinnedScreen)) state.pinnedScreen = null;
+  // Round 75 — pin/push no longer require enabledScreens membership (see
+  // setPinnedScreen below), so unchecking a screen's rotation box no
+  // longer needs to clear an existing pin pointing at it — that pin is a
+  // deliberate "show me this one regardless of rotation" choice, and bench
+  // screens (never eligible for enabledScreens at all) need pins to survive
+  // this call unconditionally anyway.
   return writeRaw(state);
 }
 
@@ -97,9 +154,39 @@ export async function setPinnedScreen(id) {
     state.pinnedScreen = null;
     return writeRaw(state);
   }
-  if (!SCREEN_IDS.has(id)) throw new MatrixControlError(`unknown screen: ${id}`);
-  if (!state.enabledScreens.includes(id)) throw new MatrixControlError(`"${id}" isn't in the enabled rotation — enable it first`);
+  // Round 75 — Jon: "every single screen possibility... should be
+  // controllable." Validated against the full pin-eligible universe (data
+  // screens + bench-only ones) instead of just SCREEN_IDS, and no longer
+  // requires the id be in enabledScreens: pinning already means "ignore
+  // rotation and show this," so there was never a real reason to also
+  // require rotation membership, and bench screens (clock, stars, ...)
+  // could never be enabled in the first place, which made them permanently
+  // unpinnable under the old rule.
+  if (!ALL_PIN_IDS.has(id)) throw new MatrixControlError(`unknown screen: ${id}`);
   state.pinnedScreen = id;
+  return writeRaw(state);
+}
+
+// Round 75 — the "push" half of "push a page or pin a page depending":
+// jump to a screen right now for a short, bounded window, then fall back
+// to whatever pin/rotation was already in effect, without touching that
+// state. Same live-recomputed-at-read pattern as notifications (below) —
+// nothing decays it on a timer, it's just judged expired the moment
+// anyone reads state past its expiresAt.
+export async function pushScreen(id, durationSeconds, now = new Date()) {
+  if (!ALL_PIN_IDS.has(id)) throw new MatrixControlError(`unknown screen: ${id}`);
+  const seconds = durationSeconds == null ? DEFAULT_PUSH_SECONDS : Math.round(Number(durationSeconds));
+  if (!Number.isFinite(seconds)) throw new MatrixControlError("durationSeconds must be a number");
+  const clamped = Math.min(MAX_PUSH_SECONDS, Math.max(MIN_PUSH_SECONDS, seconds));
+
+  const state = await readRaw();
+  state.pushedScreen = { id, expiresAt: new Date(now.getTime() + clamped * 1000).toISOString() };
+  return writeRaw(state);
+}
+
+export async function clearPushedScreen() {
+  const state = await readRaw();
+  state.pushedScreen = null;
   return writeRaw(state);
 }
 
@@ -121,6 +208,35 @@ export async function pushNotification(text, durationSeconds, now = new Date()) 
 export async function clearNotification() {
   const state = await readRaw();
   state.notification = null;
+  return writeRaw(state);
+}
+
+// Round 75 — Jon: "the alert... everything that we have in the LED panel
+// code should be controllable from the website." The firmware has fully
+// implemented alert rendering since before this round (renderAlert(),
+// AlertLevel severities, the hazard-stripe border) — see esp32-led-wall.ino
+// pollCommand()'s own comment: "not sent by the backend at all yet...
+// dormant until the backend adds it." This is the backend finally adding
+// it, same push/clear/live-recompute shape as notifications above.
+export async function pushAlert(text, severity, durationSeconds, now = new Date()) {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) throw new MatrixControlError("alert text can't be empty");
+  if (trimmed.length > MAX_ALERT_CHARS) {
+    throw new MatrixControlError(`keep it under ${MAX_ALERT_CHARS} characters`);
+  }
+  const sev = ALERT_SEVERITIES.has(severity) ? severity : "medium";
+  const seconds = durationSeconds == null ? 30 : Math.round(Number(durationSeconds));
+  if (!Number.isFinite(seconds)) throw new MatrixControlError("durationSeconds must be a number");
+  const clamped = Math.min(MAX_ALERT_SECONDS, Math.max(MIN_ALERT_SECONDS, seconds));
+
+  const state = await readRaw();
+  state.alert = { text: trimmed, severity: sev, expiresAt: new Date(now.getTime() + clamped * 1000).toISOString() };
+  return writeRaw(state);
+}
+
+export async function clearAlert() {
+  const state = await readRaw();
+  state.alert = null;
   return writeRaw(state);
 }
 
@@ -147,6 +263,20 @@ function liveNotification(state, now) {
   return { text: state.notification.text, secondsRemaining: Math.ceil(msLeft / 1000) };
 }
 
+function liveAlert(state, now) {
+  if (!state.alert) return null;
+  const msLeft = new Date(state.alert.expiresAt).getTime() - now.getTime();
+  if (msLeft <= 0) return null;
+  return { text: state.alert.text, severity: state.alert.severity, secondsRemaining: Math.ceil(msLeft / 1000) };
+}
+
+function livePushedScreen(state, now) {
+  if (!state.pushedScreen) return null;
+  const msLeft = new Date(state.pushedScreen.expiresAt).getTime() - now.getTime();
+  if (msLeft <= 0) return null;
+  return { id: state.pushedScreen.id, secondsRemaining: Math.ceil(msLeft / 1000) };
+}
+
 /**
  * What the ESP32 polls, fast (1-2s — Tier 0 of the roadmap). Just the
  * control signals, nothing it would need /api/matrix's full payload for.
@@ -161,7 +291,9 @@ export async function commandPayload(now = new Date()) {
   return {
     enabledScreens: state.enabledScreens,
     pinnedScreen: state.pinnedScreen,
+    pushedScreen: livePushedScreen(state, now),
     notification: liveNotification(state, now),
+    alert: liveAlert(state, now),
     testEvent: state.testEvent ? { id: state.testEvent.id, label: state.testEvent.label } : null,
   };
 }
@@ -178,9 +310,12 @@ export async function statusPayload(now = new Date(), { onlineWithinMs = 10_000 
   const online = state.lastPolledAt != null && now.getTime() - new Date(state.lastPolledAt).getTime() < onlineWithinMs;
   return {
     screens: SCREENS,
+    benchScreens: BENCH_SCREENS,
     enabledScreens: state.enabledScreens,
     pinnedScreen: state.pinnedScreen,
+    pushedScreen: livePushedScreen(state, now),
     notification: liveNotification(state, now),
+    alert: liveAlert(state, now),
     testEvent: state.testEvent,
     lastPolledAt: state.lastPolledAt,
     online,
