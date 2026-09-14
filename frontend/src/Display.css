@@ -366,13 +366,15 @@
 .aday-chip.d-work         { background: #c22a1f; }
 .aday-chip.d-assessment   { background: #9c7a0a; }
 .aday-chip.d-class        { background: #1f7a3d; }
-.aday-chip.d-family       { background: #4a4fc0; }
+.aday-chip.d-family       { background: #1f8f6f; }
 .aday-chip.d-gmail        { background: #1f6fa8; }
 .aday-chip.d-opportunity  { background: #12806c; }
 .aday-chip.d-deadline     { background: #a83c1c; }
+.aday-chip.d-sydney       { background: #4a4fc0; }
 .aday-chip.d-admin        { background: #40566d; }
 .aday-chip.d-appointment  { background: #276f83; }
-.aday-chip.d-personal     { background: #767322; }
+.aday-chip.d-personal     { background: #5a5f66; }
+.aday-chip.d-regular      { background: #8b8f95; }
 
 /* 68px — taller than the events sitting on it (see .blk's 7px top/bottom
    inset below), by 7px each side. That's deliberate: the strip itself is
@@ -495,13 +497,15 @@
 .blk.d-work         { background: #c22a1f; border-left-color: #ff5c4d; } /* Work           — bright red, like WORK (not pink) */
 .blk.d-assessment   { background: #9c7a0a; border-left-color: #e8c13c; } /* Test           — gold, like Tests & Quizzes */
 .blk.d-class        { background: #1f7a3d; border-left-color: #57cf82; } /* Class          — green, like School & Classes */
-.blk.d-family       { background: #4a4fc0; border-left-color: #9599f5; } /* Family         — periwinkle, like Sydney's Demands */
+.blk.d-family       { background: #1f8f6f; border-left-color: #5fd4ae; } /* Family         — teal/sea-green, matches Jon's real calendar */
 .blk.d-gmail        { background: #1f6fa8; border-left-color: #62b4ff; } /* default calendar — light link-blue, always */
 .blk.d-opportunity  { background: #12806c; border-left-color: #4fe0c4; }
 .blk.d-deadline     { background: #a83c1c; border-left-color: #f2764a; }
+.blk.d-sydney       { background: #4a4fc0; border-left-color: #9599f5; } /* Sydney's Demands — blue, like the real calendar (was mistakenly folded into Family before round 76) */
 .blk.d-admin        { background: #40566d; border-left-color: #8fa8c0; }
 .blk.d-appointment  { background: #276f83; border-left-color: #5ec7de; }
-.blk.d-personal     { background: #767322; border-left-color: #c7c14f; } /* fallback, and Gym Schedule */
+.blk.d-personal     { background: #5a5f66; border-left-color: #97a0aa; } /* fallback, and Gym Schedule — muted grey, not yellow (round 76: yellow was reserved for Tests & Quizzes, but every uncategorized calendar landed on it too) */
+.blk.d-regular      { background: #8b8f95; border-left-color: #c6cbd1; } /* Regular Events — white/grey, like the real calendar */
 
 /* The now-cursor. It's a sibling of .strip (see the comment in Display.jsx),
    positioned in .strip-wrap's own coordinate space — which starts at the
@@ -1271,13 +1275,15 @@
 .fcbar i.d-work         { background: #c22a1f; }
 .fcbar i.d-assessment   { background: #9c7a0a; }
 .fcbar i.d-class        { background: #1f7a3d; }
-.fcbar i.d-family       { background: #4a4fc0; }
+.fcbar i.d-family       { background: #1f8f6f; }
 .fcbar i.d-gmail        { background: #1f6fa8; }
 .fcbar i.d-opportunity  { background: #12806c; }
 .fcbar i.d-deadline     { background: #a83c1c; }
+.fcbar i.d-sydney       { background: #4a4fc0; }
 .fcbar i.d-admin        { background: #40566d; }
 .fcbar i.d-appointment  { background: #276f83; }
-.fcbar i.d-personal     { background: #767322; }
+.fcbar i.d-personal     { background: #5a5f66; }
+.fcbar i.d-regular      { background: #8b8f95; }
 /* Two-ended instead of just the free half — Jon's call: "maybe we could do
    like a left aligned XXh Used and a right aligned XXh Free like we have."
    Free stays the brighter, heavier of the two (same styling as before this
