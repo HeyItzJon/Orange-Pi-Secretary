@@ -207,17 +207,19 @@ function AnalogClock({ timeZone, daysAhead = 0 }) {
 
 /**
  * The forward-only day pager Jon asked for: the same day-strip graphic
- * (all-day chips + hour blocks), one page per day, sliding sideways between
- * Today and the next 3 days (see `dayStrips` in brief/display.js). No back
- * beyond today — there's nothing behind it to preview — and no progress
- * marker on a future day, since nothing on it has happened yet.
+ * (all-day chips + hour blocks), one page per day, sliding sideways across
+ * Today and the rest of the tracked week (see `dayStrips` in
+ * brief/display.js — round 80: however many days that pool covers, no
+ * longer capped at 3). No back beyond today — there's nothing behind it
+ * to preview — and no progress marker on a future day, since nothing on
+ * it has happened yet.
  *
  * `slides[0]` is always today (built from `d.strip`, which is the only one
  * carrying `nowPct`); `slides[1..]` come straight from `d.dayStrips`. Only
  * one slide is ever mounted at a time — swapping the single Strip instance
  * and re-triggering a directional CSS animation keyed by the offset, rather
- * than mounting all four — so Strip's own hover/tap card state never has to
- * be reasoned about across four instances at once.
+ * than mounting every slide at once — so Strip's own hover/tap card state
+ * never has to be reasoned about across several instances at once.
  */
 function DayCarousel({ slides, offset, onOffset }) {
   const max = slides.length - 1;
@@ -506,7 +508,8 @@ function TodayPage({ d, dayOffset, onDayOffset }) {
   // Today's own strip already carries everything DayCarousel needs
   // (blocks/chunks/ticks/allDay, plus nowPct — the one field that marks it
   // as "today" rather than a future day); dayStrips (see brief/display.js)
-  // supplies the next 3 days in the exact same shape, minus that marker.
+  // supplies the rest of the tracked week in the exact same shape, minus
+  // that marker (round 80: however many days that is, not a fixed 3).
   const slides = [
     { key: "today", label: "Today", dateLabel: d.dateLabel, ...d.strip },
     ...(d.dayStrips || []),
@@ -2325,12 +2328,11 @@ function WeekPage({ d, onGoToDay }) {
 
   if (!w) return null;
 
-  // Only the first 4 days here (today + the next 3) have a matching Today
-  // carousel slide (see dayStrips in brief/display.js, which only ever
-  // looks 3 days ahead) — so only those are actually clickable. The rest of
-  // the week's days exist on this forecast but have no Today-page view to
-  // send you to yet.
-  const clickableCount = 4;
+  // Today + however many forward days brief/display.js's dayStrips
+  // actually sent this time (round 80: the whole tracked week, not a
+  // fixed 3) — deriving it from the real payload rather than re-hardcoding
+  // a number here means the two can never drift apart again.
+  const clickableCount = 1 + (d.dayStrips?.length || 0);
 
   const onCardClick = (i) => {
     if (!onGoToDay) return;
@@ -2356,7 +2358,7 @@ function WeekPage({ d, onGoToDay }) {
         </span>
       </div>
 
-      {farNotice && <div className="fcfar">Too far out to see a view — pick one of the next 3 days.</div>}
+      {farNotice && <div className="fcfar">Too far out to see a view — pick one of the first {clickableCount} days.</div>}
 
       <div className="fcgrid">
         {w.days.map((day, i) => (

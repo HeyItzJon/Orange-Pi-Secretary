@@ -1339,15 +1339,19 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
   // ------------------------------------------------------ forward carousel
   // The same strip graphic, one page per upcoming day, so "what does
   // Thursday actually look like" is a swipe away instead of a squint at the
-  // "NEXT 3 DAYS" text list below. Deliberately forward-only (today is
-  // already `strip` above) and capped at 3 days — this is a glance screen,
-  // not a scheduler, and going further out starts answering a question this
-  // page was never meant to.
+  // week grid below. Deliberately forward-only (today is already `strip`
+  // above). Round 80 — no longer artificially capped at 3: covers the
+  // entire tracked window, exactly matching `week.days` above (both come
+  // from the same `cfg.forecastDays ?? 7`) — the week ahead is already
+  // the real limit, so the carousel just goes as far as the data does.
   // Deepseek's per-day title/note/deadline rewrite, when it's run — see
   // brief/insights.js and the `insightDays`/`insightDeadlines`/
-  // `rawDeadlinePool` comment above, near `week`.
+  // `rawDeadlinePool` comment above, near `week`. buildDayContext() (which
+  // feeds that pipeline) already defaults to the same 7-day window, so
+  // every one of these days already has a real AI title/note available —
+  // this loop was the only thing not reading past day 3.
   const dayStrips = [];
-  for (let n = 1; n <= 3; n++) {
+  for (let n = 1; n < week.days.length; n++) {
     const d = new Date(now.getTime() + n * DAY);
     const key = dayKey(d, tz);
     const dayEvents = events.filter((e) => eventOnDay(e, key, tz));

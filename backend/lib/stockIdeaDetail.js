@@ -173,6 +173,28 @@ function fmtPrompt(facts) {
   return lines.join("\n");
 }
 
+// Round 80 — Jon reported the stock-idea/positions detail panel getting
+// stuck on "Loading…" forever. Root cause: every yahoo-finance2 call below
+// had NO timeout of its own, unlike lib/ai.js's DeepSeek calls (which
+// already bound themselves to 45s and always resolve). If Yahoo is slow,
+// rate-limiting, or unreachable from the Pi, `await yahoo.quoteSummary(...)`
+// can simply never settle — there's nothing downstream that can time out a
+// promise that never rejects or resolves. withTimeout() gives every one of
+// these calls the same bounded-failure behaviour ai.js already has: past
+// YAHOO_TIMEOUT_MS the call is treated as failed (the real network request
+// may still be in flight, but nothing here waits on it any longer), so a
+// hung Yahoo endpoint turns into a real, visible "Couldn't load detail —
+// ..." error within seconds instead of an indefinite spinner.
+const YAHOO_TIMEOUT_MS = 20000;
+
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([Promise.resolve(promise), timeout]).finally(() => clearTimeout(timer));
+}
+
 /**
  * The live Yahoo work for one ticker: the same 3-module quoteSummary
  * lib/stockIdeas.js already pulls (price/assetProfile/financialData) plus
@@ -181,23 +203,30 @@ function fmtPrompt(facts) {
  * Each piece degrades independently — a failed competitor lookup or a
  * ticker with no analyst coverage still returns a usable facts object,
  * matching this file's own "never a blank panel" rule; only a totally
- * failed quoteSummary for the ticker itself (bad symbol, Yahoo down) is
- * fatal, since there's nothing left to build a panel from at that point.
+ * failed quoteSummary for the ticker itself (bad symbol, Yahoo down, or a
+ * timeout — see withTimeout above) is fatal, since there's nothing left to
+ * build a panel from at that point.
  */
 async function fetchLiveDetail(ticker) {
-  const quoteSummary = await yahoo.quoteSummary(ticker, {
-    modules: ["price", "assetProfile", "summaryDetail", "financialData"],
-  });
+  const quoteSummary = await withTimeout(
+    yahoo.quoteSummary(ticker, { modules: ["price", "assetProfile", "summaryDetail", "financialData"] }),
+    YAHOO_TIMEOUT_MS,
+    `Yahoo quoteSummary(${ticker})`
+  );
 
   let competitorQuotes = [];
   try {
-    const rec = await yahoo.recommendationsBySymbol(ticker);
+    const rec = await withTimeout(
+      yahoo.recommendationsBySymbol(ticker),
+      YAHOO_TIMEOUT_MS,
+      `Yahoo recommendationsBySymbol(${ticker})`
+    );
     const symbols = (Array.isArray(rec) ? rec[0] : rec)?.recommendedSymbols
       ?.map((s) => s.symbol)
       .filter(Boolean)
       .slice(0, 5) || [];
     if (symbols.length) {
-      const quotes = await yahoo.quote(symbols);
+      const quotes = await withTimeout(yahoo.quote(symbols), YAHOO_TIMEOUT_MS, `Yahoo quote(competitors for ${ticker})`);
       competitorQuotes = Array.isArray(quotes) ? quotes : [quotes];
     }
   } catch (err) {

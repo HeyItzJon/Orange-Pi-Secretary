@@ -343,13 +343,16 @@ test("a future day's events list never marks anything past or running — nothin
 // ====================================================================
 group("dayStrips — the forward-day carousel, same graphic as the day strip");
 
-test("dayStrips carries exactly the next 3 days, forward only", () => {
+test("dayStrips carries the whole rest of the tracked week, forward only (round 80: no longer capped at 3)", () => {
   const { dayStrips } = buildDisplay({ items: [], config, now: NOW });
-  assert.equal(dayStrips.length, 3);
-  assert.deepEqual(dayStrips.map((d) => d.key), ["2026-08-20", "2026-08-21", "2026-08-22"]);
+  assert.equal(dayStrips.length, 6, "today + 6 more = the same 7-day window week.days uses");
+  assert.deepEqual(
+    dayStrips.map((d) => d.key),
+    ["2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25"]
+  );
 });
 
-test("dayStrips labels read the same way as the NEXT 3 DAYS list: Tomorrow, then weekday names", () => {
+test("dayStrips labels read the same way as the Week page's own cards: Tomorrow, then weekday names", () => {
   const { dayStrips } = buildDisplay({ items: [], config, now: NOW });
   assert.equal(dayStrips[0].label, "Tomorrow");
   assert.equal(dayStrips[1].label, "Friday", "Aug 21 2026 is a Friday");
