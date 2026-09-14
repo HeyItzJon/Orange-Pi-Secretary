@@ -24,6 +24,7 @@ import {
   fireTestEvent, commandPayload, statusPayload, MatrixControlError,
 } from "./lib/matrixControl.js";
 import { collectSystemHealth, evaluateProblems } from "./lib/systemHealth.js";
+import { shortDescFallback } from "./lib/eventDigest.js";
 import { buildAskContext, buildAskPrompt } from "./brief/ask.js";
 import { ask } from "./lib/ai.js";
 
@@ -167,6 +168,19 @@ app.post("/api/ask", async (req, res) => {
 // (round 74). Includes the weekday since "last known price" over a
 // weekend or holiday is not today's time, and a bare hour would look
 // like it just refreshed instead of being the actual last trade.
+// Round 77 — see the comment above this function's one call site in
+// /api/matrix for the full story on why this exists.
+function sanitizeForWall(text) {
+  if (!text) return text;
+  return String(text)
+    .replace(/[\u2018\u2019\u201A\u2032]/g, "'")   // curly/typographic single quotes, prime
+    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')   // curly/typographic double quotes
+    .replace(/[\u2013\u2014]/g, "-")                 // en/em dash
+    .replace(/\u2026/g, "...")                        // ellipsis
+    .replace(/[\u00A0\u2000-\u200B]/g, " ")          // non-breaking/odd-width spaces
+    .replace(/[^\x20-\x7E]/g, "");                    // anything else non-ASCII — dropped, not boxed
+}
+
 function formatLastPriceLabel(iso, tz) {
   if (!iso) return null;
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -188,12 +202,14 @@ function formatLastPriceLabel(iso, tz) {
 app.get("/api/matrix", async (_req, res) => {
   try {
     const now = new Date();
-    const [items, money, marketPulse, brief] = await Promise.all([
+    const [items, money, marketPulse, brief, eventDigest] = await Promise.all([
       allItems(),
       getMeta("moneySummary", null),
       getMeta("marketPulse", null),
       getMeta("lastBrief", null),
+      getMeta("eventDigest", null),
     ]);
+    const eventDigestMap = eventDigest?.map || {};
 
     // Portfolio: total value, day change ($), day change (%)
     const portfolio = money
@@ -277,13 +293,25 @@ app.get("/api/matrix", async (_req, res) => {
         const dur = e.meta?.end
           ? Math.min(600, Math.max(5, Math.round((new Date(e.meta.end) - new Date(e.dueAt)) / 60000)))
           : 30;
+        // Round 77 — Jon: "the description... is wrapping onto a third
+        // line... we don't have three lines... we don't need the location
+        // necessarily, only important notes." desc used to be the raw
+        // joined detail string (note · duration · location · attendees)
+        // truncated at 60 chars — plenty long enough to overrun the single
+        // scrolling line this screen actually has room for. Now it's the
+        // DeepSeek-compressed one-liner (lib/eventDigest.js, refreshed
+        // every scheduler tick, same pattern as the News screen's digest),
+        // falling back to just the detail string's first "·" segment
+        // (almost always the personal note, never the location) whenever
+        // there's no cached digest entry yet for this event.
+        const desc = eventDigestMap[e.id] ?? shortDescFallback(e.detail);
         return {
           time: e.clockTime || e.dueAt?.slice(11, 16) || "",
-          title: (e.title || "").slice(0, 30), // truncate for display
+          title: sanitizeForWall((e.title || "").slice(0, 30)), // truncate for display
           busyLevel: e.meta?.busyLevel || "medium", // "busy" | "medium" | "light"
           cal: e.swatch || "",
           dur,
-          desc: (e.detail || "").slice(0, 60),
+          desc: sanitizeForWall(desc),
         };
       })
       .sort((a, b) => a.time.localeCompare(b.time));
@@ -291,7 +319,7 @@ app.get("/api/matrix", async (_req, res) => {
     const allDayEvents = todayCalendarItems
       .filter((e) => e.meta?.allDay)
       .map((e) => ({
-        title: (e.title || "").slice(0, 40),
+        title: sanitizeForWall((e.title || "").slice(0, 40)),
         cal: e.swatch || "",
       }));
 
@@ -326,6 +354,11 @@ app.get("/api/matrix", async (_req, res) => {
     // scale x10 since the firmware unscales this field by /10 to get its
     // own 0-10 score.
     const dailyBusyPercent = Math.round((todayForecast?.busyness ?? 0) * 10);
+    log.info(
+      `busy score: busyness=${todayForecast?.busyness ?? "null"}/10 ` +
+      `busyHours=${todayForecast?.busyHours ?? "null"} freeHours=${todayForecast?.freeHours ?? "null"} ` +
+      `events=${todayForecast?.eventCount ?? "null"} -> dailyBusyPercent=${dailyBusyPercent}`
+    );
 
     // Top holdings (top 5 by value) — same shape the Holdings page already uses
     const holdings = money?.positions
@@ -347,9 +380,11 @@ app.get("/api/matrix", async (_req, res) => {
     // with the firmware joining every headline with " / " into one scroll
     // string, that's what was cutting titles off mid-word (Jon: "make
     // sure the full titles are there").
-    const news = marketPulse?.newsDigest?.length
-      ? marketPulse.newsDigest
-      : (marketPulse?.headlines || []).slice(0, 3).map((h) => ({ title: h.title || "", source: h.source || null }));
+    const news = (
+      marketPulse?.newsDigest?.length
+        ? marketPulse.newsDigest
+        : (marketPulse?.headlines || []).slice(0, 3).map((h) => ({ title: h.title || "", source: h.source || null }))
+    ).map((h) => ({ title: sanitizeForWall(h.title), source: h.source ? sanitizeForWall(h.source) : null }));
 
     // Whether anything actually traded today, per the Round 49 weekend-
     // color fix (sources/money.js's marketOpen gate) — free to include here

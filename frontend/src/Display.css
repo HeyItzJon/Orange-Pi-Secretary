@@ -1368,6 +1368,13 @@
 }
 .wpush-live b { color: var(--ink-2); }
 
+.wpin-group { margin-top: 16px; }
+.wpin-group:first-of-type { margin-top: 10px; }
+.wpin-group-label {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--faint); margin: 0 0 2px;
+}
+.wpin-group .wpinrows { margin-top: 4px; }
 .wpinrows { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
 .wpinrow {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

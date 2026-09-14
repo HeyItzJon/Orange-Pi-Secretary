@@ -97,15 +97,15 @@ await atest("accepts a valid subset, reordered to SCREENS' own canonical order r
   assert.deepEqual(s.enabledScreens, ["portfolio", "events", "news"]);
 });
 
-await atest("disabling the currently-pinned screen clears the pin rather than leaving it dangling", async () => {
+await atest("disabling a screen's rotation membership does NOT clear an existing pin on it (round 75: pin/push are deliberately independent of enabledScreens)", async () => {
   await setEnabledScreens(["portfolio", "markets", "holdings", "events", "news"]);
   await setPinnedScreen("markets");
   let s = await statusPayload();
   assert.equal(s.pinnedScreen, "markets");
 
-  await setEnabledScreens(["portfolio", "events"]); // drops "markets"
+  await setEnabledScreens(["portfolio", "events"]); // no longer includes "markets"
   s = await statusPayload();
-  assert.equal(s.pinnedScreen, null);
+  assert.equal(s.pinnedScreen, "markets", "pin is a deliberate 'show me this regardless of rotation' choice — unchecking its rotation box must not disturb it");
 });
 
 group("setPinnedScreen — validation");
@@ -114,9 +114,10 @@ await atest("rejects an unknown screen id", async () => {
   await rejects(() => setPinnedScreen("nonsense"), "unknown screen");
 });
 
-await atest("rejects a real screen that isn't currently enabled", async () => {
+await atest("accepts a real screen id even when it isn't currently enabled for rotation (round 75: pinning never required rotation membership)", async () => {
   await setEnabledScreens(["portfolio"]);
-  await rejects(() => setPinnedScreen("news"), "enable it first");
+  await setPinnedScreen("news"); // "news" is a valid SCREENS id, just not enabled right now
+  assert.equal((await statusPayload()).pinnedScreen, "news");
 });
 
 await atest("accepts a screen that is enabled, and null clears it back to auto-rotate", async () => {

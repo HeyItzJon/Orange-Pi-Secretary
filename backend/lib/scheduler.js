@@ -21,6 +21,7 @@ import { logger } from "./log.js";
 import { runSources, buildBrief } from "../brief/compose.js";
 import { getMeta, setMeta, prune, bumpRemindCounts } from "./store.js";
 import { SOURCES } from "./sources.js";
+import { refreshEventDigest } from "./eventDigest.js";
 
 const log = logger("scheduler");
 
@@ -70,6 +71,15 @@ export function startScheduler(config) {
     try {
       if (due) {
         await runSources(config, { only: SOURCES });
+        // Round 77 — LED-wall event descriptions, same cost discipline as
+        // marketNews.js's newsDigest: recomputed here (cached by content
+        // hash), never inside the fast /api/matrix poll route itself. A
+        // failure here must never block the brief below.
+        try {
+          await refreshEventDigest(config);
+        } catch (err) {
+          log.error(`eventDigest refresh failed: ${err.message}`);
+        }
         // Recompose so the API serves the new data immediately, but don't pay
         // for a narration line every quarter hour.
         await buildBrief(config, { narrate: false });

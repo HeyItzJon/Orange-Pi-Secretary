@@ -1,0 +1,5927 @@
+{
+  "schema": "display-v2",
+  "generatedAt": "2026-08-25T16:00:00.000Z",
+  "timezone": "America/Toronto",
+  "dateLabel": "Tuesday, August 25",
+  "clock": "12:00 PM",
+  "lastUpdatedLabel": null,
+  "freshness": {
+    "ages": {},
+    "oldestMinutes": null,
+    "label": "never checked",
+    "broken": [],
+    "problem": null,
+    "stale": true
+  },
+  "pages": [
+    {
+      "id": "today",
+      "label": "Day",
+      "badge": 2
+    },
+    {
+      "id": "week",
+      "label": "Week",
+      "badge": null
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "badge": 4
+    },
+    {
+      "id": "money",
+      "label": "Portfolio",
+      "badge": null
+    },
+    {
+      "id": "year",
+      "label": "Stats",
+      "badge": null
+    },
+    {
+      "id": "wall",
+      "label": "Wall",
+      "badge": null
+    },
+    {
+      "id": "system",
+      "label": "System",
+      "badge": null
+    }
+  ],
+  "hero": {
+    "kind": "soon",
+    "lead": "Design review in 2h",
+    "sub": "2:00 PM\u20133:00 PM",
+    "urgent": true,
+    "title": "Busy day with back-to-back meetings",
+    "note": "Two meetings today, both light \u2014 plenty of open evening to get ahead of tomorrow's early lab."
+  },
+  "strip": {
+    "startHour": 7,
+    "endHour": 23,
+    "nowPct": 31.25,
+    "blocks": [
+      {
+        "id": "c1",
+        "left": 12.5,
+        "width": 3.125,
+        "swatch": "work",
+        "color": null,
+        "overlap": false,
+        "label": "",
+        "time": "",
+        "past": true,
+        "important": false,
+        "detail": {
+          "title": "Standup",
+          "range": "9:00 AM \u2013 9:30 AM",
+          "duration": "30 min",
+          "where": "Zoom",
+          "prep": null,
+          "priority": null,
+          "domain": "personal"
+        }
+      },
+      {
+        "id": "c2",
+        "left": 43.75,
+        "width": 6.25,
+        "swatch": "class",
+        "color": null,
+        "overlap": false,
+        "label": "Design review",
+        "time": "",
+        "past": false,
+        "important": false,
+        "detail": {
+          "title": "Design review",
+          "range": "2:00 PM \u2013 3:00 PM",
+          "duration": "1h",
+          "where": null,
+          "prep": null,
+          "priority": null,
+          "domain": "personal"
+        }
+      }
+    ],
+    "chunks": [
+      {
+        "label": "Morning",
+        "left": 0,
+        "width": 31.25
+      },
+      {
+        "label": "Afternoon",
+        "left": 31.25,
+        "width": 31.25
+      },
+      {
+        "label": "Evening",
+        "left": 62.5,
+        "width": 31.25
+      },
+      {
+        "label": "Night",
+        "left": 93.75,
+        "width": 6.25
+      }
+    ],
+    "ticks": [
+      {
+        "hour": 7,
+        "left": 0,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 7.5,
+        "left": 3.125,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 8,
+        "left": 6.25,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 8.5,
+        "left": 9.375,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 9,
+        "left": 12.5,
+        "major": true,
+        "label": "9"
+      },
+      {
+        "hour": 9.5,
+        "left": 15.625,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 10,
+        "left": 18.75,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 10.5,
+        "left": 21.875,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 11,
+        "left": 25,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 11.5,
+        "left": 28.125,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 12,
+        "left": 31.25,
+        "major": true,
+        "label": "12"
+      },
+      {
+        "hour": 12.5,
+        "left": 34.375,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 13,
+        "left": 37.5,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 13.5,
+        "left": 40.625,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 14,
+        "left": 43.75,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 14.5,
+        "left": 46.875,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 15,
+        "left": 50,
+        "major": true,
+        "label": "3"
+      },
+      {
+        "hour": 15.5,
+        "left": 53.125,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 16,
+        "left": 56.25,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 16.5,
+        "left": 59.375,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 17,
+        "left": 62.5,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 17.5,
+        "left": 65.625,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 18,
+        "left": 68.75,
+        "major": true,
+        "label": "6"
+      },
+      {
+        "hour": 18.5,
+        "left": 71.875,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 19,
+        "left": 75,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 19.5,
+        "left": 78.125,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 20,
+        "left": 81.25,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 20.5,
+        "left": 84.375,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 21,
+        "left": 87.5,
+        "major": true,
+        "label": "9"
+      },
+      {
+        "hour": 21.5,
+        "left": 90.625,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 22,
+        "left": 93.75,
+        "major": false,
+        "label": ""
+      },
+      {
+        "hour": 22.5,
+        "left": 96.875,
+        "major": false,
+        "half": true,
+        "label": ""
+      },
+      {
+        "hour": 23,
+        "left": 100,
+        "major": false,
+        "label": ""
+      }
+    ],
+    "allDay": [
+      {
+        "id": "ad0",
+        "title": "Payday",
+        "swatch": "work",
+        "color": null,
+        "priority": null
+      },
+      {
+        "id": "ad1",
+        "title": "Pack for trip",
+        "swatch": "class",
+        "color": null,
+        "priority": null
+      },
+      {
+        "id": "ad2",
+        "title": "Library books due",
+        "swatch": "family",
+        "color": null,
+        "priority": null
+      },
+      {
+        "id": "ad3",
+        "title": "Vet appointment",
+        "swatch": "opportunity",
+        "color": null,
+        "priority": null
+      },
+      {
+        "id": "ad4",
+        "title": "Car inspection",
+        "swatch": "deadline",
+        "color": null,
+        "priority": null
+      },
+      {
+        "id": "ad5",
+        "title": "Birthday \u2014 Sam",
+        "swatch": "admin",
+        "color": null,
+        "priority": null
+      }
+    ],
+    "busyness": 6,
+    "busynessWhy": [
+      "37% of the day booked",
+      "heavier commitments than usual"
+    ],
+    "events": [
+      {
+        "id": "c1",
+        "time": "9:00 AM",
+        "title": "Standup",
+        "where": "Zoom",
+        "duration": "30 min",
+        "prep": null,
+        "priority": null,
+        "past": true,
+        "running": false
+      },
+      {
+        "id": "now1",
+        "time": "11:30 AM",
+        "title": "Deep work block",
+        "where": null,
+        "duration": "1h",
+        "prep": null,
+        "priority": null,
+        "past": false,
+        "running": true
+      },
+      {
+        "id": "c2",
+        "time": "2:00 PM",
+        "title": "Design review",
+        "where": null,
+        "duration": "1h",
+        "prep": null,
+        "priority": null,
+        "past": false,
+        "running": false
+      }
+    ]
+  },
+  "dayStrips": [
+    {
+      "key": "2026-08-26",
+      "label": "Tomorrow",
+      "dateLabel": "Wednesday, August 26",
+      "startHour": 7,
+      "endHour": 23,
+      "blocks": [
+        {
+          "id": "c4",
+          "left": 31.25,
+          "width": 6.25,
+          "swatch": "gmail",
+          "color": null,
+          "overlap": false,
+          "label": "Team lunch",
+          "time": "",
+          "past": false,
+          "important": false,
+          "detail": {
+            "title": "Team lunch",
+            "range": "12:00 PM \u2013 1:00 PM",
+            "duration": "1h",
+            "where": null,
+            "prep": null,
+            "priority": null,
+            "domain": "personal"
+          }
+        },
+        {
+          "id": "c5",
+          "left": 68.75,
+          "width": 6.25,
+          "swatch": "personal",
+          "color": null,
+          "overlap": false,
+          "label": "Gym",
+          "time": "",
+          "past": false,
+          "important": false,
+          "detail": {
+            "title": "Gym",
+            "range": "6:00 PM \u2013 7:00 PM",
+            "duration": "1h",
+            "where": null,
+            "prep": null,
+            "priority": null,
+            "domain": "personal"
+          }
+        }
+      ],
+      "chunks": [
+        {
+          "label": "Morning",
+          "left": 0,
+          "width": 31.25
+        },
+        {
+          "label": "Afternoon",
+          "left": 31.25,
+          "width": 31.25
+        },
+        {
+          "label": "Evening",
+          "left": 62.5,
+          "width": 31.25
+        },
+        {
+          "label": "Night",
+          "left": 93.75,
+          "width": 6.25
+        }
+      ],
+      "ticks": [
+        {
+          "hour": 7,
+          "left": 0,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 7.5,
+          "left": 3.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 8,
+          "left": 6.25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 8.5,
+          "left": 9.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 9,
+          "left": 12.5,
+          "major": true,
+          "label": "9"
+        },
+        {
+          "hour": 9.5,
+          "left": 15.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 10,
+          "left": 18.75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 10.5,
+          "left": 21.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 11,
+          "left": 25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 11.5,
+          "left": 28.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 12,
+          "left": 31.25,
+          "major": true,
+          "label": "12"
+        },
+        {
+          "hour": 12.5,
+          "left": 34.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 13,
+          "left": 37.5,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 13.5,
+          "left": 40.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 14,
+          "left": 43.75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 14.5,
+          "left": 46.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 15,
+          "left": 50,
+          "major": true,
+          "label": "3"
+        },
+        {
+          "hour": 15.5,
+          "left": 53.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 16,
+          "left": 56.25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 16.5,
+          "left": 59.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 17,
+          "left": 62.5,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 17.5,
+          "left": 65.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 18,
+          "left": 68.75,
+          "major": true,
+          "label": "6"
+        },
+        {
+          "hour": 18.5,
+          "left": 71.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 19,
+          "left": 75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 19.5,
+          "left": 78.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 20,
+          "left": 81.25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 20.5,
+          "left": 84.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 21,
+          "left": 87.5,
+          "major": true,
+          "label": "9"
+        },
+        {
+          "hour": 21.5,
+          "left": 90.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 22,
+          "left": 93.75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 22.5,
+          "left": 96.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 23,
+          "left": 100,
+          "major": false,
+          "label": ""
+        }
+      ],
+      "allDay": [
+        {
+          "id": "adt0",
+          "title": "Payday",
+          "swatch": "work",
+          "color": null,
+          "priority": null
+        },
+        {
+          "id": "adt1",
+          "title": "Pack for trip",
+          "swatch": "class",
+          "color": null,
+          "priority": null
+        },
+        {
+          "id": "adt2",
+          "title": "Library books due",
+          "swatch": "family",
+          "color": null,
+          "priority": null
+        },
+        {
+          "id": "adt3",
+          "title": "Vet appointment",
+          "swatch": "opportunity",
+          "color": null,
+          "priority": null
+        }
+      ],
+      "summary": "Team lunch and Gym",
+      "busyness": 3,
+      "busynessWhy": [
+        "9% of the day booked",
+        "1 all-day item"
+      ],
+      "events": [
+        {
+          "id": "fe0a",
+          "time": "9:00 AM",
+          "title": "Standup",
+          "where": "Zoom",
+          "duration": "30 min",
+          "prep": null,
+          "priority": null,
+          "past": false,
+          "running": false
+        },
+        {
+          "id": "fe0b",
+          "time": "2:00 PM",
+          "title": "Design review",
+          "where": null,
+          "duration": "1h",
+          "prep": null,
+          "priority": null,
+          "past": false,
+          "running": false
+        }
+      ],
+      "title": "Two standups and a design review",
+      "deadlinesToday": [
+        {
+          "id": "dl1",
+          "title": "Submit MSE 3401 lab report",
+          "categoryLabel": "Assignment",
+          "domain": "school",
+          "dueAt": "2026-08-26T23:59:00",
+          "timeLabel": "all day",
+          "importance": "high"
+        },
+        {
+          "id": "dl2",
+          "title": "Reply to landlord about lease renewal",
+          "categoryLabel": "Admin",
+          "domain": "personal",
+          "dueAt": "2026-08-26T18:00:00",
+          "timeLabel": "6:00 PM",
+          "importance": "medium"
+        }
+      ],
+      "note": "One early lab and not much else \u2014 a good day to knock out the reading before it piles up."
+    },
+    {
+      "key": "2026-08-27",
+      "label": "Thursday",
+      "dateLabel": "Thursday, August 27",
+      "startHour": 7,
+      "endHour": 23,
+      "blocks": [
+        {
+          "id": "c3",
+          "left": 18.75,
+          "width": 6.25,
+          "swatch": "personal",
+          "color": null,
+          "overlap": false,
+          "label": "Dentist",
+          "time": "",
+          "past": false,
+          "important": false,
+          "detail": {
+            "title": "Dentist",
+            "range": "10:00 AM \u2013 11:00 AM",
+            "duration": "1h",
+            "where": null,
+            "prep": null,
+            "priority": null,
+            "domain": "personal"
+          }
+        }
+      ],
+      "chunks": [
+        {
+          "label": "Morning",
+          "left": 0,
+          "width": 31.25
+        },
+        {
+          "label": "Afternoon",
+          "left": 31.25,
+          "width": 31.25
+        },
+        {
+          "label": "Evening",
+          "left": 62.5,
+          "width": 31.25
+        },
+        {
+          "label": "Night",
+          "left": 93.75,
+          "width": 6.25
+        }
+      ],
+      "ticks": [
+        {
+          "hour": 7,
+          "left": 0,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 7.5,
+          "left": 3.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 8,
+          "left": 6.25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 8.5,
+          "left": 9.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 9,
+          "left": 12.5,
+          "major": true,
+          "label": "9"
+        },
+        {
+          "hour": 9.5,
+          "left": 15.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 10,
+          "left": 18.75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 10.5,
+          "left": 21.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 11,
+          "left": 25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 11.5,
+          "left": 28.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 12,
+          "left": 31.25,
+          "major": true,
+          "label": "12"
+        },
+        {
+          "hour": 12.5,
+          "left": 34.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 13,
+          "left": 37.5,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 13.5,
+          "left": 40.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 14,
+          "left": 43.75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 14.5,
+          "left": 46.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 15,
+          "left": 50,
+          "major": true,
+          "label": "3"
+        },
+        {
+          "hour": 15.5,
+          "left": 53.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 16,
+          "left": 56.25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 16.5,
+          "left": 59.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 17,
+          "left": 62.5,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 17.5,
+          "left": 65.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 18,
+          "left": 68.75,
+          "major": true,
+          "label": "6"
+        },
+        {
+          "hour": 18.5,
+          "left": 71.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 19,
+          "left": 75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 19.5,
+          "left": 78.125,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 20,
+          "left": 81.25,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 20.5,
+          "left": 84.375,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 21,
+          "left": 87.5,
+          "major": true,
+          "label": "9"
+        },
+        {
+          "hour": 21.5,
+          "left": 90.625,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 22,
+          "left": 93.75,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 22.5,
+          "left": 96.875,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 23,
+          "left": 100,
+          "major": false,
+          "label": ""
+        }
+      ],
+      "allDay": [
+        {
+          "id": "pd1",
+          "title": "Payday",
+          "swatch": "money",
+          "color": null,
+          "priority": "routine"
+        }
+      ],
+      "summary": "Dentist in the morning",
+      "busyness": 2,
+      "busynessWhy": [
+        "13% of the day booked"
+      ],
+      "events": [
+        {
+          "id": "fe1a",
+          "time": "9:00 AM",
+          "title": "Standup",
+          "where": "Zoom",
+          "duration": "30 min",
+          "prep": null,
+          "priority": null,
+          "past": false,
+          "running": false
+        },
+        {
+          "id": "fe1b",
+          "time": "2:00 PM",
+          "title": "Design review",
+          "where": null,
+          "duration": "1h",
+          "prep": null,
+          "priority": null,
+          "past": false,
+          "running": false
+        }
+      ],
+      "title": "Light day, one review in the afternoon",
+      "deadlinesToday": [
+        {
+          "id": "dl3",
+          "title": "Pay credit card bill",
+          "categoryLabel": "Finance",
+          "domain": "finance",
+          "dueAt": "2026-08-27T23:59:00",
+          "timeLabel": "all day",
+          "importance": "low"
+        }
+      ],
+      "note": "Lighter day with a dentist appointment in the afternoon. Nothing else on the books yet."
+    },
+    {
+      "key": "2026-08-28",
+      "label": "Friday",
+      "dateLabel": "Friday, August 28",
+      "startHour": 5,
+      "endHour": 23,
+      "blocks": [
+        {
+          "id": "c6",
+          "left": 0,
+          "width": 5.555555555555555,
+          "swatch": "opportunity",
+          "color": null,
+          "overlap": false,
+          "label": "",
+          "time": "",
+          "past": false,
+          "important": false,
+          "detail": {
+            "title": "Flight",
+            "range": "5:00 AM \u2013 6:00 AM",
+            "duration": "1h",
+            "where": null,
+            "prep": null,
+            "priority": null,
+            "domain": "personal"
+          }
+        }
+      ],
+      "chunks": [
+        {
+          "label": "Morning",
+          "left": 0,
+          "width": 38.88888888888889
+        },
+        {
+          "label": "Afternoon",
+          "left": 38.88888888888889,
+          "width": 27.777777777777764
+        },
+        {
+          "label": "Evening",
+          "left": 66.66666666666666,
+          "width": 27.777777777777786
+        },
+        {
+          "label": "Night",
+          "left": 94.44444444444444,
+          "width": 5.555555555555557
+        }
+      ],
+      "ticks": [
+        {
+          "hour": 5,
+          "left": 0,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 5.5,
+          "left": 2.7777777777777777,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 6,
+          "left": 5.555555555555555,
+          "major": true,
+          "label": "6"
+        },
+        {
+          "hour": 6.5,
+          "left": 8.333333333333332,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 7,
+          "left": 11.11111111111111,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 7.5,
+          "left": 13.88888888888889,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 8,
+          "left": 16.666666666666664,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 8.5,
+          "left": 19.444444444444446,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 9,
+          "left": 22.22222222222222,
+          "major": true,
+          "label": "9"
+        },
+        {
+          "hour": 9.5,
+          "left": 25.0,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 10,
+          "left": 27.77777777777778,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 10.5,
+          "left": 30.555555555555557,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 11,
+          "left": 33.33333333333333,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 11.5,
+          "left": 36.11111111111111,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 12,
+          "left": 38.88888888888889,
+          "major": true,
+          "label": "12"
+        },
+        {
+          "hour": 12.5,
+          "left": 41.66666666666667,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 13,
+          "left": 44.44444444444444,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 13.5,
+          "left": 47.22222222222222,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 14,
+          "left": 50,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 14.5,
+          "left": 52.77777777777778,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 15,
+          "left": 55.55555555555556,
+          "major": true,
+          "label": "3"
+        },
+        {
+          "hour": 15.5,
+          "left": 58.333333333333336,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 16,
+          "left": 61.111111111111114,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 16.5,
+          "left": 63.888888888888886,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 17,
+          "left": 66.66666666666666,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 17.5,
+          "left": 69.44444444444444,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 18,
+          "left": 72.22222222222221,
+          "major": true,
+          "label": "6"
+        },
+        {
+          "hour": 18.5,
+          "left": 75.0,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 19,
+          "left": 77.77777777777779,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 19.5,
+          "left": 80.55555555555556,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 20,
+          "left": 83.33333333333334,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 20.5,
+          "left": 86.11111111111111,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 21,
+          "left": 88.88888888888889,
+          "major": true,
+          "label": "9"
+        },
+        {
+          "hour": 21.5,
+          "left": 91.66666666666666,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 22,
+          "left": 94.44444444444444,
+          "major": false,
+          "label": ""
+        },
+        {
+          "hour": 22.5,
+          "left": 97.22222222222221,
+          "major": false,
+          "half": true,
+          "label": ""
+        },
+        {
+          "hour": 23,
+          "left": 100,
+          "major": false,
+          "label": ""
+        }
+      ],
+      "allDay": [],
+      "summary": "Flight in the morning",
+      "busyness": 1,
+      "busynessWhy": [],
+      "events": [
+        {
+          "id": "fe2a",
+          "time": "9:00 AM",
+          "title": "Standup",
+          "where": "Zoom",
+          "duration": "30 min",
+          "prep": null,
+          "priority": null,
+          "past": false,
+          "running": false
+        },
+        {
+          "id": "fe2b",
+          "time": "2:00 PM",
+          "title": "Design review",
+          "where": null,
+          "duration": "1h",
+          "prep": null,
+          "priority": null,
+          "past": false,
+          "running": false
+        }
+      ],
+      "title": "Quiet Friday to wrap up the week",
+      "deadlinesToday": [],
+      "note": "Two shifts back to back \u2014 grab something to eat between them, there isn't much of a gap."
+    }
+  ],
+  "today": [
+    {
+      "id": "dw1",
+      "time": "all day",
+      "title": "Don't wanna",
+      "where": null,
+      "duration": null,
+      "prep": null,
+      "priority": null
+    },
+    {
+      "id": "c2",
+      "time": "2:00 PM",
+      "title": "Design review",
+      "where": null,
+      "duration": "1h",
+      "prep": null,
+      "priority": null
+    }
+  ],
+  "days": [
+    {
+      "key": "2026-08-26",
+      "label": "Tomorrow",
+      "dateLabel": "Aug 26",
+      "items": [
+        {
+          "id": "c4",
+          "time": "12:00 PM",
+          "chunk": "Afternoon",
+          "title": "Team lunch",
+          "where": null,
+          "duration": "1h",
+          "priority": null
+        },
+        {
+          "id": "c5",
+          "time": "6:00 PM",
+          "chunk": "Evening",
+          "title": "Gym",
+          "where": null,
+          "duration": "1h",
+          "priority": null
+        }
+      ],
+      "clear": false
+    },
+    {
+      "key": "2026-08-27",
+      "label": "Thursday",
+      "dateLabel": "Aug 27",
+      "items": [
+        {
+          "id": "pd1",
+          "time": "all day",
+          "chunk": null,
+          "title": "Payday",
+          "where": null,
+          "duration": null,
+          "priority": "routine"
+        },
+        {
+          "id": "c3",
+          "time": "10:00 AM",
+          "chunk": "Morning",
+          "title": "Dentist",
+          "where": null,
+          "duration": "1h",
+          "priority": null
+        }
+      ],
+      "clear": false
+    },
+    {
+      "key": "2026-08-28",
+      "label": "Friday",
+      "dateLabel": "Aug 28",
+      "items": [
+        {
+          "id": "c6",
+          "time": "5:00 AM",
+          "chunk": "Morning",
+          "title": "Flight",
+          "where": null,
+          "duration": "1h",
+          "priority": null
+        }
+      ],
+      "clear": false
+    }
+  ],
+  "week": {
+    "wakeHours": 16,
+    "days": [
+      {
+        "key": "2026-08-25",
+        "label": "Today",
+        "dateLabel": "Aug 25",
+        "busyHours": 1.5,
+        "freeHours": 14.5,
+        "load": 9,
+        "eventCount": 2,
+        "segments": [
+          {
+            "left": 12.5,
+            "width": 3.125,
+            "swatch": "work",
+            "color": null
+          },
+          {
+            "left": 43.75,
+            "width": 6.25,
+            "swatch": "class",
+            "color": null
+          }
+        ],
+        "allDay": [
+          {
+            "id": "dw1",
+            "title": "Don't wanna",
+            "swatch": "personal",
+            "color": null,
+            "priority": null
+          }
+        ],
+        "busyness": 3,
+        "busynessWhy": [
+          "9% of the day booked",
+          "1 all-day item"
+        ],
+        "note": "A steady day \u2014 standup and a design review, nothing else competing for your attention.",
+        "deadlineCount": 2
+      },
+      {
+        "key": "2026-08-26",
+        "label": "Tomorrow",
+        "dateLabel": "Aug 26",
+        "busyHours": 2,
+        "freeHours": 14,
+        "load": 13,
+        "eventCount": 2,
+        "segments": [
+          {
+            "left": 31.25,
+            "width": 6.25,
+            "swatch": "gmail",
+            "color": null
+          },
+          {
+            "left": 68.75,
+            "width": 6.25,
+            "swatch": "personal",
+            "color": null
+          }
+        ],
+        "allDay": [],
+        "busyness": 3,
+        "busynessWhy": [
+          "13% of the day booked"
+        ],
+        "note": "Two standups and a lab report due \u2014 get the report in early so the afternoon review does not sneak up on you.",
+        "deadlineCount": 1
+      },
+      {
+        "key": "2026-08-27",
+        "label": "Thursday",
+        "dateLabel": "Aug 27",
+        "busyHours": 1,
+        "freeHours": 15,
+        "load": 6,
+        "eventCount": 1,
+        "segments": [
+          {
+            "left": 18.75,
+            "width": 6.25,
+            "swatch": "personal",
+            "color": null
+          }
+        ],
+        "allDay": [
+          {
+            "id": "pd1",
+            "title": "Payday",
+            "swatch": "money",
+            "color": null,
+            "priority": "routine"
+          }
+        ],
+        "busyness": 3,
+        "busynessWhy": [
+          "6% of the day booked",
+          "1 all-day item"
+        ],
+        "note": "Lighter than the rest of the week. Good day to get ahead on Friday prep if anything is outstanding.",
+        "deadlineCount": 0
+      },
+      {
+        "key": "2026-08-28",
+        "label": "Friday",
+        "dateLabel": "Aug 28",
+        "busyHours": 0,
+        "freeHours": 16,
+        "load": 0,
+        "eventCount": 1,
+        "segments": [],
+        "allDay": [],
+        "busyness": 2,
+        "busynessWhy": [
+          "something you can't miss"
+        ],
+        "note": "Quiet close to the week \u2014 worth using the free time to reset before the weekend.",
+        "deadlineCount": 1
+      },
+      {
+        "key": "2026-08-29",
+        "label": "Saturday",
+        "dateLabel": "Aug 29",
+        "busyHours": 0,
+        "freeHours": 16,
+        "load": 0,
+        "eventCount": 0,
+        "segments": [],
+        "allDay": [],
+        "busyness": 1,
+        "busynessWhy": [],
+        "note": "Open Saturday, nothing on the books.",
+        "deadlineCount": 0
+      },
+      {
+        "key": "2026-08-30",
+        "label": "Sunday",
+        "dateLabel": "Aug 30",
+        "busyHours": 0,
+        "freeHours": 16,
+        "load": 0,
+        "eventCount": 0,
+        "segments": [],
+        "allDay": [],
+        "busyness": 1,
+        "busynessWhy": [],
+        "note": "Open Sunday \u2014 a good day to rest before Monday.",
+        "deadlineCount": 0
+      },
+      {
+        "key": "2026-08-31",
+        "label": "Monday",
+        "dateLabel": "Aug 31",
+        "busyHours": 0,
+        "freeHours": 16,
+        "load": 0,
+        "eventCount": 0,
+        "segments": [],
+        "allDay": [],
+        "busyness": 8,
+        "busynessWhy": [
+          "70% of the day booked",
+          "heavier commitments than usual",
+          "3 separate things on the calendar"
+        ],
+        "note": "New week starts here. Nothing scheduled yet, but check back as things get added.",
+        "deadlineCount": 1
+      }
+    ],
+    "looming": [
+      {
+        "id": "dw1",
+        "title": "Don't wanna",
+        "in": "today",
+        "dateLabel": "Tue, Aug 25",
+        "note": null
+      },
+      {
+        "id": "pd1",
+        "title": "Payday",
+        "in": "2 days",
+        "dateLabel": "Thu, Aug 27",
+        "note": "routine"
+      }
+    ]
+  },
+  "tasks": {
+    "inbox": {
+      "items": [
+        {
+          "id": "in-1",
+          "title": "Email CPRT about an Altium seat",
+          "do": "Email CPRT about an Altium seat",
+          "why": "Your license expires before the next lab is due.",
+          "top": true,
+          "origin": "email",
+          "originLabel": "Email",
+          "domain": "school",
+          "context": "Needs reply",
+          "age": 2,
+          "dueAt": "2026-08-29T23:59:00",
+          "daysOut": 1,
+          "due": "tomorrow",
+          "dateLabel": "Sat, Aug 29",
+          "priority": "medium",
+          "weight": 6,
+          "unmissable": false
+        },
+        {
+          "id": "in-2",
+          "title": "Design review",
+          "do": null,
+          "why": null,
+          "top": false,
+          "origin": "calendar",
+          "originLabel": "Calendar",
+          "domain": "work",
+          "context": "Meeting",
+          "age": null,
+          "dueAt": "2026-08-28T18:00:00",
+          "daysOut": 0,
+          "due": "6:00 PM",
+          "dateLabel": "Fri, Aug 28",
+          "priority": "high",
+          "weight": 8,
+          "unmissable": true
+        },
+        {
+          "id": "in-3",
+          "title": "Assignment 2 \u2014 ELEC 2507",
+          "do": null,
+          "why": null,
+          "top": false,
+          "origin": "brightspace",
+          "originLabel": "Brightspace",
+          "domain": "school",
+          "context": "Deadline",
+          "age": null,
+          "dueAt": "2026-08-31T23:59:00",
+          "daysOut": 3,
+          "due": "3 days",
+          "dateLabel": "Mon, Aug 31",
+          "priority": "medium",
+          "weight": 5,
+          "unmissable": false
+        },
+        {
+          "id": "in-4",
+          "title": "Fix the squeaky bike chain",
+          "do": null,
+          "why": null,
+          "top": false,
+          "origin": "calendar",
+          "originLabel": "Calendar",
+          "domain": "personal",
+          "context": null,
+          "age": 9,
+          "dueAt": null,
+          "daysOut": null,
+          "due": null,
+          "dateLabel": null,
+          "priority": "low",
+          "weight": 1,
+          "unmissable": false
+        }
+      ],
+      "hidden": 0,
+      "total": 4
+    },
+    "tracked": {
+      "items": [
+        {
+          "id": "tr-1",
+          "title": "Renew car insurance",
+          "do": "Renew car insurance",
+          "why": null,
+          "top": false,
+          "origin": "email",
+          "originLabel": "Email",
+          "domain": "personal",
+          "context": "Needs reply",
+          "age": 6,
+          "dueAt": "2026-08-20T23:59:00",
+          "daysOut": -8,
+          "due": "overdue",
+          "dateLabel": "Thu, Aug 20",
+          "priority": "high",
+          "weight": 7,
+          "unmissable": false,
+          "remindCount": 3,
+          "trackedSinceLabel": "Aug 20"
+        },
+        {
+          "id": "tr-2",
+          "title": "Book flu shot",
+          "do": null,
+          "why": null,
+          "top": false,
+          "origin": "calendar",
+          "originLabel": "Calendar",
+          "domain": "personal",
+          "context": null,
+          "age": null,
+          "dueAt": "2026-09-04T00:00:00",
+          "daysOut": 7,
+          "due": "7 days",
+          "dateLabel": "Fri, Sep 4",
+          "priority": "low",
+          "weight": 2,
+          "unmissable": false,
+          "remindCount": 0,
+          "trackedSinceLabel": "Aug 27"
+        },
+        {
+          "id": "tr-3",
+          "title": "Sort out summer sublet paperwork",
+          "do": null,
+          "why": null,
+          "top": false,
+          "origin": "email",
+          "originLabel": "Email",
+          "domain": "personal",
+          "context": null,
+          "age": 14,
+          "dueAt": null,
+          "daysOut": null,
+          "due": null,
+          "dateLabel": null,
+          "priority": "medium",
+          "weight": 3,
+          "unmissable": false,
+          "remindCount": 1,
+          "trackedSinceLabel": "Aug 25"
+        }
+      ],
+      "total": 3
+    },
+    "filedAway": {
+      "items": [
+        {
+          "id": "fa-1",
+          "title": "Newsletter: campus events this week",
+          "originLabel": "Email",
+          "dateLabel": null
+        },
+        {
+          "id": "fa-2",
+          "title": "Optional review session \u2014 ELEC 2507",
+          "originLabel": "Brightspace",
+          "dateLabel": "Aug 30"
+        }
+      ],
+      "total": 2
+    },
+    "resolved": {
+      "items": [
+        {
+          "id": "rs-1",
+          "title": "Pay tuition installment",
+          "originLabel": "Calendar",
+          "outcome": "done",
+          "resolvedLabel": "Aug 26"
+        },
+        {
+          "id": "rs-2",
+          "title": "Follow up with landlord",
+          "originLabel": "Email",
+          "outcome": "wontdo",
+          "resolvedLabel": "Aug 24"
+        },
+        {
+          "id": "rs-3",
+          "title": "Assignment 1 \u2014 ELEC 2507",
+          "originLabel": "Brightspace",
+          "outcome": "wrong",
+          "resolvedLabel": "Aug 22"
+        }
+      ],
+      "total": 3
+    },
+    "counts": {
+      "calendar": 2,
+      "brightspace": 0,
+      "email": 0,
+      "money": 0
+    },
+    "unscheduledBrightspaceCount": 2,
+    "configured": {
+      "calendar": true,
+      "brightspace": true,
+      "email": false,
+      "money": true
+    },
+    "status": {
+      "calendar": "ok",
+      "brightspace": "ok",
+      "email": "error"
+    }
+  },
+  "deadlines": [],
+  "portfolio": {
+    "base": "CAD",
+    "updatedLabel": "9m ago",
+    "total": 10744,
+    "dayPct": -0.31,
+    "dayValue": -34,
+    "weekPct": 1.2,
+    "monthPct": 3.6,
+    "holdingCount": 4,
+    "historyDays": 240,
+    "marketStatus": "US markets open",
+    "at": "2026-08-26T00:29:10.249Z",
+    "holdingsFrom": "vault",
+    "fx": {
+      "USD": 1.3721
+    },
+    "staleTickers": [],
+    "missingTickers": [],
+    "up": [
+      {
+        "ticker": "XEQT",
+        "pct": 0.42,
+        "value": 17,
+        "weightPct": 38.2
+      },
+      {
+        "ticker": "AMD",
+        "pct": 2.1,
+        "value": 10,
+        "weightPct": 4.7
+      },
+      {
+        "ticker": "MSFT",
+        "pct": 0.3,
+        "value": 2,
+        "weightPct": 7.6
+      }
+    ],
+    "down": [
+      {
+        "ticker": "VFV",
+        "pct": -0.85,
+        "value": -49,
+        "weightPct": 54
+      }
+    ],
+    "positions": [
+      {
+        "ticker": "XEQT.TO",
+        "display": "XEQT",
+        "name": "iShares Core Equity ETF",
+        "shares": 120,
+        "price": 34.21,
+        "currency": "CAD",
+        "value": 4105,
+        "weightPct": 38.2,
+        "dayChangePct": 0.42,
+        "dayChangeValue": 17,
+        "totalReturnPct": 12.4,
+        "stale": false
+      },
+      {
+        "ticker": "VFV.TO",
+        "display": "VFV",
+        "name": "Vanguard S&P 500",
+        "shares": 40,
+        "price": 145.1,
+        "currency": "CAD",
+        "value": 5804,
+        "weightPct": 54,
+        "dayChangePct": -0.85,
+        "dayChangeValue": -49,
+        "totalReturnPct": 22.1,
+        "stale": false
+      },
+      {
+        "ticker": "AMD",
+        "display": "AMD",
+        "name": "Advanced Micro Devices",
+        "shares": 3,
+        "price": 168.5,
+        "currency": "USD",
+        "value": 505,
+        "weightPct": 4.7,
+        "dayChangePct": 2.1,
+        "dayChangeValue": 10,
+        "totalReturnPct": -3.2,
+        "stale": false
+      },
+      {
+        "ticker": "MSFT",
+        "display": "MSFT",
+        "name": "Microsoft",
+        "shares": 2,
+        "price": 410.2,
+        "currency": "USD",
+        "value": 820,
+        "weightPct": 7.6,
+        "dayChangePct": 0.3,
+        "dayChangeValue": 2,
+        "totalReturnPct": 18.9,
+        "stale": false
+      }
+    ],
+    "stockIdea": [
+      {
+        "ticker": "CELH",
+        "name": "Celsius Holdings, Inc.",
+        "price": 32.14,
+        "currency": "USD",
+        "sector": "Consumer Defensive",
+        "summary": "Celsius Holdings, Inc. develops, markets, distributes, and sells functional energy drinks and liquid supplements in the United States and internationally.",
+        "reason": "similar to a holding you own \u00b7 Consumer Defensive is only 2% of your book \u00b7 analysts see 18% upside"
+      }
+    ],
+    "stockIdeaAt": null,
+    "sectorAllocation": [
+      {
+        "sector": "Information Technology",
+        "pct": 31.4
+      },
+      {
+        "sector": "Financials",
+        "pct": 14.2
+      },
+      {
+        "sector": "Health Care",
+        "pct": 10.8
+      },
+      {
+        "sector": "Consumer Discretionary",
+        "pct": 9.6
+      },
+      {
+        "sector": "Industrials",
+        "pct": 9.1
+      },
+      {
+        "sector": "Communication Services",
+        "pct": 7.8
+      },
+      {
+        "sector": "Consumer Staples",
+        "pct": 5.4
+      },
+      {
+        "sector": "Energy",
+        "pct": 4.3
+      },
+      {
+        "sector": "Materials",
+        "pct": 2.9
+      },
+      {
+        "sector": "Utilities",
+        "pct": 2.6
+      },
+      {
+        "sector": "Real Estate",
+        "pct": 1.9
+      }
+    ],
+    "currencyExposure": [
+      {
+        "currency": "USD",
+        "pct": 61.6
+      },
+      {
+        "currency": "CAD",
+        "pct": 38.4
+      }
+    ]
+  },
+  "alerts": [],
+  "priorities": [],
+  "year": {
+    "day": 237,
+    "total": 365,
+    "pct": 65,
+    "year": 2026,
+    "weeks": 53,
+    "cells": [
+      {
+        "date": "2026-01-01",
+        "week": 0,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -2.33,
+        "dayValue": -261,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-02",
+        "week": 0,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -1.66,
+        "dayValue": -153,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-03",
+        "week": 0,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-04",
+        "week": 1,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-05",
+        "week": 1,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -1.6,
+        "dayValue": -184,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-06",
+        "week": 1,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -1.81,
+        "dayValue": -205,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-07",
+        "week": 1,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -0.48,
+        "dayValue": -58,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-01-08",
+        "week": 1,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 1.86,
+        "dayValue": 175,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-01-09",
+        "week": 1,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -2.04,
+        "dayValue": -214,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-10",
+        "week": 1,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-11",
+        "week": 2,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-12",
+        "week": 2,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.08,
+        "dayValue": 224,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-01-13",
+        "week": 2,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -2.74,
+        "dayValue": -253,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-14",
+        "week": 2,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 2.84,
+        "dayValue": 278,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-01-15",
+        "week": 2,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -1.24,
+        "dayValue": -139,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-16",
+        "week": 2,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -0.83,
+        "dayValue": -90,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-01-17",
+        "week": 2,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-18",
+        "week": 3,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-19",
+        "week": 3,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -2.39,
+        "dayValue": -281,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-20",
+        "week": 3,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 2.0,
+        "dayValue": 183,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-01-21",
+        "week": 3,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -1.74,
+        "dayValue": -204,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-22",
+        "week": 3,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 0.89,
+        "dayValue": 101,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-01-23",
+        "week": 3,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 0.2,
+        "dayValue": 20,
+        "bucket": "g1"
+      },
+      {
+        "date": "2026-01-24",
+        "week": 3,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-25",
+        "week": 4,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-01-26",
+        "week": 4,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.06,
+        "dayValue": 210,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-01-27",
+        "week": 4,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.93,
+        "dayValue": 182,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-01-28",
+        "week": 4,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -1.39,
+        "dayValue": -131,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-01-29",
+        "week": 4,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 2.26,
+        "dayValue": 268,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-01-30",
+        "week": 4,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -0.0,
+        "dayValue": 0,
+        "bucket": "flat"
+      },
+      {
+        "date": "2026-01-31",
+        "week": 4,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-01",
+        "week": 5,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-02",
+        "week": 5,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.51,
+        "dayValue": 55,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-02-03",
+        "week": 5,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -0.83,
+        "dayValue": -102,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-02-04",
+        "week": 5,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 0.06,
+        "dayValue": 6,
+        "bucket": "flat"
+      },
+      {
+        "date": "2026-02-05",
+        "week": 5,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 2.17,
+        "dayValue": 237,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-06",
+        "week": 5,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 1.75,
+        "dayValue": 207,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-07",
+        "week": 5,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-08",
+        "week": 6,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-09",
+        "week": 6,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.65,
+        "dayValue": 291,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-10",
+        "week": 6,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.09,
+        "dayValue": 124,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-11",
+        "week": 6,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.61,
+        "dayValue": 149,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-12",
+        "week": 6,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -0.39,
+        "dayValue": -38,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-02-13",
+        "week": 6,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.26,
+        "dayValue": 227,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-14",
+        "week": 6,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-15",
+        "week": 7,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-16",
+        "week": 7,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.05,
+        "dayValue": 5,
+        "bucket": "flat"
+      },
+      {
+        "date": "2026-02-17",
+        "week": 7,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.58,
+        "dayValue": 158,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-18",
+        "week": 7,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 2.53,
+        "dayValue": 283,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-19",
+        "week": 7,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -1.06,
+        "dayValue": -109,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-02-20",
+        "week": 7,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.27,
+        "dayValue": 234,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-21",
+        "week": 7,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-22",
+        "week": 8,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-02-23",
+        "week": 8,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 1.9,
+        "dayValue": 231,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-24",
+        "week": 8,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.6,
+        "dayValue": 180,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-25",
+        "week": 8,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 2.68,
+        "dayValue": 297,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-26",
+        "week": 8,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 2.23,
+        "dayValue": 216,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-27",
+        "week": 8,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.57,
+        "dayValue": 295,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-02-28",
+        "week": 8,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-01",
+        "week": 9,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-02",
+        "week": 9,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -0.29,
+        "dayValue": -36,
+        "bucket": "r1"
+      },
+      {
+        "date": "2026-03-03",
+        "week": 9,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -0.97,
+        "dayValue": -109,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-03-04",
+        "week": 9,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 0.53,
+        "dayValue": 58,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-03-05",
+        "week": 9,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 0.79,
+        "dayValue": 90,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-03-06",
+        "week": 9,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.16,
+        "dayValue": 256,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-03-07",
+        "week": 9,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-08",
+        "week": 10,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-09",
+        "week": 10,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.46,
+        "dayValue": 42,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-03-10",
+        "week": 10,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.84,
+        "dayValue": 187,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-03-11",
+        "week": 10,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 0.95,
+        "dayValue": 95,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-03-12",
+        "week": 10,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -0.2,
+        "dayValue": -20,
+        "bucket": "r1"
+      },
+      {
+        "date": "2026-03-13",
+        "week": 10,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 0.92,
+        "dayValue": 112,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-03-14",
+        "week": 10,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-15",
+        "week": 11,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-16",
+        "week": 11,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -0.31,
+        "dayValue": -35,
+        "bucket": "r1"
+      },
+      {
+        "date": "2026-03-17",
+        "week": 11,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -0.22,
+        "dayValue": -23,
+        "bucket": "r1"
+      },
+      {
+        "date": "2026-03-18",
+        "week": 11,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -0.34,
+        "dayValue": -41,
+        "bucket": "r1"
+      },
+      {
+        "date": "2026-03-19",
+        "week": 11,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -2.41,
+        "dayValue": -256,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-03-20",
+        "week": 11,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.02,
+        "dayValue": 202,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-03-21",
+        "week": 11,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-22",
+        "week": 12,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-23",
+        "week": 12,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -2.01,
+        "dayValue": -201,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-03-24",
+        "week": 12,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -1.41,
+        "dayValue": -155,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-03-25",
+        "week": 12,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -1.29,
+        "dayValue": -155,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-03-26",
+        "week": 12,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 2.97,
+        "dayValue": 309,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-03-27",
+        "week": 12,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -0.08,
+        "dayValue": -8,
+        "bucket": "flat"
+      },
+      {
+        "date": "2026-03-28",
+        "week": 12,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-29",
+        "week": 13,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-03-30",
+        "week": 13,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.51,
+        "dayValue": 48,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-03-31",
+        "week": 13,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 0.19,
+        "dayValue": 18,
+        "bucket": "g1"
+      },
+      {
+        "date": "2026-04-01",
+        "week": 13,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -2.52,
+        "dayValue": -239,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-02",
+        "week": 13,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -2.59,
+        "dayValue": -289,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-03",
+        "week": 13,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -2.28,
+        "dayValue": -266,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-04",
+        "week": 13,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-05",
+        "week": 14,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-06",
+        "week": 14,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -1.1,
+        "dayValue": -114,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-07",
+        "week": 14,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.3,
+        "dayValue": 160,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-04-08",
+        "week": 14,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -2.21,
+        "dayValue": -240,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-09",
+        "week": 14,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -1.1,
+        "dayValue": -135,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-10",
+        "week": 14,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -2.94,
+        "dayValue": -350,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-11",
+        "week": 14,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-12",
+        "week": 15,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-13",
+        "week": 15,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.29,
+        "dayValue": 259,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-04-14",
+        "week": 15,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -1.29,
+        "dayValue": -140,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-15",
+        "week": 15,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.22,
+        "dayValue": 122,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-04-16",
+        "week": 15,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 0.92,
+        "dayValue": 103,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-04-17",
+        "week": 15,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 0.33,
+        "dayValue": 31,
+        "bucket": "g1"
+      },
+      {
+        "date": "2026-04-18",
+        "week": 15,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-19",
+        "week": 16,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-20",
+        "week": 16,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -1.37,
+        "dayValue": -167,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-21",
+        "week": 16,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -0.94,
+        "dayValue": -112,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-04-22",
+        "week": 16,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -1.42,
+        "dayValue": -142,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-23",
+        "week": 16,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -2.7,
+        "dayValue": -290,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-24",
+        "week": 16,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -1.34,
+        "dayValue": -130,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-04-25",
+        "week": 16,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-26",
+        "week": 17,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-04-27",
+        "week": 17,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.37,
+        "dayValue": 37,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-04-28",
+        "week": 17,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 2.42,
+        "dayValue": 271,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-04-29",
+        "week": 17,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -0.78,
+        "dayValue": -87,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-04-30",
+        "week": 17,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -2.24,
+        "dayValue": -216,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-01",
+        "week": 17,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.83,
+        "dayValue": 328,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-02",
+        "week": 17,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-03",
+        "week": 18,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-04",
+        "week": 18,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -0.56,
+        "dayValue": -61,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-05-05",
+        "week": 18,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 2.55,
+        "dayValue": 233,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-06",
+        "week": 18,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 2.86,
+        "dayValue": 291,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-07",
+        "week": 18,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -2.85,
+        "dayValue": -262,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-08",
+        "week": 18,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 1.69,
+        "dayValue": 205,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-09",
+        "week": 18,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-10",
+        "week": 19,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-11",
+        "week": 19,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.23,
+        "dayValue": 226,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-12",
+        "week": 19,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -1.8,
+        "dayValue": -168,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-13",
+        "week": 19,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -1.17,
+        "dayValue": -140,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-14",
+        "week": 19,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -1.66,
+        "dayValue": -202,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-15",
+        "week": 19,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -1.03,
+        "dayValue": -97,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-16",
+        "week": 19,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-17",
+        "week": 20,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-18",
+        "week": 20,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.64,
+        "dayValue": 306,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-19",
+        "week": 20,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -1.93,
+        "dayValue": -224,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-20",
+        "week": 20,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -2.77,
+        "dayValue": -264,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-21",
+        "week": 20,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 1.37,
+        "dayValue": 146,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-22",
+        "week": 20,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.91,
+        "dayValue": 317,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-23",
+        "week": 20,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-24",
+        "week": 21,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-25",
+        "week": 21,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 1.12,
+        "dayValue": 118,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-26",
+        "week": 21,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.02,
+        "dayValue": 100,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-27",
+        "week": 21,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 2.69,
+        "dayValue": 292,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-28",
+        "week": 21,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -1.12,
+        "dayValue": -129,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-05-29",
+        "week": 21,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.4,
+        "dayValue": 235,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-05-30",
+        "week": 21,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-05-31",
+        "week": 22,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-01",
+        "week": 22,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.64,
+        "dayValue": 296,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-02",
+        "week": 22,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 0.69,
+        "dayValue": 73,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-06-03",
+        "week": 22,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 2.0,
+        "dayValue": 216,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-04",
+        "week": 22,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -0.42,
+        "dayValue": -40,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-06-05",
+        "week": 22,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -1.07,
+        "dayValue": -105,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-06-06",
+        "week": 22,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-07",
+        "week": 23,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-08",
+        "week": 23,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.09,
+        "dayValue": 9,
+        "bucket": "flat"
+      },
+      {
+        "date": "2026-06-09",
+        "week": 23,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -2.44,
+        "dayValue": -240,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-06-10",
+        "week": 23,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.04,
+        "dayValue": 97,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-11",
+        "week": 23,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -2.12,
+        "dayValue": -237,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-06-12",
+        "week": 23,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 0.67,
+        "dayValue": 66,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-06-13",
+        "week": 23,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-14",
+        "week": 24,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-15",
+        "week": 24,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -1.54,
+        "dayValue": -144,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-06-16",
+        "week": 24,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 2.36,
+        "dayValue": 234,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-17",
+        "week": 24,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.67,
+        "dayValue": 189,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-18",
+        "week": 24,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 2.75,
+        "dayValue": 270,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-19",
+        "week": 24,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 0.34,
+        "dayValue": 33,
+        "bucket": "g1"
+      },
+      {
+        "date": "2026-06-20",
+        "week": 24,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-21",
+        "week": 25,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-22",
+        "week": 25,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.7,
+        "dayValue": 288,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-23",
+        "week": 25,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.89,
+        "dayValue": 220,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-24",
+        "week": 25,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.98,
+        "dayValue": 232,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-25",
+        "week": 25,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 1.46,
+        "dayValue": 142,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-26",
+        "week": 25,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 1.51,
+        "dayValue": 143,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-06-27",
+        "week": 25,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-28",
+        "week": 26,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-06-29",
+        "week": 26,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -1.29,
+        "dayValue": -137,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-06-30",
+        "week": 26,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 2.36,
+        "dayValue": 271,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-07-01",
+        "week": 26,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -1.61,
+        "dayValue": -182,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-02",
+        "week": 26,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -1.72,
+        "dayValue": -212,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-03",
+        "week": 26,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 0.26,
+        "dayValue": 25,
+        "bucket": "g1"
+      },
+      {
+        "date": "2026-07-04",
+        "week": 26,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-05",
+        "week": 27,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-06",
+        "week": 27,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.28,
+        "dayValue": 272,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-07-07",
+        "week": 27,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -2.96,
+        "dayValue": -294,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-08",
+        "week": 27,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -0.66,
+        "dayValue": -64,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-07-09",
+        "week": 27,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -0.49,
+        "dayValue": -52,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-07-10",
+        "week": 27,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 1.8,
+        "dayValue": 189,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-07-11",
+        "week": 27,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-12",
+        "week": 28,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-13",
+        "week": 28,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -0.57,
+        "dayValue": -69,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-07-14",
+        "week": 28,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 2.52,
+        "dayValue": 266,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-07-15",
+        "week": 28,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": -2.84,
+        "dayValue": -338,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-16",
+        "week": 28,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 0.98,
+        "dayValue": 107,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-07-17",
+        "week": 28,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -2.19,
+        "dayValue": -204,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-18",
+        "week": 28,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-19",
+        "week": 29,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-20",
+        "week": 29,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -1.33,
+        "dayValue": -163,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-21",
+        "week": 29,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -1.49,
+        "dayValue": -181,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-22",
+        "week": 29,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.49,
+        "dayValue": 177,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-07-23",
+        "week": 29,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -1.65,
+        "dayValue": -160,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-24",
+        "week": 29,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -2.76,
+        "dayValue": -295,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-25",
+        "week": 29,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-26",
+        "week": 30,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-07-27",
+        "week": 30,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.38,
+        "dayValue": 35,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-07-28",
+        "week": 30,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -1.46,
+        "dayValue": -151,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-07-29",
+        "week": 30,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 0.64,
+        "dayValue": 79,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-07-30",
+        "week": 30,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 1.67,
+        "dayValue": 167,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-07-31",
+        "week": 30,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -2.35,
+        "dayValue": -274,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-08-01",
+        "week": 30,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-02",
+        "week": 31,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-03",
+        "week": 31,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.55,
+        "dayValue": 67,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-08-04",
+        "week": 31,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -2.39,
+        "dayValue": -295,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-08-05",
+        "week": 31,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.11,
+        "dayValue": 121,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-08-06",
+        "week": 31,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 2.9,
+        "dayValue": 332,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-08-07",
+        "week": 31,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 0.2,
+        "dayValue": 19,
+        "bucket": "g1"
+      },
+      {
+        "date": "2026-08-08",
+        "week": 31,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-09",
+        "week": 32,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-10",
+        "week": 32,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 2.76,
+        "dayValue": 304,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-08-11",
+        "week": 32,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": -0.24,
+        "dayValue": -26,
+        "bucket": "r1"
+      },
+      {
+        "date": "2026-08-12",
+        "week": 32,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 1.4,
+        "dayValue": 162,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-08-13",
+        "week": 32,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": 0.7,
+        "dayValue": 65,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-08-14",
+        "week": 32,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": -0.1,
+        "dayValue": -11,
+        "bucket": "flat"
+      },
+      {
+        "date": "2026-08-15",
+        "week": 32,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-16",
+        "week": 33,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-17",
+        "week": 33,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": -1.54,
+        "dayValue": -148,
+        "bucket": "r3"
+      },
+      {
+        "date": "2026-08-18",
+        "week": 33,
+        "weekday": 2,
+        "today": false,
+        "future": false,
+        "dayPct": 1.01,
+        "dayValue": 124,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-08-19",
+        "week": 33,
+        "weekday": 3,
+        "today": false,
+        "future": false,
+        "dayPct": 2.11,
+        "dayValue": 198,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-08-20",
+        "week": 33,
+        "weekday": 4,
+        "today": false,
+        "future": false,
+        "dayPct": -0.87,
+        "dayValue": -85,
+        "bucket": "r2"
+      },
+      {
+        "date": "2026-08-21",
+        "week": 33,
+        "weekday": 5,
+        "today": false,
+        "future": false,
+        "dayPct": 2.28,
+        "dayValue": 252,
+        "bucket": "g3"
+      },
+      {
+        "date": "2026-08-22",
+        "week": 33,
+        "weekday": 6,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-23",
+        "week": 34,
+        "weekday": 0,
+        "today": false,
+        "future": false,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "nodata"
+      },
+      {
+        "date": "2026-08-24",
+        "week": 34,
+        "weekday": 1,
+        "today": false,
+        "future": false,
+        "dayPct": 0.33,
+        "dayValue": 31,
+        "bucket": "g1"
+      },
+      {
+        "date": "2026-08-25",
+        "week": 34,
+        "weekday": 2,
+        "today": true,
+        "future": false,
+        "dayPct": 0.88,
+        "dayValue": 106,
+        "bucket": "g2"
+      },
+      {
+        "date": "2026-08-26",
+        "week": 34,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-08-27",
+        "week": 34,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-08-28",
+        "week": 34,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-08-29",
+        "week": 34,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-08-30",
+        "week": 35,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-08-31",
+        "week": 35,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-01",
+        "week": 35,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-02",
+        "week": 35,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-03",
+        "week": 35,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-04",
+        "week": 35,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-05",
+        "week": 35,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-06",
+        "week": 36,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-07",
+        "week": 36,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-08",
+        "week": 36,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-09",
+        "week": 36,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-10",
+        "week": 36,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-11",
+        "week": 36,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-12",
+        "week": 36,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-13",
+        "week": 37,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-14",
+        "week": 37,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-15",
+        "week": 37,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-16",
+        "week": 37,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-17",
+        "week": 37,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-18",
+        "week": 37,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-19",
+        "week": 37,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-20",
+        "week": 38,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-21",
+        "week": 38,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-22",
+        "week": 38,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-23",
+        "week": 38,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-24",
+        "week": 38,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-25",
+        "week": 38,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-26",
+        "week": 38,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-27",
+        "week": 39,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-28",
+        "week": 39,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-29",
+        "week": 39,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-09-30",
+        "week": 39,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-01",
+        "week": 39,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-02",
+        "week": 39,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-03",
+        "week": 39,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-04",
+        "week": 40,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-05",
+        "week": 40,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-06",
+        "week": 40,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-07",
+        "week": 40,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-08",
+        "week": 40,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-09",
+        "week": 40,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-10",
+        "week": 40,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-11",
+        "week": 41,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-12",
+        "week": 41,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-13",
+        "week": 41,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-14",
+        "week": 41,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-15",
+        "week": 41,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-16",
+        "week": 41,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-17",
+        "week": 41,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-18",
+        "week": 42,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-19",
+        "week": 42,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-20",
+        "week": 42,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-21",
+        "week": 42,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-22",
+        "week": 42,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-23",
+        "week": 42,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-24",
+        "week": 42,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-25",
+        "week": 43,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-26",
+        "week": 43,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-27",
+        "week": 43,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-28",
+        "week": 43,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-29",
+        "week": 43,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-30",
+        "week": 43,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-10-31",
+        "week": 43,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-01",
+        "week": 44,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-02",
+        "week": 44,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-03",
+        "week": 44,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-04",
+        "week": 44,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-05",
+        "week": 44,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-06",
+        "week": 44,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-07",
+        "week": 44,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-08",
+        "week": 45,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-09",
+        "week": 45,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-10",
+        "week": 45,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-11",
+        "week": 45,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-12",
+        "week": 45,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-13",
+        "week": 45,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-14",
+        "week": 45,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-15",
+        "week": 46,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-16",
+        "week": 46,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-17",
+        "week": 46,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-18",
+        "week": 46,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-19",
+        "week": 46,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-20",
+        "week": 46,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-21",
+        "week": 46,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-22",
+        "week": 47,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-23",
+        "week": 47,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-24",
+        "week": 47,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-25",
+        "week": 47,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-26",
+        "week": 47,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-27",
+        "week": 47,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-28",
+        "week": 47,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-29",
+        "week": 48,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-11-30",
+        "week": 48,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-01",
+        "week": 48,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-02",
+        "week": 48,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-03",
+        "week": 48,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-04",
+        "week": 48,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-05",
+        "week": 48,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-06",
+        "week": 49,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-07",
+        "week": 49,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-08",
+        "week": 49,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-09",
+        "week": 49,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-10",
+        "week": 49,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-11",
+        "week": 49,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-12",
+        "week": 49,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-13",
+        "week": 50,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-14",
+        "week": 50,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-15",
+        "week": 50,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-16",
+        "week": 50,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-17",
+        "week": 50,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-18",
+        "week": 50,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-19",
+        "week": 50,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-20",
+        "week": 51,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-21",
+        "week": 51,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-22",
+        "week": 51,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-23",
+        "week": 51,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-24",
+        "week": 51,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-25",
+        "week": 51,
+        "weekday": 5,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-26",
+        "week": 51,
+        "weekday": 6,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-27",
+        "week": 52,
+        "weekday": 0,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-28",
+        "week": 52,
+        "weekday": 1,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-29",
+        "week": 52,
+        "weekday": 2,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-30",
+        "week": 52,
+        "weekday": 3,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      },
+      {
+        "date": "2026-12-31",
+        "week": 52,
+        "weekday": 4,
+        "today": false,
+        "future": true,
+        "dayPct": null,
+        "dayValue": null,
+        "bucket": "future"
+      }
+    ],
+    "months": [
+      {
+        "label": "Jan",
+        "week": 0
+      },
+      {
+        "label": "Feb",
+        "week": 5
+      },
+      {
+        "label": "Mar",
+        "week": 9
+      },
+      {
+        "label": "Apr",
+        "week": 13
+      },
+      {
+        "label": "May",
+        "week": 17
+      },
+      {
+        "label": "Jun",
+        "week": 22
+      },
+      {
+        "label": "Jul",
+        "week": 26
+      },
+      {
+        "label": "Aug",
+        "week": 30
+      },
+      {
+        "label": "Sep",
+        "week": 35
+      },
+      {
+        "label": "Oct",
+        "week": 39
+      },
+      {
+        "label": "Nov",
+        "week": 44
+      },
+      {
+        "label": "Dec",
+        "week": 48
+      }
+    ],
+    "moneyUpdatedLabel": null,
+    "base": "CAD",
+    "stats": {
+      "trackedDays": 237,
+      "upDays": 97,
+      "downDays": 102,
+      "flatDays": 38,
+      "longestUpStreak": 5,
+      "longestDownStreak": 4,
+      "bestDay": {
+        "date": "2026-04-11",
+        "dayPct": 2.98,
+        "dayValue": 273
+      },
+      "worstDay": {
+        "date": "2026-05-24",
+        "dayPct": -2.99,
+        "dayValue": -357
+      }
+    }
+  },
+  "deadlinesToday": [
+    {
+      "id": "dl-today-1",
+      "title": "Library books due",
+      "categoryLabel": "Admin",
+      "domain": "personal",
+      "dueAt": "2026-08-25T23:59:00",
+      "timeLabel": "all day",
+      "importance": "medium"
+    },
+    {
+      "id": "dl-today-2",
+      "title": "Car inspection",
+      "categoryLabel": "Admin",
+      "domain": "personal",
+      "dueAt": "2026-08-25T23:59:00",
+      "timeLabel": "all day",
+      "importance": "high"
+    },
+    {
+      "id": "bs1",
+      "title": "Assignment 2 \u2014 ELEC 2507",
+      "categoryLabel": "Deadline",
+      "domain": "school",
+      "dueAt": "2026-08-29T23:59:00",
+      "timeLabel": "11:59 PM",
+      "importance": "medium"
+    }
+  ],
+  "market": {
+    "updatedLabel": "5m ago",
+    "at": "2026-08-28T13:35:00.000Z",
+    "indices": [
+      {
+        "symbol": "^GSPC",
+        "label": "S&P 500",
+        "pct": 0.34
+      },
+      {
+        "symbol": "^GSPTSE",
+        "label": "TSX",
+        "pct": -0.12
+      },
+      {
+        "symbol": "^IXIC",
+        "label": "Nasdaq",
+        "pct": 0.61
+      }
+    ],
+    "vix": {
+      "value": 14.8,
+      "bucket": "calm"
+    },
+    "headlines": [
+      {
+        "title": "Stocks edge higher as investors weigh cooling inflation data",
+        "link": "https://example.com/a",
+        "source": "CNBC"
+      },
+      {
+        "title": "Tech shares lead gains ahead of earnings from major chipmakers",
+        "link": "https://example.com/b",
+        "source": "Yahoo Finance"
+      },
+      {
+        "title": "Bank of Canada seen holding rates steady at next meeting",
+        "link": "https://example.com/c",
+        "source": "Financial Post"
+      },
+      {
+        "title": "Oil prices slip on demand concerns despite supply cuts",
+        "link": "https://example.com/d",
+        "source": "MarketWatch"
+      }
+    ],
+    "feedErrors": [
+      "Financial Post"
+    ],
+    "take": "Major indices drifted higher on cooling inflation data while the TSX slipped slightly; your book was roughly flat."
+  }
+}

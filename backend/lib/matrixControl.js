@@ -53,19 +53,43 @@ const DEFAULT_ENABLED = SCREENS.filter((s) => s.hasData).map((s) => s.id);
 // section's checkboxes don't imply you can add these to auto-rotation.
 export const BENCH_SCREENS = [
   { id: "clock", label: "Clock", description: "Large digital clock — no live data needed" },
-  { id: "dayoverview", label: "Day Overview (bench)", description: "Hours busy/free for today, computed on-device" },
-  { id: "commuting", label: "Commuting (bench)", description: "Commute ETA placeholder screen" },
+  { id: "dayoverview", label: "Today's Timeline", description: "Hours busy vs. free today, computed on-device" },
+  { id: "commuting", label: "Commute", description: "Commute ETA placeholder screen — coming soon" },
   { id: "stars", label: "Stars", description: "Ambient starfield effect" },
   { id: "balls", label: "Balls", description: "Ambient bouncing-balls effect" },
 ];
 const BENCH_IDS = new Set(BENCH_SCREENS.map((s) => s.id));
-// Everything pin/push can legally target: the six data screens above plus
-// the five bench-only ones. Deliberately does NOT require enabledScreens
-// membership (see setPinnedScreen below) — pinning or pushing a screen
-// already bypasses rotation entirely, so there was never a real reason to
-// also demand it be in rotation, and bench screens could never be in
-// rotation in the first place.
-const ALL_PIN_IDS = new Set([...SCREEN_IDS, ...BENCH_IDS]);
+
+// Round 78 — Jon: "redo this one. I need every single screen that we have
+// design, including the alerts, including the warnings, including the
+// notifications, the no connections, everything." The firmware has always
+// had a real "no connection" screen (renderOffline(), triggered whenever
+// !dataValid or the last successful poll is older than STALE_THRESHOLD_MS
+// — see loop()'s own offline check, which runs BEFORE any pin/push logic
+// and always wins) but it had no catalog entry anywhere, so there was no
+// way to preview it from the web page. This is that entry — kept as its
+// own small list, not folded into BENCH_SCREENS, because it isn't really
+// "a screen" the same way Clock/Stars are: it's a simulated SYSTEM STATE,
+// pin/push-only, and completely safe to preview at any time — the real
+// offline check in loop() always takes priority regardless of what's
+// pinned or pushed, so previewing this can never mask or delay an actual
+// outage, only demo one while the wall is genuinely online.
+export const OVERLAY_SCREENS = [
+  {
+    id: "offline",
+    label: "No Connection",
+    description: "What the wall shows when it can't reach the Pi — safe to preview any time",
+  },
+];
+const OVERLAY_IDS = new Set(OVERLAY_SCREENS.map((s) => s.id));
+
+// Everything pin/push can legally target: the data screens, the bench-only
+// ones, and the overlay/system-state ones. Deliberately does NOT require
+// enabledScreens membership (see setPinnedScreen below) — pinning or
+// pushing a screen already bypasses rotation entirely, so there was never
+// a real reason to also demand it be in rotation, and bench/overlay
+// screens could never be in rotation in the first place.
+const ALL_PIN_IDS = new Set([...SCREEN_IDS, ...BENCH_IDS, ...OVERLAY_IDS]);
 
 // The wall is 192px wide (three 64px panels) at a small pixel font — a long
 // notification just scrolls off into nothing useful. 60 chars is generous
@@ -311,6 +335,7 @@ export async function statusPayload(now = new Date(), { onlineWithinMs = 10_000 
   return {
     screens: SCREENS,
     benchScreens: BENCH_SCREENS,
+    overlayScreens: OVERLAY_SCREENS,
     enabledScreens: state.enabledScreens,
     pinnedScreen: state.pinnedScreen,
     pushedScreen: livePushedScreen(state, now),

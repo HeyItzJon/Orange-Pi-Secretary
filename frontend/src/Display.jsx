@@ -2681,10 +2681,9 @@ function WallPage({ d }) {
             Pin locks the wall on one screen indefinitely instead of auto-rotating. Push jumps
             there right now for a bit ({pushSeconds}s) and then falls back to whatever was
             already pinned or rotating — round-75 addition, Jon: "push a page or pin a page
-            depending." Every screen the firmware knows how to render is listed here, not just
-            the ones enabled for rotation above — that includes the bench-only/ambient ones
-            (Clock, Day Overview, Commuting, Stars, Balls), which were never eligible for
-            rotation in the first place but the firmware has always been willing to show.
+            depending." Every screen and system state the firmware knows how to render is
+            listed below, grouped the same way the firmware itself sees them — not just the
+            ones enabled for rotation above.
           </p>
           <div className="wpush-controls">
             <span className="wnote" style={{ margin: 0 }}>Push duration:</span>
@@ -2698,7 +2697,9 @@ function WallPage({ d }) {
             {status.pushedScreen && (
               <span className="wpush-live">
                 pushing <b>{(status.screens.find((s) => s.id === status.pushedScreen.id)
-                  || status.benchScreens.find((s) => s.id === status.pushedScreen.id))?.label || status.pushedScreen.id}</b>
+                  || status.benchScreens.find((s) => s.id === status.pushedScreen.id)
+                  || (status.overlayScreens || []).find((s) => s.id === status.pushedScreen.id))?.label
+                  || status.pushedScreen.id}</b>
                 {" "}· {status.pushedScreen.secondsRemaining}s left
                 <button className="wnclear" disabled={busy === "push-clear"} onClick={clearPush}>Clear</button>
               </span>
@@ -2713,28 +2714,46 @@ function WallPage({ d }) {
               Auto-rotate
             </button>
           </div>
-          <div className="wpinrows">
-            {[...status.screens, ...status.benchScreens].map((s) => (
-              <div key={s.id} className="wpinrow">
-                <span className="wpname">{s.label}</span>
-                <div className="wpinrow-btns">
-                  <button
-                    className={status.pinnedScreen === s.id ? "on" : ""}
-                    disabled={busy === `pin-${s.id}`}
-                    onClick={() => pin(s.id)}
-                  >
-                    Pin
-                  </button>
-                  <button
-                    disabled={busy === `push-${s.id}`}
-                    onClick={() => pushScreenNow(s.id)}
-                  >
-                    Push
-                  </button>
-                </div>
+          {/* Round 78 — three groups instead of one flat list: Data screens
+              (the same six toggled for rotation above — Portfolio, Markets,
+              Holdings, Today, News, Weather), Other screens (ambient/local,
+              never rotation-eligible — Clock, Today's Timeline, Commute,
+              Stars, Balls), and System states (simulated overlay conditions,
+              currently just No Connection — see matrixControl.js's
+              OVERLAY_SCREENS comment for why previewing this is always safe).
+              `|| []` on overlayScreens covers a backend that hasn't been
+              redeployed with this round yet. */}
+          {[
+            { label: "Data screens", items: status.screens },
+            { label: "Other screens", items: status.benchScreens },
+            { label: "System states", items: status.overlayScreens || [] },
+          ].map((group) => group.items.length > 0 && (
+            <div key={group.label} className="wpin-group">
+              <div className="wpin-group-label">{group.label}</div>
+              <div className="wpinrows">
+                {group.items.map((s) => (
+                  <div key={s.id} className="wpinrow">
+                    <span className="wpname">{s.label}</span>
+                    <div className="wpinrow-btns">
+                      <button
+                        className={status.pinnedScreen === s.id ? "on" : ""}
+                        disabled={busy === `pin-${s.id}`}
+                        onClick={() => pin(s.id)}
+                      >
+                        Pin
+                      </button>
+                      <button
+                        disabled={busy === `push-${s.id}`}
+                        onClick={() => pushScreenNow(s.id)}
+                      >
+                        Push
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </section>
 
         <section className="zone wnotify">
