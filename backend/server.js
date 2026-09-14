@@ -246,21 +246,35 @@ app.get("/api/matrix", async (_req, res) => {
       day: "2-digit",
     }).format(now);
 
-    const todayEvents = items
-      .filter((i) => i.source === "calendar" && i.dueAt?.startsWith(today) && i.status === "open")
+    // Round 76 — Jon: "the all day events are still showing up at the
+    // beginning of the timeline... I do not want [them] at the beginning
+    // of the timeline. I need you to make a new separate page... with the
+    // all day events separately... they can scroll." All-day events have
+    // no real clock time (clockTime/dueAt's time portion is meaningless
+    // for them), so they always sorted first by the .localeCompare below
+    // and ate a full-width timeline sliver at hour 0 — that's the "beginning
+    // of the timeline" bug. Fix: split them out entirely. `events` is now
+    // timed-only (feeds the timeline bar + per-event caption cycle exactly
+    // like before); `allDayEvents` is a new, separate list — title + cal
+    // only, there's nothing timeline-shaped about an all-day event — for
+    // the firmware's own dedicated all-day page.
+    const todayCalendarItems = items.filter(
+      (i) => i.source === "calendar" && i.dueAt?.startsWith(today) && i.status === "open"
+    );
+
+    const todayEvents = todayCalendarItems
+      .filter((e) => !e.meta?.allDay)
       .map((e) => {
-        // dur: real end-minus-start minutes when we know the end time —
-        // skip all-day events, there's no meaningful timeline-sliver width
-        // for those. Clamped to a sane 5-600min range so a bad/missing end
-        // time can't paint a degenerate or day-spanning bar. desc: the same
-        // concise note/time/location/attendee one-liner already built for
-        // the Tasks/Day list rows (e.detail from sources/calendar.js),
+        // dur: real end-minus-start minutes when we know the end time,
+        // clamped to a sane 5-600min range so a bad/missing end time can't
+        // paint a degenerate or day-spanning bar. desc: the same concise
+        // note/time/location/attendee one-liner already built for the
+        // Tasks/Day list rows (e.detail from sources/calendar.js),
         // truncated to fit the wall's second scrolling line. cal: the real
         // calendar bucket, already computed at ingestion (sources/
         // calendar.js's calendarSwatch() call) — round 72, closes the
         // round-62 gap (wrong/fallback event colors on the wall).
-        const hasRealDuration = e.meta?.end && !e.meta?.allDay;
-        const dur = hasRealDuration
+        const dur = e.meta?.end
           ? Math.min(600, Math.max(5, Math.round((new Date(e.meta.end) - new Date(e.dueAt)) / 60000)))
           : 30;
         return {
@@ -273,6 +287,13 @@ app.get("/api/matrix", async (_req, res) => {
         };
       })
       .sort((a, b) => a.time.localeCompare(b.time));
+
+    const allDayEvents = todayCalendarItems
+      .filter((e) => e.meta?.allDay)
+      .map((e) => ({
+        title: (e.title || "").slice(0, 40),
+        cal: e.swatch || "",
+      }));
 
     // Day Overview's hoursBusy/hoursFree — round 72, closes the round-64
     // punch-list gap. Same weekForecast() math the Week page already uses
@@ -362,6 +383,7 @@ app.get("/api/matrix", async (_req, res) => {
       gainers, // Top 3 holdings up today
       losers, // Top 3 holdings down today
       events: todayEvents,
+      allDayEvents, // round 76 — separate all-day list, see comment above
       dailyBusyPercent,
       dayOverview,
       holdings,
