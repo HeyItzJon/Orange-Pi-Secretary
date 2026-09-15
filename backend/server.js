@@ -202,12 +202,13 @@ function formatLastPriceLabel(iso, tz) {
 app.get("/api/matrix", async (_req, res) => {
   try {
     const now = new Date();
-    const [items, money, marketPulse, brief, eventDigest] = await Promise.all([
+    const [items, money, marketPulse, brief, eventDigest, weatherMeta] = await Promise.all([
       allItems(),
       getMeta("moneySummary", null),
       getMeta("marketPulse", null),
       getMeta("lastBrief", null),
       getMeta("eventDigest", null),
+      getMeta("weather", null),
     ]);
     const eventDigestMap = eventDigest?.map || {};
 
@@ -409,6 +410,27 @@ app.get("/api/matrix", async (_req, res) => {
     const lastPriceLabel =
       !marketOpen && lastQuotedAt ? formatLastPriceLabel(lastQuotedAt, config.timezone) : null;
 
+    // Weather — round 82. sources/weather.js (Open-Meteo, no API key)
+    // refreshes this on the same 15-minute source clock as everything else;
+    // by the time this route reads it, every fact is already decided —
+    // `icon` is one of the six buckets iconForWmoCode() maps every WMO code
+    // to (the same six keys the HUB75 Twin's weather chips use), and
+    // `summary` is either DeepSeek's plain description or, if the model is
+    // off/unavailable, sources/weather.js's own rule-built fallback
+    // sentence — this route never has to know which. Sent as null wholesale
+    // rather than a block of zeros if the source hasn't produced anything
+    // yet (fresh install, first pull still pending), so the firmware/wall
+    // doesn't mistake "no data yet" for a real 0°C reading.
+    const weather = weatherMeta
+      ? {
+          tempC: weatherMeta.currentTempC,
+          highC: weatherMeta.highC,
+          lowC: weatherMeta.lowC,
+          icon: weatherMeta.conditionKey, // sun | partly_sunny | cloud | rain | snow | lightning
+          summary: sanitizeForWall(weatherMeta.summary || ""),
+        }
+      : null;
+
     res.json({
       timestamp: now.getTime(),
       lastRefresh: money?.at || null,
@@ -423,6 +445,7 @@ app.get("/api/matrix", async (_req, res) => {
       dayOverview,
       holdings,
       news,
+      weather, // round 82 — see comment above
       marketOpen,
       lastPriceLabel, // e.g. "FRI 4:00PM" — only set when marketOpen is false (round 74)
     });

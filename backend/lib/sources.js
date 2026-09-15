@@ -18,7 +18,10 @@
 //
 // "marketNews" needs no credential at all (free RSS + the same Yahoo
 // Finance library the price pulls already use) — always on, same as money.
-export const SOURCES = ["email", "calendar", "money", "brightspace", "marketNews"];
+//
+// "weather" (round 82) needs no credential either — Open-Meteo is free and
+// keyless — always on, same reasoning.
+export const SOURCES = ["email", "calendar", "money", "brightspace", "marketNews", "weather"];
 
 export const SOURCE_LABELS = {
   email: "Email",
@@ -26,4 +29,5 @@ export const SOURCE_LABELS = {
   money: "Portfolio",
   brightspace: "Brightspace",
   marketNews: "Market news",
+  weather: "Weather",
 };

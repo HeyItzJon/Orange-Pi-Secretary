@@ -19,6 +19,7 @@ import { collectCalendar } from "../sources/calendar.js";
 import { collectMoney } from "../sources/money.js";
 import { collectBrightspace } from "../sources/brightspace.js";
 import { collectMarketNews } from "../sources/marketNews.js";
+import { collectWeather } from "../sources/weather.js";
 import { buildPriorities } from "./priorities.js";
 import { buildDayContext, buildDeadlinePool } from "./display.js";
 import { refreshInsights } from "./insights.js";
@@ -33,13 +34,17 @@ const log = logger("brief");
 // set yet is a harmless no-op rather than something that needs special-
 // casing out of this list. marketNews is the same shape again: always in
 // the rotation, produces zero items (see that file's own header), and just
-// writes the `marketPulse` meta blob the Finances page reads.
+// writes the `marketPulse` meta blob the Finances page reads. weather
+// (round 82) is the same shape a third time: zero items, writes the
+// `weather` meta blob the LED wall's Weather screen (and later a Today-page
+// chip) reads — see sources/weather.js's own header.
 const COLLECTORS = {
   email: collectEmail,
   calendar: collectCalendar,
   money: collectMoney,
   brightspace: collectBrightspace,
   marketNews: collectMarketNews,
+  weather: collectWeather,
 };
 
 /** The canonical source list. Everything that iterates sources reads this. */

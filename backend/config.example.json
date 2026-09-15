@@ -39,6 +39,14 @@
     "maxPastDays": 14,
     "_maxPastDays_note": "A Brightspace .ics feed commonly carries your ENTIRE enrollment history, not just the current term \u2014 old courses' assignment dates never expire out of it on their own. Anything due more than this many days ago is dropped at collection time rather than kept around forever as a permanently-open, permanently-unmatched item."
   },
+  "weather": {
+    "_comment": "Round 82. Entirely optional \u2014 every field below has a sensible default (sources/weather.js), so an empty {} or a missing 'weather' key altogether works fine. Backed by Open-Meteo (https://open-meteo.com) \u2014 no API key, no account.",
+    "latitude": 45.4215,
+    "longitude": -75.6972,
+    "_latlong_note": "Defaults to Ottawa, ON \u2014 where the physical LED wall lives. Override if the wall (or you) move.",
+    "units": "celsius",
+    "_units_note": "'celsius' or 'fahrenheit'."
+  },
   "categories": {
     "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",
     "_matching": "calendarPatterns match the calendar's name, titlePatterns match the event title or email subject, tiers match an email's rule tier. All are case-insensitive substring matches.",

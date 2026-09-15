@@ -25,14 +25,20 @@ const META_KEY = "matrixControl";
 // needs a renderer. `false` means the idea is on record (so the toggle
 // list shows what's coming, per Jon's "think of all the functionality I
 // want" ask) without pretending it already works or forcing a second trip
-// through this file once a real source — weather, say — gets built later.
+// through this file once a real source gets built later — exactly what
+// happened to `markets` in round 74 and, this round, to `weather` below.
 export const SCREENS = [
   { id: "portfolio", label: "Portfolio", description: "Total value and today's change", hasData: true },
   { id: "markets", label: "Markets", description: "TSX / NASDAQ / S&P plus today's top movers", hasData: true },
   { id: "holdings", label: "Holdings", description: "Top 5 positions by value", hasData: true },
   { id: "events", label: "Today", description: "Today's calendar events and busy score", hasData: true },
   { id: "news", label: "News", description: "Latest market headlines", hasData: true },
-  { id: "weather", label: "Weather", description: "No weather source is wired up yet — reserved for later", hasData: false },
+  // Round 82 — real data now (sources/weather.js, Open-Meteo): current
+  // temp, today's high/low, and a plain-language description. The
+  // firmware's renderer is still the round-57 "COMING SOON" placeholder —
+  // the HUB75 Twin mockup is what's settling that look before it gets
+  // ported over for real.
+  { id: "weather", label: "Weather", description: "Current temp, today's high/low, and a plain-language description", hasData: true },
 ];
 const SCREEN_IDS = new Set(SCREENS.map((s) => s.id));
 const DATA_SCREEN_IDS = new Set(SCREENS.filter((s) => s.hasData).map((s) => s.id));

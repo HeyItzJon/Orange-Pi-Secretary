@@ -57,7 +57,9 @@ group("defaults — nothing set yet");
 
 await atest("statusPayload before anything is ever touched: every data screen enabled, nothing pinned, offline", async () => {
   const s = await statusPayload(new Date("2026-08-30T12:00:00Z"));
-  assert.deepEqual(s.enabledScreens, ["portfolio", "markets", "holdings", "events", "news"]);
+  // Round 82: weather graduated to hasData: true (sources/weather.js is a
+  // real source now), so it joins the rest of the default rotation.
+  assert.deepEqual(s.enabledScreens, ["portfolio", "markets", "holdings", "events", "news", "weather"]);
   assert.equal(s.pinnedScreen, null);
   assert.equal(s.notification, null);
   assert.equal(s.testEvent, null);
@@ -65,11 +67,11 @@ await atest("statusPayload before anything is ever touched: every data screen en
   assert.equal(s.online, false, "never polled yet — must never fabricate 'online'");
 });
 
-await atest("the full SCREENS catalog is exposed, weather included and marked as having no data yet", async () => {
+await atest("the full SCREENS catalog is exposed, weather included and marked as having real data (round 82)", async () => {
   const s = await statusPayload();
   const weather = s.screens.find((sc) => sc.id === "weather");
-  assert.ok(weather, "weather should be listed even though it isn't buildable yet");
-  assert.equal(weather.hasData, false);
+  assert.ok(weather, "weather should be listed");
+  assert.equal(weather.hasData, true);
   assert.equal(SCREENS.length, s.screens.length);
 });
 
@@ -79,9 +81,11 @@ await atest("rejects a completely unknown id", async () => {
   await rejects(() => setEnabledScreens(["portfolio", "not-a-real-screen"]), "unknown screen");
 });
 
-await atest("rejects a real screen id that has no data source yet (weather)", async () => {
-  await rejects(() => setEnabledScreens(["portfolio", "weather"]), "no data source");
-});
+// Round 82: weather graduated to hasData: true, so there is currently no
+// SCREENS entry left with hasData: false to exercise this rejection branch
+// against (the `noData` check inside setEnabledScreens itself is
+// unchanged, and will fire again the moment some future placeholder screen
+// is added — nothing to cover here again until then).
 
 await atest("rejects an empty list — auto-rotate needs at least one screen", async () => {
   await rejects(() => setEnabledScreens([]), "at least one");
