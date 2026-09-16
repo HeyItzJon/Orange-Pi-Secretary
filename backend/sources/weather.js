@@ -25,13 +25,19 @@
 //     plain threshold, inspectable and unit-tested (scripts/test-weather.js)
 //     without a network call — never a judgment call handed to DeepSeek.
 //   - One DeepSeek sentence (lib/weatherTake.js) that reads those already-
-//     decided facts and writes a concise, PURELY DESCRIPTIVE line — "hot day
-//     today, chance of rain this afternoon," not "you should bring an
-//     umbrella." Jon was explicit this round that this stays simple and
-//     descriptive, not actionable — see that file's own header. Degrades to
-//     buildFallbackSummary() below (a plain rule-built sentence, no AI
-//     needed at all) if the model is off or the call fails, so the screen
-//     is never blank just because an API key expired.
+//     decided facts and writes a short, pointed line. Round 82's brief was
+//     purely descriptive ("hot day today, chance of rain this afternoon");
+//     round 87 flipped that — Jon wants the one thing the screen's numbers
+//     don't already say, never a recap of the high/low sitting right next
+//     to it, so this file now also decides compareToYesterday (a fixed
+//     °C-delta threshold, not a model guess) and peakHeatSlot (scanning
+//     hourlySlots for the hottest hour), and fetches the day's remaining
+//     timed events (buildTodaysEvents) so the summary can land a dry, real
+//     one — "bring a sweater to your 5 PM game" — instead of a generic
+//     one. See lib/weatherTake.js's own header for the prompt itself.
+//     Degrades to buildFallbackSummary() below (a plain rule-built
+//     sentence, no AI needed at all) if the model is off or the call
+//     fails, so the screen is never blank just because an API key expired.
 //
 // Deliberately produces NO items, same reasoning sources/marketNews.js
 // documents — "chance of rain" is not a thing you have to do. Writes one
@@ -48,7 +54,8 @@
 
 import axios from "axios";
 import { logger } from "../lib/log.js";
-import { getMeta, setMeta } from "../lib/store.js";
+import { getMeta, setMeta, allItems } from "../lib/store.js";
+import { localDateKey } from "../lib/time.js";
 import { getWeatherSummary } from "../lib/weatherTake.js";
 
 const log = logger("weather");
@@ -128,10 +135,11 @@ function formatHourLabel(hour) {
  * sent, so a slow/failed forecast degrades to "no timeline" rather than
  * breaking the rest of the facts object.
  */
-export function buildHourlySlots(hourly, { startHour = HOURLY_WINDOW_START_HOUR, endHour = HOURLY_WINDOW_END_HOUR } = {}) {
+export function buildHourlySlots(hourly, { startHour = HOURLY_WINDOW_START_HOUR, endHour = HOURLY_WINDOW_END_HOUR, dateKey = null } = {}) {
   if (!hourly?.time?.length) return [];
   const indexByHour = new Map();
   for (let i = 0; i < hourly.time.length; i++) {
+    if (dateKey && dateOf(hourly.time[i]) !== dateKey) continue; // round 87: skip other days once past_days=1 mixes yesterday in
     indexByHour.set(hourOf(hourly.time[i]), i);
   }
   const slots = [];
@@ -159,6 +167,16 @@ function hourOf(isoLocal) {
   return Number(isoLocal.slice(11, 13));
 }
 
+// Same "local wall-clock string, not a re-parsed Date" reasoning as hourOf,
+// for the calendar-date half of an Open-Meteo local timestamp. Needed as of
+// round 87's `past_days=1` fetch (see fetchForecast) — once yesterday's data
+// shares the same hourly/daily arrays as today's, "hour 14" alone no longer
+// picks out a single row, so buildHourlySlots/buildPrecipWindow narrow to a
+// specific calendar day when one is given.
+function dateOf(isoLocal) {
+  return String(isoLocal).slice(0, 10);
+}
+
 /**
  * The single highest precipitation-probability hour remaining today (never
  * one that's already passed — no point describing "rain this morning" as
@@ -167,10 +185,11 @@ function hourOf(isoLocal) {
  * callout. Pure and exported so this can be tested without a network call,
  * same convention as sources/marketNews.js's parseRssFeed/dedupeHeadlines.
  */
-export function buildPrecipWindow(hourly, { fromHour = 0, thresholdPercent = 30 } = {}) {
+export function buildPrecipWindow(hourly, { fromHour = 0, thresholdPercent = 30, dateKey = null } = {}) {
   if (!hourly?.time?.length) return null;
   let best = null;
   for (let i = 0; i < hourly.time.length; i++) {
+    if (dateKey && dateOf(hourly.time[i]) !== dateKey) continue; // round 87: skip other days once past_days=1 mixes yesterday in
     const hour = hourOf(hourly.time[i]);
     if (hour < fromHour) continue;
     const prob = hourly.precipitation_probability?.[i];
@@ -190,6 +209,36 @@ export function computeIcyRoadRisk({ lowC, precipWindow, conditionKey }) {
   return lowC <= 1 && (precipWindow != null || conditionKey === "snow");
 }
 
+/** The single hottest hour left in today's hourlySlots — "peak heat around
+ *  3 PM" — another decided fact (round 87) rather than something the AI
+ *  prompt has to scan the hourly list itself to find. null if no slot has a
+ *  temperature at all. */
+export function peakHeatSlot(hourlySlots) {
+  if (!hourlySlots?.length) return null;
+  let best = null;
+  for (const slot of hourlySlots) {
+    if (slot.tempC == null) continue;
+    if (!best || slot.tempC > best.tempC) best = slot;
+  }
+  return best ? { hourLabel: best.hourLabel, tempC: best.tempC } : null;
+}
+
+// Same "a rule decides, the AI only phrases it" split as computeIcyRoadRisk
+// — round 87: Jon wants the summary to say things like "much colder than
+// yesterday" rather than repeating the raw high/low he can already see, and
+// letting a model eyeball a temperature delta itself risks it rounding
+// differently each time or just getting the direction wrong. Fixed
+// thresholds instead, in °C of today's high vs yesterday's.
+export function compareToYesterday(highC, yesterdayHighC) {
+  if (highC == null || yesterdayHighC == null) return null;
+  const delta = highC - yesterdayHighC;
+  if (delta >= 8) return "much warmer";
+  if (delta >= 3) return "warmer";
+  if (delta <= -8) return "much colder";
+  if (delta <= -3) return "colder";
+  return "about the same";
+}
+
 /** Turns one Open-Meteo forecast response into the facts every downstream
  *  consumer (the AI summary, the fallback sentence, /api/matrix) actually
  *  reads. Everything here is deterministic — no network, no AI. */
@@ -198,53 +247,71 @@ export function buildWeatherFacts(payload) {
   const daily = payload?.daily || {};
   const hourly = payload?.hourly || {};
 
-  const code = cur.weather_code ?? daily.weather_code?.[0] ?? 3;
+  // Round 87: fetchForecast now sends past_days=1 so yesterday's high/low
+  // is available for compareToYesterday below, which means daily's arrays
+  // (and hourly's) may carry more than just today. dailyTodayIdx finds
+  // which entry actually IS today — daily.time[i] is a bare "YYYY-MM-DD" —
+  // rather than assuming index 0, which used to be true when the fetch was
+  // today-only. Falls back to index 0 when daily.time isn't present at all
+  // (old test fixtures, or a response shaped some other way), preserving
+  // this function's pre-round-87 behavior exactly.
+  const dailyTimes = daily.time || [];
+  const todayKey = typeof cur.time === "string" ? dateOf(cur.time) : null;
+  let dailyTodayIdx = 0;
+  if (todayKey && dailyTimes.length) {
+    const found = dailyTimes.indexOf(todayKey);
+    dailyTodayIdx = found >= 0 ? found : dailyTimes.length - 1;
+  }
+  const dailyYesterdayIdx = dailyTodayIdx - 1;
+
+  const code = cur.weather_code ?? daily.weather_code?.[dailyTodayIdx] ?? 3;
   const conditionKey = iconForWmoCode(code);
   const conditionLabel = conditionLabelForWmoCode(code);
 
   const currentTempC = cur.temperature_2m != null ? Math.round(cur.temperature_2m) : null;
-  const highC = daily.temperature_2m_max?.[0] != null ? Math.round(daily.temperature_2m_max[0]) : null;
-  const lowC = daily.temperature_2m_min?.[0] != null ? Math.round(daily.temperature_2m_min[0]) : null;
+  const highC = daily.temperature_2m_max?.[dailyTodayIdx] != null ? Math.round(daily.temperature_2m_max[dailyTodayIdx]) : null;
+  const lowC = daily.temperature_2m_min?.[dailyTodayIdx] != null ? Math.round(daily.temperature_2m_min[dailyTodayIdx]) : null;
+  const yesterdayHighC =
+    dailyYesterdayIdx >= 0 && daily.temperature_2m_max?.[dailyYesterdayIdx] != null
+      ? Math.round(daily.temperature_2m_max[dailyYesterdayIdx])
+      : null;
+  const vsYesterday = compareToYesterday(highC, yesterdayHighC);
 
   const fromHour = typeof cur.time === "string" ? hourOf(cur.time) : 0;
-  const precipWindow = buildPrecipWindow(hourly, { fromHour });
+  const precipWindow = buildPrecipWindow(hourly, { fromHour, dateKey: todayKey });
   const icyRoadRisk = computeIcyRoadRisk({ lowC, precipWindow, conditionKey });
-  const hourlySlots = buildHourlySlots(hourly);
+  const hourlySlots = buildHourlySlots(hourly, { dateKey: todayKey });
+  const peakHeat = peakHeatSlot(hourlySlots);
 
-  return { conditionKey, conditionLabel, currentTempC, highC, lowC, precipWindow, icyRoadRisk, hourlySlots };
+  return {
+    conditionKey, conditionLabel, currentTempC, highC, lowC,
+    yesterdayHighC, vsYesterday, peakHeat,
+    precipWindow, icyRoadRisk, hourlySlots,
+  };
 }
 
-const TEMP_WORDS = [
-  [28, "hot"], [20, "warm"], [10, "mild"], [0, "cool"], [-10, "cold"],
-];
-
-function wordForHigh(highC) {
-  if (highC == null) return null;
-  for (const [min, word] of TEMP_WORDS) if (highC >= min) return word;
-  return "very cold";
-}
-
-/** No AI, no network — a plain rule-built sentence in the same register
- *  Jon asked for ("hot day today, potential rain this afternoon... super
- *  cold, no snow, expect icy roads"). This is what the screen shows when
- *  DeepSeek is off, out of credit, or the call fails outright, so the
- *  Weather screen is never blank just because an API key expired. */
+/** No AI, no network — a plain rule-built sentence. Round 87: Jon wants the
+ *  summary to add the one thing that isn't already visible elsewhere on the
+ *  screen, not recap the high/low — so, unlike before round 87, this never
+ *  mentions an exact temperature. Leads with the condition, then whichever
+ *  of "compared to yesterday" / "when it peaks" is more interesting, then
+ *  precipitation and icy roads. This is what the screen shows when DeepSeek
+ *  is off, out of credit, or the call fails outright, so the Weather screen
+ *  is never blank just because an API key expired. */
 export function buildFallbackSummary(facts) {
   const parts = [];
-  const word = wordForHigh(facts.highC);
-  parts.push(
-    word && facts.highC != null
-      ? `A ${word} day, high of ${facts.highC}°C.`
-      : `${facts.conditionLabel.charAt(0).toUpperCase()}${facts.conditionLabel.slice(1)} today.`
-  );
+  parts.push(`${facts.conditionLabel.charAt(0).toUpperCase()}${facts.conditionLabel.slice(1)} today.`);
   if (facts.precipWindow) {
     parts.push(
       `${facts.precipWindow.probabilityPercent}% chance of ${facts.precipWindow.kind} ${facts.precipWindow.periodLabel}.`
     );
-  } else if (facts.conditionKey === "sun") {
-    parts.push("Clear skies.");
   }
   if (facts.icyRoadRisk) parts.push("Icy roads possible.");
+  if (facts.vsYesterday && facts.vsYesterday !== "about the same") {
+    parts.push(`${facts.vsYesterday.charAt(0).toUpperCase()}${facts.vsYesterday.slice(1)} than yesterday.`);
+  } else if (facts.peakHeat) {
+    parts.push(`Peak heat around ${facts.peakHeat.hourLabel}.`);
+  }
   return parts.join(" ");
 }
 
@@ -259,6 +326,12 @@ async function fetchForecast(cfg, tz) {
     hourly: "temperature_2m,precipitation_probability,weather_code",
     timezone: tz,
     forecast_days: 1,
+    // Round 87 — one extra day BACKWARD (yesterday), on top of the one day
+    // forward forecast_days already asks for, so buildWeatherFacts can
+    // compute compareToYesterday. daily/hourly both grow by this same one
+    // day, which is exactly why buildWeatherFacts now looks up "today"'s
+    // index by date instead of assuming it's index 0.
+    past_days: 1,
     temperature_unit: cfg.units === "fahrenheit" ? "fahrenheit" : "celsius",
   };
   const res = await axios.get(FORECAST_URL, { params, timeout: cfg.timeoutMs ?? 8000 });
@@ -267,15 +340,38 @@ async function fetchForecast(cfg, tz) {
 
 // ------------------------------------------------------------------- main
 
+// Round 87 — today's still-upcoming timed events, for the AI summary's
+// "bring a sweater to your 5 PM game" line. Deliberately narrow: only
+// today, only calendar-sourced, only still ahead of now, only timed (an
+// all-day event has no clock moment to hang a joke on), capped at a
+// handful so the prompt stays short. Reads straight from the store rather
+// than depending on sources/calendar.js directly — by the time "weather"
+// runs in lib/sources.js's SOURCES list, calendar has already run in the
+// same pass and its items are already there to read.
+export function buildTodaysEvents(items, { tz = "America/Toronto", now = new Date(), max = 5 } = {}) {
+  const todayKey = localDateKey(now, tz);
+  return (items || [])
+    .filter((i) => i.source === "calendar" && i.dueAt && i.kind !== "system" && !i.meta?.allDay)
+    .filter((i) => new Date(i.dueAt) >= now)
+    .filter((i) => localDateKey(new Date(i.dueAt), tz) === todayKey)
+    .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
+    .slice(0, max)
+    .map((i) => ({
+      title: i.title,
+      time: new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(i.dueAt)),
+    }));
+}
+
 export async function collectWeather(config, { force = false } = {}) {
   const cfg = config.weather || {};
   const tz = config.timezone || "America/Toronto";
 
   const payload = await fetchForecast(cfg, tz);
   const facts = buildWeatherFacts(payload);
+  const todaysEvents = buildTodaysEvents(await allItems(), { tz, now: new Date() });
 
   const previous = await getMeta("weather", null);
-  const take = await getWeatherSummary(config, facts, { previous, force });
+  const take = await getWeatherSummary(config, facts, { previous, force, todaysEvents });
   const summary = take.text || previous?.summary || buildFallbackSummary(facts);
   const summaryAt = take.text ? take.at : previous?.summary ? previous.summaryAt : new Date().toISOString();
 

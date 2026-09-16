@@ -16,6 +16,9 @@ import {
   buildWeatherFacts,
   buildFallbackSummary,
   buildHourlySlots,
+  peakHeatSlot,
+  compareToYesterday,
+  buildTodaysEvents,
 } from "../sources/weather.js";
 
 let pass = 0, fail = 0;
@@ -197,12 +200,105 @@ test("a custom window narrows or widens which hours come back", () => {
 });
 
 // ====================================================================
+group("peakHeatSlot — round 87, the hottest hour left for the summary line");
+
+test("picks the hottest slot, not just the last one", () => {
+  const slots = [
+    { hour: 6, hourLabel: "6 AM", tempC: 10, icon: "cloud", pop: 0 },
+    { hour: 15, hourLabel: "3 PM", tempC: 22, icon: "sun", pop: 0 },
+    { hour: 20, hourLabel: "8 PM", tempC: 16, icon: "cloud", pop: 0 },
+  ];
+  assert.deepEqual(peakHeatSlot(slots), { hourLabel: "3 PM", tempC: 22 });
+});
+
+test("skips slots with no temperature rather than treating null as the max", () => {
+  const slots = [
+    { hour: 6, hourLabel: "6 AM", tempC: null, icon: "cloud", pop: 0 },
+    { hour: 15, hourLabel: "3 PM", tempC: 19, icon: "sun", pop: 0 },
+  ];
+  assert.deepEqual(peakHeatSlot(slots), { hourLabel: "3 PM", tempC: 19 });
+});
+
+test("no slots, or none with a temperature, returns null", () => {
+  assert.equal(peakHeatSlot([]), null);
+  assert.equal(peakHeatSlot(null), null);
+  assert.equal(peakHeatSlot([{ hour: 6, hourLabel: "6 AM", tempC: null, icon: "cloud", pop: 0 }]), null);
+});
+
+// ====================================================================
+group("compareToYesterday — a fixed °C-delta rule, not a model guess");
+
+test("a big jump either way is 'much warmer'/'much colder'", () => {
+  assert.equal(compareToYesterday(28, 18), "much warmer");
+  assert.equal(compareToYesterday(10, 22), "much colder");
+});
+
+test("a moderate difference is plain 'warmer'/'colder'", () => {
+  assert.equal(compareToYesterday(20, 16), "warmer");
+  assert.equal(compareToYesterday(16, 20), "colder");
+});
+
+test("within 3°C either way reads as 'about the same'", () => {
+  assert.equal(compareToYesterday(20, 19), "about the same");
+  assert.equal(compareToYesterday(20, 22), "about the same");
+});
+
+test("missing either temperature returns null rather than a false comparison", () => {
+  assert.equal(compareToYesterday(null, 20), null);
+  assert.equal(compareToYesterday(20, null), null);
+});
+
+// ====================================================================
+group("buildTodaysEvents — round 87, today's remaining events for the AI prompt's sweater joke");
+
+const TZ = "America/Toronto";
+function item(o) {
+  return { source: "calendar", kind: "upcoming", title: "Event", dueAt: null, meta: {}, ...o };
+}
+
+test("keeps only today's still-upcoming timed calendar events, sorted by time", () => {
+  const now = new Date("2026-09-15T16:00:00Z"); // noon Toronto (EDT)
+  const items = [
+    item({ title: "Soccer", dueAt: "2026-09-15T21:00:00Z" }), // 5pm Toronto — later today
+    item({ title: "Already happened", dueAt: "2026-09-15T13:00:00Z" }), // 9am Toronto — earlier today
+    item({ title: "Lunch", dueAt: "2026-09-15T17:00:00Z" }), // 1pm Toronto — later today
+  ];
+  const events = buildTodaysEvents(items, { tz: TZ, now });
+  assert.deepEqual(events.map((e) => e.title), ["Lunch", "Soccer"]);
+  assert.equal(events[0].time, "1:00 PM");
+  assert.equal(events[1].time, "5:00 PM");
+});
+
+test("excludes tomorrow's events, all-day events, and non-calendar items", () => {
+  const now = new Date("2026-09-15T16:00:00Z");
+  const items = [
+    item({ title: "Tomorrow", dueAt: "2026-09-16T21:00:00Z" }),
+    item({ title: "All-day", dueAt: "2026-09-15T21:00:00Z", meta: { allDay: true } }),
+    item({ source: "email", title: "Not an event", dueAt: "2026-09-15T21:00:00Z" }),
+  ];
+  assert.deepEqual(buildTodaysEvents(items, { tz: TZ, now }), []);
+});
+
+test("caps the list at `max` events", () => {
+  const now = new Date("2026-09-15T16:00:00Z");
+  const items = Array.from({ length: 8 }, (_, i) =>
+    item({ title: `Event ${i}`, dueAt: `2026-09-15T${18 + i}:00:00Z` })
+  );
+  assert.equal(buildTodaysEvents(items, { tz: TZ, now, max: 3 }).length, 3);
+});
+
+test("no items, or nothing left today, returns []", () => {
+  assert.deepEqual(buildTodaysEvents([], { tz: TZ }), []);
+  assert.deepEqual(buildTodaysEvents(null, { tz: TZ }), []);
+});
+
+// ====================================================================
 group("buildWeatherFacts — assembling one Open-Meteo response into facts");
 
 test("a typical clear, mild response", () => {
   const payload = {
     current: { time: "2026-09-15T13:00", temperature_2m: 21.4, weather_code: 0 },
-    daily: { temperature_2m_max: [24.1], temperature_2m_min: [12.3], weather_code: [0] },
+    daily: { time: ["2026-09-15"], temperature_2m_max: [24.1], temperature_2m_min: [12.3], weather_code: [0] },
     hourly: { time: ["2026-09-15T13:00"], precipitation_probability: [0], weather_code: [0] },
   };
   const facts = buildWeatherFacts(payload);
@@ -215,12 +311,15 @@ test("a typical clear, mild response", () => {
   assert.equal(facts.icyRoadRisk, false);
   assert.equal(facts.hourlySlots.length, 1);
   assert.equal(facts.hourlySlots[0].icon, "sun");
+  // no daily.time entry before today's => no yesterday to compare against
+  assert.equal(facts.yesterdayHighC, null);
+  assert.equal(facts.vsYesterday, null);
 });
 
 test("a cold day with afternoon snow flags icy roads", () => {
   const payload = {
     current: { time: "2026-09-15T09:00", temperature_2m: -3, weather_code: 3 },
-    daily: { temperature_2m_max: [-1], temperature_2m_min: [-8], weather_code: [73] },
+    daily: { time: ["2026-09-15"], temperature_2m_max: [-1], temperature_2m_min: [-8], weather_code: [73] },
     hourly: {
       time: ["2026-09-15T09:00", "2026-09-15T15:00"],
       precipitation_probability: [10, 75],
@@ -234,6 +333,38 @@ test("a cold day with afternoon snow flags icy roads", () => {
   assert.equal(facts.icyRoadRisk, true);
 });
 
+test("round 87 — past_days=1 gives daily/hourly two days; today is found by date, not index 0", () => {
+  const payload = {
+    current: { time: "2026-09-15T14:00", temperature_2m: 8, weather_code: 3 },
+    daily: {
+      time: ["2026-09-14", "2026-09-15"],
+      temperature_2m_max: [22, 9], // yesterday was much warmer
+      temperature_2m_min: [10, 2],
+      weather_code: [0, 3],
+    },
+    hourly: {
+      // yesterday's hours share the same hour-of-day as today's — this is
+      // exactly the collision buildHourlySlots'/buildPrecipWindow's dateKey
+      // filtering has to resolve correctly.
+      time: ["2026-09-14T09:00", "2026-09-14T14:00", "2026-09-15T09:00", "2026-09-15T14:00"],
+      temperature_2m: [24, 25, 7, 9],
+      precipitation_probability: [0, 0, 10, 15],
+      weather_code: [0, 0, 3, 3],
+    },
+  };
+  const facts = buildWeatherFacts(payload);
+  assert.equal(facts.highC, 9, "today's high, not yesterday's");
+  assert.equal(facts.lowC, 2);
+  assert.equal(facts.yesterdayHighC, 22);
+  assert.equal(facts.vsYesterday, "much colder");
+  // only today's 2 hours should show up, not yesterday's 2
+  assert.equal(facts.hourlySlots.filter((s) => s.tempC != null).length, 2);
+  assert.deepEqual(
+    facts.hourlySlots.filter((s) => s.tempC != null).map((s) => s.tempC),
+    [7, 9]
+  );
+});
+
 test("missing fields degrade to nulls rather than throwing", () => {
   const facts = buildWeatherFacts({});
   assert.equal(facts.currentTempC, null);
@@ -241,23 +372,28 @@ test("missing fields degrade to nulls rather than throwing", () => {
   assert.equal(facts.lowC, null);
   assert.equal(facts.conditionKey, "cloud"); // code defaults to 3 (overcast) when nothing is sent
   assert.deepEqual(facts.hourlySlots, []);
+  assert.equal(facts.yesterdayHighC, null);
+  assert.equal(facts.vsYesterday, null);
+  assert.equal(facts.peakHeat, null);
 });
 
 // ====================================================================
-group("buildFallbackSummary — the no-AI sentence, in Jon's example register");
+group("buildFallbackSummary — the no-AI sentence — round 87: never restates the high/low");
 
-test("hot clear day, no precipitation", () => {
+test("a plain day with nothing notable just states the condition", () => {
   const facts = { conditionKey: "sun", conditionLabel: "clear", highC: 31, lowC: 20, precipWindow: null, icyRoadRisk: false };
-  assert.equal(buildFallbackSummary(facts), "A hot day, high of 31°C. Clear skies.");
+  assert.equal(buildFallbackSummary(facts), "Clear today.");
 });
 
-test("mild day with afternoon rain", () => {
+test("mild day with afternoon rain — never says 'high of 15°C'", () => {
   const facts = {
     conditionKey: "rain", conditionLabel: "rain", highC: 15, lowC: 9,
     precipWindow: { probabilityPercent: 70, periodLabel: "this afternoon", kind: "rain" },
     icyRoadRisk: false,
   };
-  assert.equal(buildFallbackSummary(facts), "A mild day, high of 15°C. 70% chance of rain this afternoon.");
+  const summary = buildFallbackSummary(facts);
+  assert.equal(summary, "Rain today. 70% chance of rain this afternoon.");
+  assert.ok(!summary.includes("15"), "must not restate the high");
 });
 
 test("very cold day with icy roads called out", () => {
@@ -268,8 +404,24 @@ test("very cold day with icy roads called out", () => {
   };
   assert.equal(
     buildFallbackSummary(facts),
-    "A very cold day, high of -12°C. 40% chance of snow this evening. Icy roads possible."
+    "Snow today. 40% chance of snow this evening. Icy roads possible."
   );
+});
+
+test("a notable vsYesterday is mentioned; 'about the same' is not", () => {
+  const colder = { conditionKey: "cloud", conditionLabel: "overcast", precipWindow: null, icyRoadRisk: false, vsYesterday: "much colder" };
+  assert.equal(buildFallbackSummary(colder), "Overcast today. Much colder than yesterday.");
+
+  const same = { conditionKey: "cloud", conditionLabel: "overcast", precipWindow: null, icyRoadRisk: false, vsYesterday: "about the same" };
+  assert.equal(buildFallbackSummary(same), "Overcast today.");
+});
+
+test("falls back to peak heat when there's no notable vsYesterday", () => {
+  const facts = {
+    conditionKey: "sun", conditionLabel: "clear", precipWindow: null, icyRoadRisk: false,
+    vsYesterday: null, peakHeat: { hourLabel: "3 PM", tempC: 24 },
+  };
+  assert.equal(buildFallbackSummary(facts), "Clear today. Peak heat around 3 PM.");
 });
 
 test("no high/low at all falls back to the condition label alone", () => {
