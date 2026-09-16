@@ -234,6 +234,8 @@ export async function runFullCycle(config, { force = false } = {}) {
   await prune({
     maxAgeDays: config.brief?.retainDays ?? 90,
     brightspaceMaxPastDays: config.brightspace?.maxPastDays ?? 14,
+    locationHistoryMaxAgeDays: config.shortcuts?.locationHistoryMaxAgeDays ?? 400,
+    alarmHistoryMaxAgeDays: config.shortcuts?.alarmHistoryMaxAgeDays ?? 400,
   });
   return { report, brief };
 }

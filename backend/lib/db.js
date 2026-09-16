@@ -104,6 +104,37 @@ CREATE TABLE IF NOT EXISTS courses (
   syllabus_hash TEXT,
   updated_at    TEXT
 );
+
+-- Round 92 — every point the location Shortcut posts, kept (not just the
+-- latest — see meta.lastLocation for that) so a year-plus of history can
+-- eventually surface real patterns ("where are you most weekday
+-- mornings", "how often do you actually go to the gym"). One row per
+-- POST /api/location call; capturedAt is the phone's own timestamp,
+-- receivedAt is when the server actually got it (they can differ if a
+-- Shortcut queues offline and sends later). See store.js's prune() for
+-- the retention window — this grows forever without it.
+CREATE TABLE IF NOT EXISTS location_history (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  lat        REAL NOT NULL,
+  lng        REAL NOT NULL,
+  capturedAt TEXT NOT NULL,
+  receivedAt TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_location_history_capturedAt ON location_history(capturedAt);
+
+-- Round 92 — every bedtime/wake/alarm the alarm Shortcut posts, kept for
+-- the same pattern-finding reason as location_history above (sleep
+-- schedule drift over a term, weekday vs. weekend habits, etc.). meta.sleep
+-- still holds just the latest post, for the LED wall's own read path —
+-- this table is the growing log alongside it, not a replacement.
+CREATE TABLE IF NOT EXISTS alarm_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  bedTime    TEXT NOT NULL,
+  wakeTime   TEXT NOT NULL,
+  nextAlarm  TEXT,
+  postedAt   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_alarm_log_postedAt ON alarm_log(postedAt);
 `;
 
 let instance = null;

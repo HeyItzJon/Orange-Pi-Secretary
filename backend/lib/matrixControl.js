@@ -67,10 +67,20 @@ export const SCREENS = [
   { id: "stars", label: "Stars", description: "Ambient starfield effect", hasData: true },
   { id: "balls", label: "Balls", description: "Ambient bouncing-balls effect", hasData: true },
   // Round 91 — new this round, ported from the HUB75 Twin's prototypes.
-  // Sleep & Alarm: hasData false because there's no real bedtime/alarm
-  // source in server.js yet — same "on record, not faked" treatment
-  // weather/markets got before their real sources landed; its firmware
-  // renderer shows a "coming soon" card until one exists.
+  // Sleep & Alarm: hasData WAS false because there's no real bedtime/alarm
+  // source in server.js — same "on record, not faked" treatment
+  // weather/markets got before their real sources landed.
+  //
+  // Round 92 — real source now exists: an iOS Shortcut posts to
+  // POST /api/alarm (server.js), independently toggleable from the
+  // location one (Jon: "these would be separate shortcuts that I can
+  // always turn on and off when I want"), written into the `sleep` meta
+  // blob and served through /api/matrix's own `sleep` block (gated to
+  // "posted within the last 20 hours" there, so an old Shortcut left off
+  // falls back to the firmware's "coming soon" card again rather than
+  // showing a stale bedtime forever). hasData flips to true the same way
+  // weather's did once Open-Meteo landed — the idea was already on record,
+  // this is just it becoming real.
   //
   // Wake Up Mode is different: it's a fully working, fully animated
   // sunrise takeover in firmware now (no "coming soon" fallback — it just
@@ -79,11 +89,11 @@ export const SCREENS = [
   // anonymously into a 12s rotation slot with everything else — it's a
   // takeover screen (same category as Sleep & Alarm in the Twin's own
   // "Morning" group), meant to be triggered on purpose. hasData: false
-  // keeps both out of DEFAULT_ENABLED/the rotation checkboxes for that
-  // reason, not a real-data gap for wakeup — both stay fully pin/push-able
-  // (see ALL_PIN_IDS below), which is exactly how you'd trigger and watch
-  // Wake Up Mode run.
-  { id: "sleep", label: "Sleep & Alarm", description: "Bedtime/wake window and next alarm — coming soon", hasData: false },
+  // keeps it out of DEFAULT_ENABLED/the rotation checkboxes for that
+  // reason, not a real-data gap — it stays fully pin/push-able (see
+  // ALL_PIN_IDS below), which is exactly how you'd trigger and watch Wake
+  // Up Mode run.
+  { id: "sleep", label: "Sleep & Alarm", description: "Bedtime/wake window and next alarm, posted from an iOS Shortcut", hasData: true },
   { id: "wakeup", label: "Wake Up Mode", description: "Animated sunrise takeover — pin/push to preview, not in auto-rotation", hasData: false },
 ];
 const SCREEN_IDS = new Set(SCREENS.map((s) => s.id));

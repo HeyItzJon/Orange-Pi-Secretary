@@ -20,6 +20,7 @@ const {
   recordPortfolioDay, portfolioHistory, recordHoldingDay, holdingHistory,
   getHoldings, setHoldings, dismissItem, suppressPermanently,
   triageItem, resolveTrackedItem, snoozeItem, bumpRemindCounts,
+  recordLocationPing, locationHistory, recordAlarmPost, alarmHistory,
 } = await import("../lib/store.js");
 
 let pass = 0, fail = 0;
@@ -192,6 +193,71 @@ await atest("an old, still-open Brightspace item is pruned even though 'open' it
   assert.ok(removed >= 1);
   assert.equal(await getItem("p3"), null, "an old open Brightspace item should be gone");
   assert.ok(await getItem("p4"), "an old open calendar item should NOT be touched by the Brightspace-specific rule");
+});
+
+group("round 92 — location/alarm history, kept far longer than everything else prune() touches");
+
+await atest("recordLocationPing/locationHistory round-trip, oldest-first", async () => {
+  await recordLocationPing({ lat: 45.30, lng: -75.90, capturedAt: "2026-08-20T08:00:00.000Z", receivedAt: "2026-08-20T08:00:01.000Z" });
+  await recordLocationPing({ lat: 45.38, lng: -75.69, capturedAt: "2026-08-20T12:00:00.000Z", receivedAt: "2026-08-20T12:00:01.000Z" });
+  await recordLocationPing({ lat: 45.29, lng: -75.91, capturedAt: "2026-08-19T08:00:00.000Z", receivedAt: "2026-08-19T08:00:01.000Z" });
+
+  const h = await locationHistory();
+  const captured = h.map((r) => r.capturedAt);
+  assert.deepEqual(captured, [...captured].sort(), "should come back oldest-first, unlike lastLocation which only ever holds one point");
+  assert.equal(h.length, 3, "every ping is kept — this is a log, not an overwrite like meta.lastLocation");
+});
+
+await atest("locationHistory({since, until}) filters by capturedAt range", async () => {
+  const h = await locationHistory({ since: "2026-08-20T00:00:00.000Z" });
+  assert.equal(h.length, 2, "the 08-19 ping should be excluded");
+  assert.ok(h.every((r) => r.capturedAt >= "2026-08-20T00:00:00.000Z"));
+});
+
+await atest("locationHistory({limit}) returns the most recent N, still oldest-first", async () => {
+  const h = await locationHistory({ limit: 1 });
+  assert.equal(h.length, 1);
+  assert.equal(h[0].capturedAt, "2026-08-20T12:00:00.000Z", "the single most recent ping, not the oldest");
+});
+
+await atest("recordAlarmPost/alarmHistory round-trip, oldest-first, nextAlarm defaults to null when omitted", async () => {
+  await recordAlarmPost({ bedTime: "23:00", wakeTime: "06:30", nextAlarm: null, postedAt: "2026-08-19T23:05:00.000Z" });
+  await recordAlarmPost({ bedTime: "23:30", wakeTime: "07:00", nextAlarm: "07:00", postedAt: "2026-08-20T23:05:00.000Z" });
+
+  const h = await alarmHistory();
+  assert.equal(h.length, 2);
+  assert.equal(h[0].postedAt, "2026-08-19T23:05:00.000Z");
+  assert.equal(h[0].nextAlarm, null);
+  assert.equal(h[1].nextAlarm, "07:00");
+});
+
+await atest("prune() bounds location_history/alarm_log to their own, much longer retention window — old rows go, recent ones survive", async () => {
+  // 200 days: older than a real 90-day item-prune window, but well inside
+  // the 400-day default this feature actually ships with — should survive
+  // the first (default-ish) prune call below, then get swept once the
+  // window is tightened to 10 days.
+  const midOld = new Date(Date.now() - 200 * 86400000).toISOString();
+  const recent = new Date(Date.now() - 5 * 86400000).toISOString();
+  await recordLocationPing({ lat: 1, lng: 1, capturedAt: midOld, receivedAt: midOld });
+  await recordLocationPing({ lat: 2, lng: 2, capturedAt: recent, receivedAt: recent });
+  await recordAlarmPost({ bedTime: "22:00", wakeTime: "06:00", nextAlarm: null, postedAt: midOld });
+  await recordAlarmPost({ bedTime: "22:00", wakeTime: "06:00", nextAlarm: null, postedAt: recent });
+
+  await prune({ maxAgeDays: 90, locationHistoryMaxAgeDays: 400, alarmHistoryMaxAgeDays: 400 });
+  let loc = await locationHistory();
+  let alarms = await alarmHistory();
+  assert.ok(loc.some((r) => r.capturedAt === recent) && loc.some((r) => r.capturedAt === midOld), "the real 400-day default shouldn't touch a 200-day-old fixture");
+  assert.ok(alarms.some((r) => r.postedAt === recent) && alarms.some((r) => r.postedAt === midOld));
+
+  // Tighten the window to prove the rule is actually live, not just a
+  // no-op — a real config.shortcuts override does exactly this.
+  await prune({ maxAgeDays: 90, locationHistoryMaxAgeDays: 10, alarmHistoryMaxAgeDays: 10 });
+  loc = await locationHistory();
+  alarms = await alarmHistory();
+  assert.ok(!loc.some((r) => r.capturedAt === midOld), "the 200-day-old ping should be pruned under a 10-day window");
+  assert.ok(loc.some((r) => r.capturedAt === recent), "the 5-day-old ping should survive a 10-day window");
+  assert.ok(!alarms.some((r) => r.postedAt === midOld), "same rule, same result, for alarm_log");
+  assert.ok(alarms.some((r) => r.postedAt === recent));
 });
 
 group("triageItem — Inbox decisions (priority / not-priority)");

@@ -104,6 +104,8 @@ export function startScheduler(config) {
         const removed = await prune({
           maxAgeDays: config.brief?.retainDays ?? 90,
           brightspaceMaxPastDays: config.brightspace?.maxPastDays ?? 14,
+          locationHistoryMaxAgeDays: config.shortcuts?.locationHistoryMaxAgeDays ?? 400,
+          alarmHistoryMaxAgeDays: config.shortcuts?.alarmHistoryMaxAgeDays ?? 400,
         });
         if (removed) log.info(`daily prune: removed ${removed} stale item(s)`);
         // Once-a-day reminder bump for Tracked items — see lib/store.js's

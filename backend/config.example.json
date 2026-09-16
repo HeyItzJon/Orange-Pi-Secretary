@@ -89,6 +89,13 @@
       "pricePerLiterCAD": 1.75
     }
   },
+  "shortcuts": {
+    "_comment": "The two iOS Shortcuts (POST /api/location, POST /api/alarm in server.js), gated by SHORTCUTS_SECRET in .env (run `npm run set-shortcuts-secret`). Both keep a full running history table, not just the latest post, for pattern-finding over time.",
+    "locationHistoryMaxAgeDays": 400,
+    "_locationHistoryMaxAgeDays_note": "How long a location history row survives the daily prune — 400 days rather than a flat 365 so a full year is always available.",
+    "alarmHistoryMaxAgeDays": 400,
+    "_alarmHistoryMaxAgeDays_note": "Same idea as locationHistoryMaxAgeDays, for the alarm/bedtime log."
+  },
   "categories": {
     "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",
     "_matching": "calendarPatterns match the calendar's name, titlePatterns match the event title or email subject, tiers match an email's rule tier. All are case-insensitive substring matches.",

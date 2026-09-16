@@ -81,6 +81,13 @@
       "pricePerLiterCAD": 1.75
     }
   },
+  "shortcuts": {
+    "_comment": "Round 92 \u2014 the two iOS Shortcuts (POST /api/location, POST /api/alarm in server.js), gated by SHORTCUTS_SECRET in .env (run `npm run set-shortcuts-secret`). Jon: 'I want my system to be 100% location aware... lowkey for the last year or something so we can find patterns' \u2014 same for alarms, so both keep a full running history (lib/store.js's location_history/alarm_log tables), not just the latest post.",
+    "locationHistoryMaxAgeDays": 400,
+    "_locationHistoryMaxAgeDays_note": "How long a location_history row survives the daily prune \u2014 400 days rather than a flat 365 so a full year is always available even right before that year's oldest day would otherwise roll off.",
+    "alarmHistoryMaxAgeDays": 400,
+    "_alarmHistoryMaxAgeDays_note": "Same idea as locationHistoryMaxAgeDays, for alarm_log."
+  },
   "categories": {
     "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",
     "_matching": "calendarPatterns match the calendar's name, titlePatterns match the event title or email subject, tiers match an email's rule tier. All are case-insensitive substring matches.",

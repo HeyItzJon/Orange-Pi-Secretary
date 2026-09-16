@@ -61,13 +61,16 @@ await atest("statusPayload before anything is ever touched: every data screen en
   // merged into SCREENS as real hasData:true entries — the whole point of
   // that round was making them genuinely toggleable/default-enabled
   // instead of hardcoded into firmware rotation regardless of this list.
-  // sleep/wakeup stay out (hasData: false — see the next test). Round 92
-  // added "commutestats" (hasData: true, right after "commuting" in
-  // SCREENS) — the LED wall's new Commute Stats screen is real backend
-  // data from day one, same as everything else in this list.
+  // wakeup stays out (hasData: false — see the next test). Round 92 added
+  // "commutestats" (hasData: true, right after "commuting" in SCREENS) —
+  // the LED wall's new Commute Stats screen is real backend data from day
+  // one, same as everything else in this list — and flipped "sleep" from
+  // false to true now that the iOS Shortcut endpoint (POST /api/alarm)
+  // gives it a real source too, same as weather's own hasData flip once
+  // Open-Meteo landed.
   assert.deepEqual(s.enabledScreens, [
     "portfolio", "markets", "holdings", "events", "news", "weather",
-    "clock", "dayoverview", "commuting", "commutestats", "stars", "balls",
+    "clock", "dayoverview", "commuting", "commutestats", "stars", "balls", "sleep",
   ]);
   assert.equal(s.pinnedScreen, null);
   assert.equal(s.notification, null);
@@ -84,16 +87,20 @@ await atest("the full SCREENS catalog is exposed, weather included and marked as
   assert.equal(SCREENS.length, s.screens.length);
 });
 
-await atest("round 91: sleep and wakeup are listed but marked hasData: false — on record, not yet in default rotation", async () => {
+await atest("round 91: wakeup is listed but marked hasData: false — on record, not yet in default rotation (deliberately, a takeover screen, not a data gap)", async () => {
+  const s = await statusPayload();
+  const wakeup = s.screens.find((sc) => sc.id === "wakeup");
+  assert.ok(wakeup, "wakeup should be listed");
+  assert.equal(wakeup.hasData, false);
+  assert.ok(!s.enabledScreens.includes("wakeup"));
+});
+
+await atest("round 92: sleep now has a real source (the iOS Shortcut endpoint) — hasData true, in default rotation", async () => {
   const s = await statusPayload();
   const sleep = s.screens.find((sc) => sc.id === "sleep");
-  const wakeup = s.screens.find((sc) => sc.id === "wakeup");
   assert.ok(sleep, "sleep should be listed");
-  assert.ok(wakeup, "wakeup should be listed");
-  assert.equal(sleep.hasData, false);
-  assert.equal(wakeup.hasData, false);
-  assert.ok(!s.enabledScreens.includes("sleep"));
-  assert.ok(!s.enabledScreens.includes("wakeup"));
+  assert.equal(sleep.hasData, true);
+  assert.ok(s.enabledScreens.includes("sleep"));
 });
 
 group("setEnabledScreens — validation");
@@ -102,8 +109,8 @@ await atest("rejects a completely unknown id", async () => {
   await rejects(() => setEnabledScreens(["portfolio", "not-a-real-screen"]), "unknown screen");
 });
 
-await atest("rejects a real catalog id that has no data source yet (round 91: sleep/wakeup are back to exercising this branch)", async () => {
-  await rejects(() => setEnabledScreens(["portfolio", "sleep"]), "no data source");
+await atest("rejects a real catalog id that has no data source yet (round 92: wakeup is now the only hasData:false entry left to exercise this branch — sleep graduated out of it)", async () => {
+  await rejects(() => setEnabledScreens(["portfolio", "wakeup"]), "no data source");
 });
 
 await atest("rejects an empty list — auto-rotate needs at least one screen", async () => {

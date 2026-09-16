@@ -351,7 +351,12 @@ export async function markSurfaced(ids) {
 }
 
 /** Drop resolved/expired items so the store doesn't grow without bound. */
-export async function prune({ maxAgeDays = 90, brightspaceMaxPastDays = 14 } = {}) {
+export async function prune({
+  maxAgeDays = 90,
+  brightspaceMaxPastDays = 14,
+  locationHistoryMaxAgeDays = 400,
+  alarmHistoryMaxAgeDays = 400,
+} = {}) {
   const dbc = getDb();
   const cutoffIso = new Date(Date.now() - maxAgeDays * 86400000).toISOString();
 
@@ -392,6 +397,20 @@ export async function prune({ maxAgeDays = 90, brightspaceMaxPastDays = 14 } = {
 
   const cacheCutoffIso = new Date(Date.now() - 30 * 86400000).toISOString();
   dbc.prepare("DELETE FROM ai_cache WHERE at < ?").run(cacheCutoffIso);
+
+  // Round 92 — location/alarm history is meant to run for "a year or
+  // something" (Jon's words) so real patterns can surface, so the default
+  // window here is well past 365 days rather than the 90-day default
+  // everything else in this function uses. Still bounded, not unlimited —
+  // a Shortcut left running for years on a Pi's SD card needs a ceiling
+  // eventually, same reasoning as ai_cache/seen_message_ids above.
+  const locationCutoffIso = new Date(Date.now() - locationHistoryMaxAgeDays * 86400000).toISOString();
+  const locResult = dbc.prepare("DELETE FROM location_history WHERE capturedAt < ?").run(locationCutoffIso);
+  if (locResult.changes) log.info(`pruned ${locResult.changes} location_history rows`);
+
+  const alarmCutoffIso = new Date(Date.now() - alarmHistoryMaxAgeDays * 86400000).toISOString();
+  const alarmResult = dbc.prepare("DELETE FROM alarm_log WHERE postedAt < ?").run(alarmCutoffIso);
+  if (alarmResult.changes) log.info(`pruned ${alarmResult.changes} alarm_log rows`);
 
   if (removed) log.info(`pruned ${removed} items`);
   return removed;
@@ -606,4 +625,76 @@ export async function setCourse(courseCode, {
 export async function allCourses() {
   const dbc = getDb();
   return dbc.prepare("SELECT course_code FROM courses ORDER BY course_code").all().map((r) => r.course_code);
+}
+
+// -------------------------------------------------------- location history
+//
+// Round 92 — one row per POST /api/location call, on top of (not instead
+// of) meta.lastLocation. Jon: "I want my system to be 100% location aware
+// ... lowkey for the last year or something so we can find patterns" — see
+// prune()'s locationHistoryMaxAgeDays for how long a row actually sticks
+// around before this table would otherwise grow without bound.
+
+export async function recordLocationPing({ lat, lng, capturedAt, receivedAt }) {
+  const dbc = getDb();
+  dbc.prepare(`
+    INSERT INTO location_history (lat, lng, capturedAt, receivedAt)
+    VALUES (?, ?, ?, ?)
+  `).run(lat, lng, capturedAt, receivedAt);
+}
+
+/**
+ * Newest-first by default (matches how portfolioHistory/holdingHistory read
+ * back when `limit` is given), oldest-first when reading the whole range —
+ * same convention those two already use. `since`/`until` are ISO strings,
+ * both optional, compared against capturedAt.
+ */
+export async function locationHistory({ since = null, until = null, limit = null } = {}) {
+  const dbc = getDb();
+  const clauses = [];
+  const params = [];
+  if (since) { clauses.push("capturedAt >= ?"); params.push(since); }
+  if (until) { clauses.push("capturedAt <= ?"); params.push(until); }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  if (limit) {
+    const rows = dbc.prepare(
+      `SELECT lat, lng, capturedAt, receivedAt FROM location_history ${where} ORDER BY capturedAt DESC LIMIT ?`
+    ).all(...params, limit);
+    return rows.reverse();
+  }
+  return dbc.prepare(
+    `SELECT lat, lng, capturedAt, receivedAt FROM location_history ${where} ORDER BY capturedAt ASC`
+  ).all(...params);
+}
+
+// ------------------------------------------------------------- alarm log
+//
+// Round 92 — one row per POST /api/alarm call, on top of (not instead of)
+// meta.sleep. Same "keep a year, find patterns" reasoning as
+// location_history above, applied to bedtime/wake/alarm instead of GPS.
+
+export async function recordAlarmPost({ bedTime, wakeTime, nextAlarm, postedAt }) {
+  const dbc = getDb();
+  dbc.prepare(`
+    INSERT INTO alarm_log (bedTime, wakeTime, nextAlarm, postedAt)
+    VALUES (?, ?, ?, ?)
+  `).run(bedTime, wakeTime, nextAlarm ?? null, postedAt);
+}
+
+export async function alarmHistory({ since = null, until = null, limit = null } = {}) {
+  const dbc = getDb();
+  const clauses = [];
+  const params = [];
+  if (since) { clauses.push("postedAt >= ?"); params.push(since); }
+  if (until) { clauses.push("postedAt <= ?"); params.push(until); }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  if (limit) {
+    const rows = dbc.prepare(
+      `SELECT bedTime, wakeTime, nextAlarm, postedAt FROM alarm_log ${where} ORDER BY postedAt DESC LIMIT ?`
+    ).all(...params, limit);
+    return rows.reverse();
+  }
+  return dbc.prepare(
+    `SELECT bedTime, wakeTime, nextAlarm, postedAt FROM alarm_log ${where} ORDER BY postedAt ASC`
+  ).all(...params);
 }

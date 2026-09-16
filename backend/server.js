@@ -12,7 +12,7 @@ import { fileURLToPath } from "url";
 import { spawn } from "node:child_process";
 
 import { logger } from "./lib/log.js";
-import { init as initStore, getMeta, setMeta, getItem, patchItem, dismissItem, suppressPermanently, triageItem, resolveTrackedItem, snoozeItem, allItems, portfolioHistory } from "./lib/store.js";
+import { init as initStore, getMeta, setMeta, getItem, patchItem, dismissItem, suppressPermanently, triageItem, resolveTrackedItem, snoozeItem, allItems, portfolioHistory, recordLocationPing, recordAlarmPost } from "./lib/store.js";
 import { startScheduler } from "./lib/scheduler.js";
 import { runSources, buildBrief, SOURCE_NAMES } from "./brief/compose.js";
 import { buildDisplay, shortTicker, weekForecast, filterLive, isTaskLike } from "./brief/display.js";
@@ -204,7 +204,7 @@ function formatLastPriceLabel(iso, tz) {
 app.get("/api/matrix", async (_req, res) => {
   try {
     const now = new Date();
-    const [items, money, marketPulse, brief, eventDigest, weatherMeta, commute, commutePlan] = await Promise.all([
+    const [items, money, marketPulse, brief, eventDigest, weatherMeta, commute, commutePlan, sleepMeta] = await Promise.all([
       allItems(),
       getMeta("moneySummary", null),
       getMeta("marketPulse", null),
@@ -213,6 +213,7 @@ app.get("/api/matrix", async (_req, res) => {
       getMeta("weather", null),
       getMeta("commute", null),
       getMeta("commutePlan", null),
+      getMeta("sleep", null),
     ]);
     const eventDigestMap = eventDigest?.map || {};
 
@@ -540,6 +541,20 @@ app.get("/api/matrix", async (_req, res) => {
               heavyDriveDay: !!commutePlan.heavyDriveDay,
               insight: commutePlan.insight || null,
             }
+          : null,
+      // sleep — round 92, the Sleep & Alarm screen's first real source
+      // (matrixControl.js's SCREENS: hasData now true — see that file's own
+      // comment). Written by POST /api/sleep-alarm (an iOS Shortcut, run
+      // separately from and independently toggleable from the location
+      // one). Gated to "posted within the last 20 hours" rather than
+      // per-calendar-day like commutePlan — a bedtime automation running
+      // nightly should always look current, but if the Shortcut gets
+      // turned off, this needs to fall back to the firmware's own
+      // "coming soon" card again, same as weather/markets going stale would
+      // in spirit, rather than showing a week-old bedtime forever.
+      sleep:
+        sleepMeta?.updatedAt && Date.now() - new Date(sleepMeta.updatedAt).getTime() < 20 * 60 * 60 * 1000
+          ? { bedTime: sleepMeta.bedTime, wakeTime: sleepMeta.wakeTime, nextAlarm: sleepMeta.nextAlarm || sleepMeta.wakeTime }
           : null,
       holdings,
       news,
@@ -881,6 +896,95 @@ app.post("/api/commute/alternatives", async (req, res) => {
     log.error(err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+/**
+ * Round 92 — two iOS Shortcuts post here, per Jon: "post or push a json
+ * with both my location and my alarm schedule straight from my iphone...
+ * these would be separate shortcuts that I can always turn on and off when
+ * I want." Two separate endpoints (not one with a `type` field) so each
+ * Shortcut really can be toggled independently, matching that ask exactly.
+ *
+ * Every other endpoint in this file is either read-only or a click a
+ * person just made on the dashboard itself — these two are the only
+ * WRITE endpoints meant to be hit by an unattended automation, running
+ * from outside any browser someone's actually looking at, so they're the
+ * only ones gated by a shared secret (checkShortcutSecret below) rather
+ * than relying purely on "you're on the tailnet" like the rest of this
+ * app does today. Run `npm run set-shortcuts-secret` once to generate it;
+ * the same value goes in both Shortcuts' request headers.
+ */
+function checkShortcutSecret(req, res) {
+  const expected = process.env.SHORTCUTS_SECRET;
+  if (!expected) {
+    res.status(503).json({ error: "SHORTCUTS_SECRET not set on the server yet — run `npm run set-shortcuts-secret`" });
+    return false;
+  }
+  if (req.headers["x-shortcut-secret"] !== expected) {
+    res.status(401).json({ error: "missing or invalid X-Shortcut-Secret header" });
+    return false;
+  }
+  return true;
+}
+
+// Round 92 follow-up — Jon: "I want my system to be 100% location aware
+// and suggesting the best things all the time... lowkey for the last year
+// or something so we can find patterns." So this now does two things on
+// every post: keeps meta.lastLocation as the fast "where are you right
+// now" read (still no day-gating on read — a live location is either
+// fresh enough to trust or it isn't, regardless of what day it landed;
+// consumers should treat anything more than ~20-30 min old as stale, per
+// claude/commute-eta-plan.md's original design note), AND appends a row to
+// location_history (lib/store.js) that is never overwritten — the actual
+// year-long log the pattern-finding will eventually read from. Retention
+// is config.shortcuts.locationHistoryMaxAgeDays (default 400 days), pruned
+// daily alongside everything else store.js prunes.
+//
+// Nothing downstream reads location_history yet — no pattern-finding, no
+// "suggest the best things" logic exists in this codebase today. This
+// endpoint is the data foundation that has to exist before any of that can
+// be built; the suggestion engine itself is a separate, much bigger ask
+// (what signals, what suggestions, shown where) that hasn't been scoped.
+app.post("/api/location", async (req, res) => {
+  if (!checkShortcutSecret(req, res)) return;
+  const { lat, lng } = req.body || {};
+  if (typeof lat !== "number" || typeof lng !== "number" || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: "lat/lng must be numbers" });
+  }
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    return res.status(400).json({ error: "lat/lng out of range" });
+  }
+  const capturedAt = typeof req.body?.capturedAt === "string" ? req.body.capturedAt : new Date().toISOString();
+  const receivedAt = new Date().toISOString();
+  await setMeta("lastLocation", { lat, lng, capturedAt, receivedAt });
+  await recordLocationPing({ lat, lng, capturedAt, receivedAt });
+  res.json({ ok: true });
+});
+
+// Writes the `sleep` meta blob /api/matrix's own `sleep` block reads
+// (staleness-gated there to ~20 hours, so turning this Shortcut off makes
+// the wall's Sleep & Alarm screen fall back to "coming soon" again rather
+// than showing a stale bedtime forever — see that comment in /api/matrix),
+// AND — round 92 follow-up, same "find patterns" ask as location above —
+// appends a row to alarm_log (lib/store.js) that's never overwritten, so a
+// year of bedtime/wake history builds up alongside the LED wall's own
+// always-latest read. Retention is config.shortcuts.alarmHistoryMaxAgeDays
+// (default 400 days), pruned daily alongside everything else store.js
+// prunes.
+app.post("/api/alarm", async (req, res) => {
+  if (!checkShortcutSecret(req, res)) return;
+  const { bedTime, wakeTime, nextAlarm } = req.body || {};
+  const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!HHMM.test(bedTime || "") || !HHMM.test(wakeTime || "")) {
+    return res.status(400).json({ error: "bedTime/wakeTime must be HH:MM, 24-hour" });
+  }
+  if (nextAlarm != null && !HHMM.test(nextAlarm)) {
+    return res.status(400).json({ error: "nextAlarm must be HH:MM, 24-hour, if provided" });
+  }
+  const postedAt = new Date().toISOString();
+  await setMeta("sleep", { bedTime, wakeTime, nextAlarm: nextAlarm || wakeTime, updatedAt: postedAt });
+  await recordAlarmPost({ bedTime, wakeTime, nextAlarm: nextAlarm || null, postedAt });
+  res.json({ ok: true });
 });
 
 /**
