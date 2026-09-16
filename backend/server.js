@@ -787,6 +787,11 @@ app.get("/api/config", async (_req, res) => {
 
 app.post("/api/refresh", async (req, res) => {
   try {
+    // Commute is just another entry in runSources' own COLLECTORS map now
+    // (brief/compose.js's collectCommute) — pressing the header's refresh
+    // button re-runs it along with everything else, so a real drive time
+    // shows up immediately after adding/moving a calendar event instead of
+    // waiting for the scheduler's own 15-minute tick.
     const report = await runSources(config, { force: Boolean(req.body?.force) });
     // Narration costs a token call, and the refresh button gets pressed to
     // check plumbing far more often than to get a new sentence. Opt in.

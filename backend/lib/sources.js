@@ -21,7 +21,14 @@
 //
 // "weather" (round 82) needs no credential either — Open-Meteo is free and
 // keyless — always on, same reasoning.
-export const SOURCES = ["email", "calendar", "money", "brightspace", "marketNews", "weather"];
+//
+// "commute" (commute/ETA feature) is the same shape again: always on this
+// list, and its own collector (brief/compose.js's collectCommute) no-ops
+// cleanly (0 items, no error) whenever config.commute.enabled is false or
+// there's simply nothing to route to right now — same "off in practice,
+// not in code" posture as brightspace. A genuine routing failure (bad key,
+// spent quota) is what actually surfaces here, as a real lastError_commute.
+export const SOURCES = ["email", "calendar", "money", "brightspace", "marketNews", "weather", "commute"];
 
 export const SOURCE_LABELS = {
   email: "Email",
@@ -30,4 +37,5 @@ export const SOURCE_LABELS = {
   brightspace: "Brightspace",
   marketNews: "Market news",
   weather: "Weather",
+  commute: "Travel",
 };

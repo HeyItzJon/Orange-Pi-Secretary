@@ -20,10 +20,12 @@ import { collectMoney } from "../sources/money.js";
 import { collectBrightspace } from "../sources/brightspace.js";
 import { collectMarketNews } from "../sources/marketNews.js";
 import { collectWeather } from "../sources/weather.js";
+import { refreshCommute } from "../lib/commute.js";
 import { buildPriorities } from "./priorities.js";
 import { buildDayContext, buildDeadlinePool } from "./display.js";
 import { refreshInsights } from "./insights.js";
 import { SOURCES } from "../lib/sources.js";
+import { localDateKey } from "../lib/time.js";
 
 const log = logger("brief");
 
@@ -37,7 +39,9 @@ const log = logger("brief");
 // writes the `marketPulse` meta blob the Finances page reads. weather
 // (round 82) is the same shape a third time: zero items, writes the
 // `weather` meta blob the LED wall's Weather screen (and later a Today-page
-// chip) reads — see sources/weather.js's own header.
+// chip) reads — see sources/weather.js's own header. commute (below) is the
+// same shape a fourth time: zero items, writes the `commute` meta blob
+// server.js's /api/matrix reads for dayOverview.commuteMin/the Commute page.
 const COLLECTORS = {
   email: collectEmail,
   calendar: collectCalendar,
@@ -45,7 +49,34 @@ const COLLECTORS = {
   brightspace: collectBrightspace,
   marketNews: collectMarketNews,
   weather: collectWeather,
+  commute: collectCommute,
 };
+
+/**
+ * Thin adapter so lib/commute.js's refreshCommute() — which caches its own
+ * `commute` meta blob directly rather than returning items, same shape as
+ * collectWeather above — fits the same collector contract every other
+ * source uses. Folding it in here (rather than the standalone scheduler
+ * call this used to be) is what gives it a real entry in the Sources panel
+ * ("Travel", see lib/sources.js): a genuine routing failure now throws out
+ * of refreshCommute and gets caught by runSources() below exactly like a
+ * dead Gmail token does for Email, instead of only ever reaching a log
+ * line. `detail` mirrors what refresh-commute.js already prints to a
+ * terminal, so "0 items" never reads as a failure the way it used to
+ * before marketNews.js's own detail field existed.
+ */
+async function collectCommute(config) {
+  await refreshCommute(config);
+  const cached = await getMeta("commute", null);
+  const today = localDateKey(new Date(), config.timezone || "America/Toronto");
+  const detail =
+    cached?.day === today
+      ? cached.route
+        ? `${cached.minutes}min to ${cached.label} (${cached.route})`
+        : `${cached.minutes}min buffer, already at ${cached.label}`
+      : "nothing to route to right now";
+  return { items: [], detail };
+}
 
 /** The canonical source list. Everything that iterates sources reads this. */
 export const SOURCE_NAMES = Object.keys(COLLECTORS);

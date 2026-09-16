@@ -3133,6 +3133,7 @@ const SOURCE_LABELS = {
   brightspace: "Brightspace",
   marketNews: "Market News",
   weather: "Weather",
+  commute: "Travel",
 };
 
 /**

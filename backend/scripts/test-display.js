@@ -1540,6 +1540,10 @@ test("a source with no credential concept at all (money) is never reported as 'o
   withEnv({}, () => assert.equal(sourceConfigured("money"), true));
 });
 
+test("commute has no env-credential concept either — its own config.commute.enabled flag decides that, not sourceConfigured", () => {
+  withEnv({}, () => assert.equal(sourceConfigured("commute"), true));
+});
+
 test("buildDisplay's tasks.status reflects the real env, independent of tasks.counts", () => {
   withEnv({ BRIGHTSPACE_ICS_URL: "https://example.edu/feed.ics" }, () => {
     // Configured, but genuinely zero items right now (e.g. between terms) —
