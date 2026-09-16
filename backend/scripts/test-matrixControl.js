@@ -61,10 +61,13 @@ await atest("statusPayload before anything is ever touched: every data screen en
   // merged into SCREENS as real hasData:true entries — the whole point of
   // that round was making them genuinely toggleable/default-enabled
   // instead of hardcoded into firmware rotation regardless of this list.
-  // sleep/wakeup stay out (hasData: false — see the next test).
+  // sleep/wakeup stay out (hasData: false — see the next test). Round 92
+  // added "commutestats" (hasData: true, right after "commuting" in
+  // SCREENS) — the LED wall's new Commute Stats screen is real backend
+  // data from day one, same as everything else in this list.
   assert.deepEqual(s.enabledScreens, [
     "portfolio", "markets", "holdings", "events", "news", "weather",
-    "clock", "dayoverview", "commuting", "stars", "balls",
+    "clock", "dayoverview", "commuting", "commutestats", "stars", "balls",
   ]);
   assert.equal(s.pinnedScreen, null);
   assert.equal(s.notification, null);
