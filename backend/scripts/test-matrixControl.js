@@ -57,9 +57,15 @@ group("defaults — nothing set yet");
 
 await atest("statusPayload before anything is ever touched: every data screen enabled, nothing pinned, offline", async () => {
   const s = await statusPayload(new Date("2026-08-30T12:00:00Z"));
-  // Round 82: weather graduated to hasData: true (sources/weather.js is a
-  // real source now), so it joins the rest of the default rotation.
-  assert.deepEqual(s.enabledScreens, ["portfolio", "markets", "holdings", "events", "news", "weather"]);
+  // Round 91: BENCH_SCREENS (clock/dayoverview/commuting/stars/balls) got
+  // merged into SCREENS as real hasData:true entries — the whole point of
+  // that round was making them genuinely toggleable/default-enabled
+  // instead of hardcoded into firmware rotation regardless of this list.
+  // sleep/wakeup stay out (hasData: false — see the next test).
+  assert.deepEqual(s.enabledScreens, [
+    "portfolio", "markets", "holdings", "events", "news", "weather",
+    "clock", "dayoverview", "commuting", "stars", "balls",
+  ]);
   assert.equal(s.pinnedScreen, null);
   assert.equal(s.notification, null);
   assert.equal(s.testEvent, null);
@@ -75,17 +81,27 @@ await atest("the full SCREENS catalog is exposed, weather included and marked as
   assert.equal(SCREENS.length, s.screens.length);
 });
 
+await atest("round 91: sleep and wakeup are listed but marked hasData: false — on record, not yet in default rotation", async () => {
+  const s = await statusPayload();
+  const sleep = s.screens.find((sc) => sc.id === "sleep");
+  const wakeup = s.screens.find((sc) => sc.id === "wakeup");
+  assert.ok(sleep, "sleep should be listed");
+  assert.ok(wakeup, "wakeup should be listed");
+  assert.equal(sleep.hasData, false);
+  assert.equal(wakeup.hasData, false);
+  assert.ok(!s.enabledScreens.includes("sleep"));
+  assert.ok(!s.enabledScreens.includes("wakeup"));
+});
+
 group("setEnabledScreens — validation");
 
 await atest("rejects a completely unknown id", async () => {
   await rejects(() => setEnabledScreens(["portfolio", "not-a-real-screen"]), "unknown screen");
 });
 
-// Round 82: weather graduated to hasData: true, so there is currently no
-// SCREENS entry left with hasData: false to exercise this rejection branch
-// against (the `noData` check inside setEnabledScreens itself is
-// unchanged, and will fire again the moment some future placeholder screen
-// is added — nothing to cover here again until then).
+await atest("rejects a real catalog id that has no data source yet (round 91: sleep/wakeup are back to exercising this branch)", async () => {
+  await rejects(() => setEnabledScreens(["portfolio", "sleep"]), "no data source");
+});
 
 await atest("rejects an empty list — auto-rotate needs at least one screen", async () => {
   await rejects(() => setEnabledScreens([]), "at least one");
