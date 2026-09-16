@@ -3190,10 +3190,65 @@ function CommutePage() {
 // presence anywhere — .cmleg-breakdown below makes them an actual walk/
 // drive/walk strip under the summary row, only when a buffer is real on
 // that end (Carleton has one on both ends; Richcraft only on arrival).
+// Round 92 — the rush-hour "alternatives" button. Jon: "any flagged drives
+// that are during peak times... have a button or link to click next to
+// them with alternatives." Only ever shown for a drive leg that's actually
+// flagged rush right now — the backend (computeAlternativesForLeg) is the
+// real source of truth for whether an alternative is actually offerable
+// (morning rush, no real gap, etc. all come back as eligible:false with a
+// plain-English reason instead of a suggestion), this button just decides
+// whether it's even worth asking.
+function CommuteAlternatives({ legKey }) {
+  const [state, setState] = useState(null); // null closed | "loading" | {eligible, reason, alternatives}
+
+  const toggle = async () => {
+    if (state) { setState(null); return; } // second click collapses
+    setState("loading");
+    try {
+      const res = await fetch("/api/commute/alternatives", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ legKey }),
+      });
+      setState(await res.json());
+    } catch (e) {
+      setState({ eligible: false, reason: e.message });
+    }
+  };
+
+  return (
+    <>
+      <button className="cmleg-altbtn" onClick={(e) => { e.stopPropagation(); toggle(); }}>
+        {state ? "hide alternatives" : "alternatives ▸"}
+      </button>
+      {state === "loading" && <div className="cmleg-alt">checking…</div>}
+      {state && state !== "loading" && !state.eligible && (
+        <div className="cmleg-alt">{state.reason || "no alternative available"}</div>
+      )}
+      {state && state !== "loading" && state.eligible && (
+        <div className="cmleg-alt">
+          {state.alternatives.map((a, i) => (
+            <div key={i} className="cmleg-alt-row">
+              {a.error ? (
+                <span>leave {a.offsetMin}m {a.direction}: couldn't check ({a.error})</span>
+              ) : (
+                <span>
+                  leave {a.offsetMin}m {a.direction} → <b>{a.minutes} min</b>
+                  {a.stillRush ? " (still rush)" : " (clear of rush)"}
+                  {a.activity && <> — good time for {a.activity}</>}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
 function CommuteLegRow({ leg }) {
   const leaveBy =
     leg.mode === "drive" ? minutesToClockStr(isoToMinutesOfDay(leg.toStart) - leg.minutes) : null;
   const hasWalkBreakdown = leg.mode === "drive" && (leg.departureBufferMin > 0 || leg.arrivalBufferMin > 0);
+  const canOfferAlternatives = leg.mode === "drive" && !!leg.isRush && new Date(leg.toStart).getTime() > Date.now();
   return (
     <div className={`cmleg${leg.isRush ? " rush" : ""}`}>
       <div className="cmleg-main">
@@ -3206,6 +3261,7 @@ function CommuteLegRow({ leg }) {
             : "walking buffer"}
         </span>
         {leg.isRush && <span className="cmleg-rush">{leg.isRush}</span>}
+        {canOfferAlternatives && <CommuteAlternatives legKey={leg.key} />}
       </div>
       {hasWalkBreakdown && (
         <div className="cmleg-breakdown">
@@ -3215,7 +3271,12 @@ function CommuteLegRow({ leg }) {
           {leg.arrivalBufferMin > 0 && (
             <>
               <span className="cmleg-seg-arrow">→</span>
-              <span className="cmleg-seg walk">🚶 {leg.arrivalBufferMin}m in</span>
+              {/* Round 92 — Jon: "change the 10m in text to be relevant. ex.
+                  10 min to class." Bare "in" named nothing; name what the
+                  walk actually leads to — the real event this leg is
+                  arriving for, same toEventTitle/label fallback already
+                  used in commuteTake.js's own narration. */}
+              <span className="cmleg-seg walk">🚶 {leg.arrivalBufferMin}m to {leg.toEventTitle || leg.label}</span>
             </>
           )}
         </div>
@@ -3824,7 +3885,6 @@ export default function Display() {
   // switching the top-level page to Today.
   const [dayOffset, setDayOffset] = useState(0);
   const lastHeal = useRef(0);
-  const lastInput = useRef(0);
   // The header tab bar scrolls horizontally on a phone (see .tabs in
   // Display.css) instead of squeezing seven tabs into equal slivers — this
   // keeps the active one scrolled into view whenever the page changes,
@@ -3936,7 +3996,7 @@ export default function Display() {
 
   // ---------------------------------------------------------- navigation
   const count = d?.pages?.length || 4;
-  const go = useCallback((n) => { lastInput.current = Date.now(); setPage(((n % count) + count) % count); }, [count]);
+  const go = useCallback((n) => { setPage(((n % count) + count) % count); }, [count]);
 
   // Used by WeekPage's day-card clicks: turn the Today carousel to the given
   // day, then switch the top-level view to the Today tab. Falls back to
@@ -3965,25 +4025,9 @@ export default function Display() {
       else return;
       e.preventDefault();
     };
-    const onMove = () => { lastInput.current = Date.now(); };
     window.addEventListener("keydown", onKey);
-    window.addEventListener("mousemove", onMove);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("mousemove", onMove); };
+    return () => { window.removeEventListener("keydown", onKey); };
   }, [page, count, go, refresh]);
-
-  // Rotate on its own, but never while someone is clearly using it — being
-  // yanked to another page mid-read is the fastest way to make a screen
-  // feel hostile.
-  useEffect(() => {
-    const secs = 25;
-    const pause = 120 * 1000;
-    const t = setInterval(() => {
-      if (panel) return;
-      if (Date.now() - lastInput.current < pause) return;
-      setPage((p) => (p + 1) % count);
-    }, secs * 1000);
-    return () => clearInterval(t);
-  }, [count, panel]);
 
   // -------------------------------------------------------------- render
   if (err && !d) return <div className="disp"><div className="err">Can't reach the server — {err}</div></div>;
@@ -4001,7 +4045,6 @@ export default function Display() {
   }
 
   const Page = PAGES[d.pages[page]?.id] || TodayPage;
-  const rotating = Date.now() - lastInput.current > 120 * 1000;
   // The Wall page is the unmanned, wall-mounted view (see WallPage above —
   // "nobody standing in front of it"); a floating chat invite has nothing
   // to do there, so it's the one page this doesn't show on.
@@ -4036,7 +4079,7 @@ export default function Display() {
           </span>
           <button
             className={`refresh${refreshing ? " spin" : ""}`}
-            onClick={(e) => { e.stopPropagation(); lastInput.current = Date.now(); refresh(); }}
+            onClick={(e) => { e.stopPropagation(); refresh(); }}
             title="Rerun every source now (r)"
           >
             {refreshing ? (
@@ -4064,11 +4107,10 @@ export default function Display() {
               title={p.label}
             />
           ))}
-          {rotating && <span className="auto">auto</span>}
         </span>
         <button
           className={`status${(d.freshness?.stale || d.freshness?.problem) && !healing ? " stale" : ""}`}
-          onClick={(e) => { e.stopPropagation(); lastInput.current = Date.now(); setPanel((v) => !v); }}
+          onClick={(e) => { e.stopPropagation(); setPanel((v) => !v); }}
           title="Show what each source last did"
         >
           {err

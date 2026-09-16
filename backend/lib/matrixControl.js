@@ -55,6 +55,15 @@ export const SCREENS = [
   { id: "clock", label: "Clock", description: "Large digital clock — no live data needed", hasData: true },
   { id: "dayoverview", label: "Today's Timeline", description: "Hours busy vs. free today, plus event count and busy score", hasData: true },
   { id: "commuting", label: "Commute", description: "Commute ETA placeholder screen — coming soon", hasData: true },
+  // Round 92 — Jon: "lets cook up a quick commute stats page for the led
+  // wall. with the top stats minus the money spend and the top brief
+  // scrolling like the weather thing." Real data since lib/commute.js's
+  // full-day plan (round 92) — total drive minutes/km plus the day-level
+  // rush facts and the DeepSeek insight line, same commutePlan the
+  // dashboard's own Commute page reads, just without the gas figure (see
+  // server.js's slim `commuteStats` block below — the fuel cost never
+  // makes it into that block at all, not just hidden in the renderer).
+  { id: "commutestats", label: "Commute Stats", description: "Today's total drive time/km plus the day's commute insight, scrolling", hasData: true },
   { id: "stars", label: "Stars", description: "Ambient starfield effect", hasData: true },
   { id: "balls", label: "Balls", description: "Ambient bouncing-balls effect", hasData: true },
   // Round 91 — new this round, ported from the HUB75 Twin's prototypes.

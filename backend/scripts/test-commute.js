@@ -16,6 +16,8 @@ import {
   arrivalBufferFor,
   sameLocationBufferFor,
   isRushHour,
+  rushWindowFor,
+  resolveLegEnds,
 } from "../lib/commute.js";
 
 let pass = 0, fail = 0;
@@ -173,6 +175,71 @@ test("weekdayOnly: a weekend time inside the same clock window is never flagged"
 test("returns null when no rushHours are configured, never throws", () => {
   assert.equal(isRushHour(new Date(), {}, TZ), null);
   assert.equal(isRushHour(new Date(), null, TZ), null);
+});
+
+group("rushWindowFor — round 92: same rule as isRushHour, but hands back the window's real clock boundaries");
+
+test("returns the whole matching window object, not just its label", () => {
+  assert.deepEqual(rushWindowFor(new Date("2026-09-15T20:00:00Z"), RUSH_CFG, TZ), {
+    label: "evening rush",
+    start: "15:30",
+    end: "18:00",
+  }); // 4:00pm EDT
+});
+
+test("can never disagree with isRushHour about whether it's rush hour at all", () => {
+  const dates = [
+    new Date("2026-09-15T11:30:00Z"), // weekday morning rush
+    new Date("2026-09-15T20:00:00Z"), // weekday evening rush
+    new Date("2026-09-15T18:00:00Z"), // weekday, outside any window
+    new Date("2026-09-19T11:30:00Z"), // weekend, inside the clock window
+  ];
+  for (const d of dates) {
+    const label = isRushHour(d, RUSH_CFG, TZ);
+    const window = rushWindowFor(d, RUSH_CFG, TZ);
+    assert.equal(window?.label ?? null, label);
+  }
+});
+
+test("returns null when no rushHours are configured, never throws", () => {
+  assert.equal(rushWindowFor(new Date(), {}, TZ), null);
+  assert.equal(rushWindowFor(new Date(), null, TZ), null);
+});
+
+group("resolveLegEnds — round 92: address/label resolution extracted out of computeLeg, reused by the alternatives feature");
+
+const ADDR_CFG = {
+  home: { address: "22 Brightside Ave, Stittsville, ON, Canada" },
+  locations: {
+    carleton: { label: "Carleton", address: "Carleton University P6 Parking, Ottawa ON, Canada" },
+    richcraft: { label: "Richcraft", address: "4101 Innovation Dr, Ottawa, ON", routeVariants: true },
+  },
+};
+
+test("resolves a known place's configured address and label, not the raw event text", () => {
+  const r = resolveLegEnds(ADDR_CFG, { fromKind: "home", toKind: "carleton", toLocationText: "some raw calendar string" });
+  assert.equal(r.originAddress, "22 Brightside Ave, Stittsville, ON, Canada");
+  assert.equal(r.destinationAddress, "Carleton University P6 Parking, Ottawa ON, Canada");
+  assert.equal(r.label, "Carleton");
+});
+
+test("falls back to the event's own raw location text for an unclassified place, on EITHER end", () => {
+  const r = resolveLegEnds(ADDR_CFG, {
+    fromKind: null, fromLocationText: "Infinity Convention Centre, Ottawa",
+    toKind: "carleton", toLocationText: "Carleton University P6 Parking",
+  });
+  assert.equal(r.originAddress, "Infinity Convention Centre, Ottawa");
+});
+
+test("tryVariants only true for a place actually configured with routeVariants", () => {
+  assert.equal(resolveLegEnds(ADDR_CFG, { toKind: "richcraft" }).tryVariants, true);
+  assert.equal(resolveLegEnds(ADDR_CFG, { toKind: "carleton" }).tryVariants, false);
+});
+
+test("'home' as a destination resolves to the configured home address, never a raw location", () => {
+  const r = resolveLegEnds(ADDR_CFG, { fromKind: "carleton", toKind: "home", toLocationText: "should never be used" });
+  assert.equal(r.destinationAddress, "22 Brightside Ave, Stittsville, ON, Canada");
+  assert.equal(r.label, "Home");
 });
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

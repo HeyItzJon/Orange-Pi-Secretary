@@ -28,6 +28,7 @@ import { isMarketLive } from "./sources/money.js";
 import { shortDescFallback } from "./lib/eventDigest.js";
 import { buildAskContext, buildAskPrompt } from "./brief/ask.js";
 import { ask } from "./lib/ai.js";
+import { computeAlternativesForLeg } from "./lib/commute.js";
 
 const log = logger("server");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -519,6 +520,27 @@ app.get("/api/matrix", async (_req, res) => {
       // above — the frontend's CommutePage treats a missing/stale plan as
       // "nothing computed yet," never as an empty day.
       commutePlan: commutePlan?.day === today ? commutePlan : null,
+      // commuteStats — round 92, purpose-built for the LED wall's new
+      // Commute Stats screen (matrixControl.js). Deliberately NOT just
+      // commutePlan again: the ESP32's JSON doc has a fixed byte budget
+      // (11264 in esp32-led-wall.ino) and the wall only ever needs a
+      // handful of scalars, never the full legs[] array (which grows with
+      // the day's event count and is already served to the dashboard
+      // above) — same "small state blob" discipline the weather block
+      // already follows here. No fuelCostCAD in this block at all, per
+      // Jon: "top stats minus the money spend" — not just left off the
+      // renderer, never sent to the wall to begin with.
+      commuteStats:
+        commutePlan?.day === today
+          ? {
+              totalDriveMinutes: commutePlan.totalDriveMinutes,
+              totalKm: commutePlan.totalKm,
+              rushLegCount: commutePlan.rushLegCount ?? 0,
+              bothRushHit: !!commutePlan.bothRushHit,
+              heavyDriveDay: !!commutePlan.heavyDriveDay,
+              insight: commutePlan.insight || null,
+            }
+          : null,
       holdings,
       news,
       weather, // round 82 — see comment above
@@ -828,6 +850,35 @@ app.post("/api/refresh/:source", async (req, res) => {
     const brief = await buildBrief(config, { narrate: false });
     res.json({ ok: true, report, brief });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Round 92 — the rush-hour "alternatives" button next to a flagged drive
+ * leg on the Commute page. Deliberately its own on-demand endpoint rather
+ * than baked into the regular commutePlan/refresh cycle: each alternative
+ * needs its own live Google Routes call (Jon's own call: "call the live
+ * API" over a free estimate), and most rush legs will never actually get
+ * clicked, so paying that cost on every ~15-minute refresh tick for every
+ * rush leg in the day — most of which nobody looks at — would be pure
+ * waste. lib/commute.js's computeAlternativesForLeg() has the full
+ * eligibility rules (own comment there); this route is a thin pass-through
+ * so a routing failure or "not eligible" reads as a normal 200 with
+ * eligible:false (an expected, common outcome — most legs aren't rush,
+ * most rush legs won't have a real gap), not a 4xx/5xx for something that
+ * isn't actually an error.
+ */
+app.post("/api/commute/alternatives", async (req, res) => {
+  const legKey = req.body?.legKey;
+  if (!legKey || typeof legKey !== "string") {
+    return res.status(400).json({ error: "legKey required" });
+  }
+  try {
+    const result = await computeAlternativesForLeg(config, legKey);
+    res.json(result);
+  } catch (err) {
+    log.error(err.message);
     res.status(500).json({ error: err.message });
   }
 });

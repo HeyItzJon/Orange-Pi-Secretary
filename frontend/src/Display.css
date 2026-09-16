@@ -1534,11 +1534,33 @@
 }
 .cmleg-breakdown { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-left: 24px; }
 .cmleg-seg {
+  /* Round 92 — Jon: "I want bright white on their respective pills." These
+     used to sit at --faint/--muted on a --fill chip, which is dark-on-dark
+     and unreadable at a glance from across the room; --ink is the same
+     bright white every other legible label on this page uses. */
   display: inline-flex; align-items: center; gap: 4px; font-size: 13px;
-  color: var(--faint); background: var(--fill); border-radius: 5px; padding: 2px 8px;
+  color: var(--ink); background: var(--fill); border-radius: 5px; padding: 2px 8px;
 }
-.cmleg-seg.walk { color: var(--muted); }
-.cmleg-seg-arrow { color: var(--faint); font-size: 11px; }
+.cmleg-seg.walk { color: var(--ink); }
+.cmleg-seg-arrow { color: var(--muted); font-size: 11px; }
+
+/* Round 92 — the rush-hour "alternatives" button/panel. Jon: "any flagged
+   drives that are during peak times... have a button or link to click next
+   to them with alternatives." Sits right after the rush badge (which is
+   already margin-left:auto, pinning both to the row's right edge); the
+   panel drops below the full-width .cmleg once expanded, same indent as
+   .cmleg-breakdown so it reads as "detail about this leg," not a sibling
+   row. */
+.cmleg-altbtn {
+  flex-shrink: 0; font-size: 12.5px; font-weight: 640; color: var(--accent);
+  background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.cmleg-alt {
+  padding-left: 24px; font-size: 13.5px; color: var(--ink-2);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.cmleg-alt-row b { color: var(--ink); }
 
 /* ========================================================= page: system */
 

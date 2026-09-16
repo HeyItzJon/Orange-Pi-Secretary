@@ -128,6 +128,19 @@ export function sameLocationBufferFor(cfg, kind) {
  * for itself whether something is rush hour.
  */
 export function isRushHour(date, cfg, tz) {
+  return rushWindowFor(date, cfg, tz)?.label || null;
+}
+
+/**
+ * Same rule as isRushHour above, but hands back the whole matching window
+ * object ({label, start, end}, straight out of config.commute.rushHours.
+ * windows) instead of just its label. Round 92's day-summary work needs the
+ * actual clock boundaries — "leaving before 15:30 clears the evening
+ * rush" — not just a yes/no per leg, so this is the one place that reads
+ * the window's start/end; isRushHour above is now a thin wrapper over it so
+ * the two can never disagree about what counts as rush hour.
+ */
+export function rushWindowFor(date, cfg, tz) {
   const rh = cfg?.rushHours;
   if (!rh?.windows?.length) return null;
 
@@ -152,7 +165,7 @@ export function isRushHour(date, cfg, tz) {
     if (![sh, sm, eh, em].every(Number.isFinite)) continue;
     const startMin = sh * 60 + sm;
     const endMin = eh * 60 + em;
-    if (minutes >= startMin && minutes < endMin) return w.label || "rush hour";
+    if (minutes >= startMin && minutes < endMin) return w;
   }
   return null;
 }
@@ -312,17 +325,9 @@ export function applyConservativeBuffer(minutes, pct) {
  * location, threaded in from refreshCommute below) closes that gap
  * symmetrically with the destination side.
  */
-async function computeLeg({ cfg, fromKind, fromLocationText, toKind, toLocationText, departureTime, conservativeBufferPct }) {
+export function resolveLegEnds(cfg, { fromKind, fromLocationText, toKind, toLocationText }) {
   const destLoc = toKind && toKind !== "home" ? cfg.locations[toKind] : null;
   const label = toKind === "home" ? "Home" : destLoc?.label || toLocationText;
-
-  // Already at the same kind of place as this event (e.g. two back-to-back
-  // Carleton classes) — no drive needed, just the flat walk-across-campus
-  // buffer Jon gave us, not a routing call.
-  if (toKind && toKind === fromKind) {
-    return { mode: "buffer", minutes: sameLocationBufferFor(cfg, toKind), km: 0, route: null, label: "already there" };
-  }
-
   // Unknown place (not home/Carleton/Richcraft) still gets a real, live
   // one-off ETA using the event's own raw location text — never skipped,
   // never faked. Just no named route variants or buffers, since those are
@@ -331,6 +336,21 @@ async function computeLeg({ cfg, fromKind, fromLocationText, toKind, toLocationT
   // is exactly as valid a leg as an unclassified destination always was.
   const originAddress = fromKind === "home" ? cfg.home.address : cfg.locations[fromKind]?.address || fromLocationText;
   const destinationAddress = toKind === "home" ? cfg.home.address : destLoc?.address || toLocationText;
+  return { originAddress, destinationAddress, label, tryVariants: Boolean(destLoc?.routeVariants) };
+}
+
+async function computeLeg({ cfg, fromKind, fromLocationText, toKind, toLocationText, departureTime, conservativeBufferPct }) {
+  const { originAddress, destinationAddress, label, tryVariants } = resolveLegEnds(cfg, {
+    fromKind, fromLocationText, toKind, toLocationText,
+  });
+
+  // Already at the same kind of place as this event (e.g. two back-to-back
+  // Carleton classes) — no drive needed, just the flat walk-across-campus
+  // buffer Jon gave us, not a routing call.
+  if (toKind && toKind === fromKind) {
+    return { mode: "buffer", minutes: sameLocationBufferFor(cfg, toKind), km: 0, route: null, label: "already there" };
+  }
+
   if (!originAddress || !destinationAddress) return null;
 
   const { result, failures } = await bestRouteMinutes({
@@ -340,9 +360,12 @@ async function computeLeg({ cfg, fromKind, fromLocationText, toKind, toLocationT
     // the event's own start time is used as the departure-time sample
     // (see commute-eta-plan.md: "close enough" for a commute-length
     // window; the conservative buffer below absorbs the residual error
-    // rather than solving a full leave-by fixed point).
+    // rather than solving a full leave-by fixed point). Round 92's
+    // alternatives feature (computeAlternativesForLeg below) reuses this
+    // exact same proxy — shifting THIS timestamp by the candidate offset —
+    // for consistency with however the baseline leg itself was estimated.
     departureTime,
-    tryVariants: Boolean(destLoc?.routeVariants),
+    tryVariants,
     conservativeBufferPct,
   });
   if (!result) {
@@ -382,15 +405,19 @@ async function computeLeg({ cfg, fromKind, fromLocationText, toKind, toLocationT
  * already gets. "Nothing to compute right now" (not configured, no located
  * events today) is not a failure and returns quietly.
  */
-export async function refreshCommute(config) {
+/**
+ * Today's real waypoints, live off the calendar every time this is called —
+ * an implicit "home" start-of-day, every located event in order, and (per
+ * round 92's "there seems to be some of these missing" fix) a trailing
+ * synthetic "home-end" drive-home leg when the day's last located event has
+ * a real end time to depart from. Shared by refreshCommute() (the normal
+ * per-tick full-day plan) and computeAlternativesForLeg() below (an
+ * on-demand, live re-derivation for a single leg — never trusted from a
+ * possibly-stale cached plan) so the two can never disagree about what
+ * "today's plan" actually looks like.
+ */
+async function buildTodaysWaypoints(config) {
   const cfg = config.commute;
-  if (!cfg?.enabled || !cfg?.home?.address) {
-    // Not configured yet — leave whatever's cached alone rather than
-    // clobbering it with nothing; server.js only trusts today's entry.
-    return;
-  }
-
-  const now = new Date();
   const today = todayKeyFor(config.timezone);
   const items = await allItems();
   const todaysEvents = items
@@ -419,25 +446,39 @@ export async function refreshCommute(config) {
     .map((e) => ({ ...e, kind: classifyLocation(e.location, cfg.locations) }));
   const waypoints = [{ id: "home", start: null }, ...located];
 
-  if (located.length === 0) {
-    // Nothing today with a location to route to at all — clear any stale
-    // plan/next-leg from a previous day rather than leaving old data
-    // sitting there looking current.
-    await setMeta("commutePlan", null);
-    await setMeta("commute", null);
-    return;
-  }
-
   // Round 92 follow-up, per Jon: "for the first and last carleton events of
   // the day, I expect ... the relevant drive time to or from my other
   // off-campus events. there seems to be some of these missing." The plan
   // used to stop at the day's last located event — there's a real drive
   // home after it too, same as the implicit "home" start-of-day waypoint
   // above. Only added when the last located event has a real END time to
-  // depart from (see todaysEvents above); never guessed if it's missing.
+  // depart from; never guessed if it's missing.
   const lastLocated = located[located.length - 1];
-  if (lastLocated.end) {
+  if (lastLocated?.end) {
     waypoints.push({ id: "home-end", start: lastLocated.end, end: null, kind: "home", title: "Home", location: null });
+  }
+
+  return { cfg, today, waypoints, locatedCount: located.length };
+}
+
+export async function refreshCommute(config) {
+  const cfgCheck = config.commute;
+  if (!cfgCheck?.enabled || !cfgCheck?.home?.address) {
+    // Not configured yet — leave whatever's cached alone rather than
+    // clobbering it with nothing; server.js only trusts today's entry.
+    return;
+  }
+
+  const now = new Date();
+  const { cfg, today, waypoints, locatedCount } = await buildTodaysWaypoints(config);
+
+  if (locatedCount === 0) {
+    // Nothing today with a location to route to at all — clear any stale
+    // plan/next-leg from a previous day rather than leaving old data
+    // sitting there looking current.
+    await setMeta("commutePlan", null);
+    await setMeta("commute", null);
+    return;
   }
 
   const previousPlan = await getMeta("commutePlan", null);
@@ -529,12 +570,55 @@ export async function refreshCommute(config) {
       ? Math.round(totalKm * (vehicle.fuelLPer100km / 100) * vehicle.pricePerLiterCAD * 100) / 100
       : null;
 
+  // Round 92 — day-level facts for the top summary, per Jon: "the top
+  // summary also needs work. yes talk about specific drives but also on
+  // the day stats like heavy drive day, or both rush hour commutes, try
+  // and alleviate one, or afternoon beats rush hour so dont delay after
+  // 2:30 class." Same rule as every other fact in this file: decided here,
+  // deterministically, and handed to commuteTake.js already-decided — the
+  // AI narrates "heavy drive day" or "both commutes hit rush," it never
+  // decides for itself whether either is true.
+  const rushWindows = cfg.rushHours?.windows || [];
+  const rushDriveLegs = legs.filter((l) => l.mode === "drive" && l.isRush);
+  // Matched by which CONFIGURED window (index) actually got hit today, not
+  // by fuzzy-matching the label text — so "both rush hour commutes" still
+  // means the same thing however Jon ever renames "morning rush"/"evening
+  // rush" in config.json.
+  const hitWindowIdx = new Set(
+    rushDriveLegs
+      .map((l) => rushWindows.findIndex((w) => w.label === l.isRush))
+      .filter((i) => i >= 0)
+  );
+  const bothRushHit = rushWindows.length >= 2 && hitWindowIdx.size >= 2;
+  // No existing config number to lean on — 90 min of real driving in one
+  // day is a reasonable, easily-revisited default for "heavy," configurable
+  // per Jon's own driving patterns rather than hard-coded with no way out.
+  const heavyDriveThresholdMin = cfg.heavyDriveThresholdMin ?? 90;
+  const heavyDriveDay = totalDriveMinutes >= heavyDriveThresholdMin;
+  // Per-rush-leg window boundaries, e.g. so "afternoon beats rush hour so
+  // dont delay after 2:30 class" has a REAL class end time and a REAL
+  // window start to compare, rather than the AI inventing either. leg.label
+  // is the same location-name fallback used everywhere else in this file
+  // when an event's own title is missing.
+  const rushLegSummaries = rushDriveLegs.map((l) => {
+    const window = rushWindows.find((w) => w.label === l.isRush) || null;
+    return {
+      toEventTitle: l.toEventTitle || l.label,
+      toStart: l.toStart,
+      window: window ? { label: window.label, start: window.start, end: window.end } : null,
+    };
+  });
+
   const plan = {
     day: today,
     legs,
     totalDriveMinutes: Math.round(totalDriveMinutes),
     totalKm: Math.round(totalKm * 10) / 10,
     fuelCostCAD,
+    rushLegCount: rushDriveLegs.length,
+    bothRushHit,
+    heavyDriveDay,
+    rushLegSummaries,
     generatedAt: now.toISOString(),
   };
 
@@ -580,4 +664,136 @@ export async function refreshCommute(config) {
   if (freshFailures.length) {
     throw new Error(`${freshFailures.length} leg(s) failed: ${freshFailures.join("; ")}`);
   }
+}
+
+/**
+ * On-demand alternative departure times for ONE rush-flagged drive leg —
+ * round 92's "button or link to click next to them with alternatives."
+ * Deliberately NOT precomputed for every rush leg on every refresh tick:
+ * each alternative needs its own live Routes API call (Jon's own call,
+ * asked directly: "call the live API" over a free estimate), so this only
+ * ever runs when the dashboard actually asks for one specific leg,
+ * server.js's POST /api/commute/alternatives.
+ *
+ * The eligibility rules below are ALL facts Jon stated directly, not a
+ * guess at what he meant:
+ * - Never offered at all outside a real, currently-flagged rush window —
+ *   "only for peak times."
+ * - Morning rush gets accuracy, never an alternative — "for morning idk if
+ *   leaving early is much help just make sure I have an accurate morning
+ *   commute time." Windows are classified morning/not by their own start
+ *   clock hour (<12), never by matching the label text, so this still
+ *   works whatever Jon ever renames a window to.
+ * - "Leave later" is ONLY ever offered on the trailing drive-home leg
+ *   (toKind === "home") — every other rush leg drives toward a real
+ *   commitment, and Jon confirmed directly: "leave later only for legs
+ *   with nothing due after... every leg into a real event only ever gets
+ *   leave earlier, never leave later." The three offsets/activities below
+ *   (30/60/90 -> bite to eat/library/focused work session) are exactly
+ *   what Jon himself proposed, not invented here.
+ * - "Leave earlier" (any other rush leg) only when there's a REAL gap
+ *   between the previous located event's own end time and this leg's
+ *   current leave-by — "some things you cant leave early." No known end
+ *   time on the preceding event, or under 15 real minutes of slack, means
+ *   no alternative is offered at all, never a guessed one.
+ *
+ * Returns { eligible: false, reason } when none of the above holds, or
+ * { eligible: true, leg, alternatives } with one real, freshly-routed
+ * result per candidate (each may itself carry `error` if that one Routes
+ * call failed — a partial failure never blanks out the ones that
+ * succeeded).
+ */
+export async function computeAlternativesForLeg(config, legKey) {
+  const cfg = config.commute;
+  if (!cfg?.enabled) return { eligible: false, reason: "commute not configured" };
+
+  const plan = await getMeta("commutePlan", null);
+  const today = todayKeyFor(config.timezone);
+  if (plan?.day !== today) return { eligible: false, reason: "no commute plan for today" };
+
+  const leg = (plan.legs || []).find((l) => l.key === legKey);
+  if (!leg || leg.mode !== "drive") return { eligible: false, reason: "not a drive leg" };
+  if (new Date(leg.toStart).getTime() <= Date.now()) return { eligible: false, reason: "already in the past" };
+  if (!leg.isRush) return { eligible: false, reason: "not flagged rush hour" };
+
+  const window = rushWindowFor(new Date(leg.toStart), cfg, config.timezone);
+  const isMorning = window && Number(String(window.start).split(":")[0]) < 12;
+  if (!window) return { eligible: false, reason: "not currently inside a rush window" };
+  if (isMorning) return { eligible: false, reason: "morning rush — accuracy only, no alternatives (Jon's own call)" };
+
+  // Re-derive this leg's fromKind/toKind/addresses live off today's real
+  // waypoints — never trusted from the cached leg, same never-guess
+  // discipline the rest of this file follows (an event could have moved or
+  // changed location since this leg was last computed).
+  const { waypoints } = await buildTodaysWaypoints(config);
+  const [fromId, toId] = legKey.split("->");
+  const i = waypoints.findIndex((w, idx) => w.id === fromId && waypoints[idx + 1]?.id === toId);
+  if (i < 0) return { eligible: false, reason: "this leg is no longer in today's plan" };
+  const from = waypoints[i];
+  const to = waypoints[i + 1];
+  const fromKind = i === 0 ? "home" : from.kind;
+
+  const { originAddress, destinationAddress, tryVariants } = resolveLegEnds(cfg, {
+    fromKind,
+    fromLocationText: from.location,
+    toKind: to.kind,
+    toLocationText: to.location,
+  });
+  if (!originAddress || !destinationAddress) return { eligible: false, reason: "address unresolved" };
+
+  const baseTime = new Date(leg.toStart).getTime();
+  let candidates;
+
+  if (to.kind === "home") {
+    candidates = [
+      { offsetMin: 30, direction: "later", activity: "grab a bite to eat" },
+      { offsetMin: 60, direction: "later", activity: "a library session" },
+      { offsetMin: 90, direction: "later", activity: "a focused work session on an ongoing project" },
+    ];
+  } else {
+    const leaveBy = baseTime - leg.minutes * 60000;
+    // Home has no preceding commitment to wait out — bounded to a sane
+    // 60-minute cap rather than left unbounded, since this case (an
+    // evening-rush leg starting from home) is unusual but not impossible.
+    const availableFrom = fromKind === "home" ? null : from.end ? from.end.getTime() : null;
+    if (fromKind !== "home" && availableFrom == null) {
+      return { eligible: false, reason: "preceding event has no known end time — can't tell if there's a real gap" };
+    }
+    const slackMin = availableFrom != null ? Math.floor((leaveBy - availableFrom) / 60000) : 60;
+    if (slackMin < 15) return { eligible: false, reason: "no real gap to leave earlier" };
+    candidates = [{ offsetMin: Math.min(30, slackMin), direction: "earlier", activity: null }];
+  }
+
+  const departureBuffer = departureBufferFor(cfg, fromKind);
+  const arrivalBuffer = arrivalBufferFor(cfg, to.kind);
+  const alternatives = [];
+  for (const c of candidates) {
+    const shifted = new Date(baseTime + (c.direction === "later" ? c.offsetMin : -c.offsetMin) * 60000);
+    const { result, failures } = await bestRouteMinutes({
+      originAddress,
+      destinationAddress,
+      departureTime: shifted.toISOString(),
+      tryVariants,
+      conservativeBufferPct: cfg.conservativeBufferPct ?? 10,
+    });
+    if (!result) {
+      alternatives.push({ ...c, error: failures.join("; ") || "no route found" });
+      continue;
+    }
+    alternatives.push({
+      ...c,
+      driveMinutes: result.minutes,
+      minutes: result.minutes + departureBuffer + arrivalBuffer,
+      km: result.km,
+      route: result.route,
+      at: shifted.toISOString(),
+      stillRush: !!isRushHour(shifted, cfg, config.timezone),
+    });
+  }
+
+  return {
+    eligible: true,
+    leg: { key: legKey, toEventTitle: leg.toEventTitle || leg.label, toStart: leg.toStart, minutes: leg.minutes, isRush: leg.isRush },
+    alternatives,
+  };
 }

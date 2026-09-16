@@ -50,11 +50,16 @@ Return json: {"summary":"..."}
 Rules:
 - 1 sentence, under 160 characters.
 - Only ever reference a leg, time, or number that is actually given below — never invent a duration, a destination, or a delay that isn't in the data.
-- Rush hour is the single most important thing to flag when it's real: if a leg's isRush is set, say so plainly and, if there's a genuine alternative visible in the data (e.g. a later leg to/from the same place that isn't rush hour, or enough of a gap to wait it out), suggest it concretely ("consider leaving after 9" / "staying on campus another hour avoids the worst of it") — but only suggest a delay that's actually realistic given the day's own events, never a vague "avoid rush hour" platitude.
+- Prefer a DAY-LEVEL observation over a single-leg one when the data below actually supports one — these are pre-computed facts, never your own inference:
+  - "Both rush hours hit" (bothRushHit: true) is worth naming on its own, and worth suggesting which ONE of the two to try alleviating (usually the one with a realistic gap/alternative visible in the legs) rather than treating them as unrelated.
+  - "Heavy drive day" (heavyDriveDay: true) is worth naming plainly — e.g. total drive time is unusually high today.
+  - Each entry in rushLegs carries the real rush window's start/end clock time and the real event you're driving to — use that to give a genuine boundary ("beats the 15:30 rush" / "don't delay past your 2:30 class" style), but ONLY when the event's own end time or the window boundary given actually supports that specific claim. Never invent a class time that isn't in the data.
+- Outside those day-level facts, rush hour on a single leg is still the next most important thing to flag: if a leg's isRush is set, say so plainly and, if there's a genuine alternative visible in the data (e.g. a later leg to/from the same place that isn't rush hour, or enough of a gap to wait it out), suggest it concretely ("consider leaving after 9" / "staying on campus another hour avoids the worst of it") — but only suggest a delay that's actually realistic given the day's own events, never a vague "avoid rush hour" platitude.
+- Morning rush gets accuracy, not a "leave earlier" suggestion — Jon: "for morning idk if leaving early is much help just make sure I have an accurate morning commute time." Only suggest shifting a departure for an EVENING/afternoon rush leg.
 - If nothing today is genuinely notable (no rush-hour legs, a light day), it's fine to say something plain and useful instead — e.g. name the day's total drive time, or that the day is light on driving. Don't force a rush-hour angle that isn't there.
 - No emoji, no exclamation points, no filler like "have a great day" or "drive safe."`;
 
-function fmtForPrompt({ legs, totalDriveMinutes, totalKm, fuelCostCAD }) {
+function fmtForPrompt({ legs, totalDriveMinutes, totalKm, fuelCostCAD, rushLegCount, bothRushHit, heavyDriveDay, rushLegSummaries }) {
   const lines = [];
   if (!legs.length) {
     lines.push("No commute legs today.");
@@ -82,6 +87,21 @@ function fmtForPrompt({ legs, totalDriveMinutes, totalKm, fuelCostCAD }) {
       fuelCostCAD != null ? `, ~$${fuelCostCAD.toFixed(2)} in gas` : ""
     }.`
   );
+  // Round 92 — the already-decided day-level facts (lib/commute.js's
+  // refreshCommute) the SYSTEM prompt above tells the model to prefer over
+  // a single-leg observation. Always printed, even when false/zero, so the
+  // model can see "both rush hours" was actually checked and came back
+  // false rather than just being absent from the data.
+  lines.push(`Day facts: rushLegCount=${rushLegCount ?? 0}, bothRushHit=${!!bothRushHit}, heavyDriveDay=${!!heavyDriveDay}.`);
+  if (rushLegSummaries?.length) {
+    lines.push("rushLegs:");
+    for (const r of rushLegSummaries) {
+      const when = new Date(r.toStart).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" });
+      lines.push(
+        `- ${r.toEventTitle} at ${when}${r.window ? ` (inside ${r.window.label}, ${r.window.start}–${r.window.end})` : ""}`
+      );
+    }
+  }
   return lines.join("\n");
 }
 
