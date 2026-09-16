@@ -95,6 +95,19 @@ async function computeRoute({ originAddress, destinationAddress, departureTime, 
         destination: { address: destinationAddress },
         travelMode: "DRIVE",
         departureTime,
+        // Google rejects departureTime outright under the default
+        // TRAFFIC_UNAWARE mode ("Timestamp cannot be set for
+        // TRAFFIC_UNAWARE routing mode" — hit live, round: Travel source).
+        // TRAFFIC_AWARE is the cheaper of the two traffic-aware modes
+        // (TRAFFIC_AWARE_OPTIMAL trades latency for a bit more accuracy,
+        // at the same billing tier) and is exactly what a predictive,
+        // time-of-day-aware ETA needs anyway. Real cost note, verified
+        // Sept 2026: this moves Compute Routes calls from the Essentials
+        // SKU (10,000 free/month) to the Pro SKU (5,000 free/month, then
+        // $10/1,000) — still enormous headroom at Jon's real usage (a
+        // handful to a few dozen calls/day), see claude/commute-eta-
+        // plan.md's pricing section.
+        routingPreference: "TRAFFIC_AWARE",
         routeModifiers: avoidHighways ? { avoidHighways: true } : undefined,
       },
       {
