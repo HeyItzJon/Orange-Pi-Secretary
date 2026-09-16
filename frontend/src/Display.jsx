@@ -2977,6 +2977,7 @@ const SOURCE_LABELS = {
   money: "Yahoo Finance",
   brightspace: "Brightspace",
   marketNews: "Market News",
+  weather: "Weather",
 };
 
 /**
