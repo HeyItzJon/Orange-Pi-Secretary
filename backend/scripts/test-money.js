@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { valueBook, marketStatusLabel, currencyExposure, holdingsFromVault, isPlausibleFxRate } from "../sources/money.js";
+import { valueBook, marketStatusLabel, isMarketLive, currencyExposure, holdingsFromVault, isPlausibleFxRate } from "../sources/money.js";
 
 let pass = 0, fail = 0;
 const group = (t) => console.log(`\n${t}\n`);
@@ -182,6 +182,29 @@ test("everything closed, or no market data at all: null — nothing worth saying
 test("a currency outside USD/CAD still counts for open/pre/post, just without a market name", () => {
   assert.equal(marketStatusLabel([{ currency: "EUR", marketState: "REGULAR" }]), "markets open");
   assert.equal(marketStatusLabel([{ currency: "GBP", marketState: "PRE" }]), "pre-market");
+});
+
+group("isMarketLive — round 90: the wall's strict LIVE-or-CLOSED gate, not just 'not null'");
+
+// Jon: "it doesnt seem like the markets are ever marked as closed" — the
+// old wall gate (`marketOpen = marketStatus != null`) called pre-market
+// and post-market "open" too, since only null (weekend/holiday/no data)
+// failed it. isMarketLive() only says yes for the three outcomes where a
+// regular session is genuinely trading right now.
+test("a regular session trading (any of the three 'open' labels) is live", () => {
+  assert.equal(isMarketLive("markets open"), true);
+  assert.equal(isMarketLive("US markets open"), true);
+  assert.equal(isMarketLive("TSX open"), true);
+});
+
+test("pre-market and post-market are NOT live — this is the actual bug fix", () => {
+  assert.equal(isMarketLive("pre-market"), false);
+  assert.equal(isMarketLive("post-market"), false);
+});
+
+test("null (weekend, holiday, or no data) is not live either", () => {
+  assert.equal(isMarketLive(null), false);
+  assert.equal(isMarketLive(undefined), false);
 });
 
 group("currencyExposure — CAD/USD split, no fetch needed");

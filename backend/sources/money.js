@@ -423,6 +423,25 @@ export function marketStatusLabel(rows) {
   return null;
 }
 
+/**
+ * Round 90 — Jon: "it doesnt seem like the markets are ever marked as
+ * closed... can we make market open and market closed the only real
+ * statuses." Real pre-market (~4am ET) and post-market (~4-8pm ET)
+ * together span most of the day around a 9:30-4:00 ET regular session, so
+ * the wall's old gate (server.js's `marketOpen = marketStatus != null`,
+ * true for ANY of the five marketStatusLabel outcomes) called pre/post
+ * "open" too — the LIVE dot and CLOSED banner almost never told the
+ * truth. This is the strict, two-state answer the wall actually wants:
+ * true only for the three "someone is actually trading right now"
+ * outcomes; pre-market, post-market, and null (weekend/holiday/no data)
+ * are all "not live." The money page keeps showing the nuanced 5-way
+ * label separately (marketStatus itself, untouched) — this is only for
+ * places that need a plain yes/no, like the wall.
+ */
+export function isMarketLive(marketStatus) {
+  return marketStatus === "markets open" || marketStatus === "US markets open" || marketStatus === "TSX open";
+}
+
 // ------------------------------------------------------------------- main
 
 export async function collectMoney(config) {

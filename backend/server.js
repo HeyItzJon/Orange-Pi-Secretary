@@ -24,6 +24,7 @@ import {
   fireTestEvent, commandPayload, statusPayload, MatrixControlError,
 } from "./lib/matrixControl.js";
 import { collectSystemHealth, evaluateProblems } from "./lib/systemHealth.js";
+import { isMarketLive } from "./sources/money.js";
 import { shortDescFallback } from "./lib/eventDigest.js";
 import { buildAskContext, buildAskPrompt } from "./brief/ask.js";
 import { ask } from "./lib/ai.js";
@@ -387,12 +388,15 @@ app.get("/api/matrix", async (_req, res) => {
         : (marketPulse?.headlines || []).slice(0, 3).map((h) => ({ title: h.title || "", source: h.source || null }))
     ).map((h) => ({ title: sanitizeForWall(h.title), source: h.source ? sanitizeForWall(h.source) : null }));
 
-    // Whether anything actually traded today, per the Round 49 weekend-
-    // color fix (sources/money.js's marketOpen gate) — free to include here
-    // since `money` is already fetched above. Lets the firmware show an
-    // honest "Markets are closed" screen on a weekend/holiday instead of a
-    // stale weekday portfolio number presented as current.
-    const marketOpen = money?.marketStatus != null;
+    // Round 90 — Jon: pre/post-market (~4am-8pm ET combined) made the wall
+    // read "open" almost all day under the old `!= null` gate, so the LIVE
+    // dot and CLOSED banner basically never fired. isMarketLive() (see
+    // sources/money.js) is the strict two-state answer: true only when a
+    // regular session is actually trading right now, false for pre-market,
+    // post-market, and true weekends/holidays alike. The money page still
+    // shows the nuanced pre/post-market label separately — this is just
+    // for the wall's plain yes/no LIVE-or-CLOSED question.
+    const marketOpen = isMarketLive(money?.marketStatus);
 
     // Round 74 — Jon: "so we know that these prices... are not current,
     // and they are the last known price." quotedAt is each position's
@@ -400,8 +404,12 @@ app.get("/api/matrix", async (_req, res) => {
     // regularMarketTime), frozen at whatever it was when the market
     // actually stopped trading — NOT this poll's own `at` timestamp,
     // which would just read as "recent" even hours or days into a closed
-    // market. Only computed/sent when closed; the weekday is included
-    // since "last known" over a weekend or holiday isn't today.
+    // market. Only computed/sent when not live; the weekday is included
+    // since "last known" over a weekend, holiday, or pre/post-market
+    // session isn't necessarily today's regular-session close (round 90 —
+    // marketOpen now also goes false during pre/post-market, so this label
+    // shows then too, which is the honest thing to say: a pre-market quote
+    // is still yesterday's close, not a live price).
     const lastQuotedAt = (money?.positions || [])
       .map((p) => p.quotedAt)
       .filter(Boolean)
