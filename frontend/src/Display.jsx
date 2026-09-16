@@ -2975,16 +2975,30 @@ function WeatherPage() {
  * Commute/ETA page (claude/commute-eta-plan.md). Mirrors WeatherPage just
  * above: standalone, self-polling /api/matrix, no `d` prop — the same
  * reasoning applies (this reads dayOverview.commuteMin/commuteEventId and
- * events[].location, neither of which is threaded into buildDisplay()'s
+ * matrix.commutePlan, neither of which is threaded into buildDisplay()'s
  * own compose pass).
  *
- * The one thing this page has to get right that Weather doesn't: commuteMin
- * is computed for "the next event with a resolved location" (lib/
- * commute.js), which is NOT always events[0] — a closer, location-less
- * event can sit in between. dayOverview.commuteEventId is exactly what
- * fixes that: it's matched against events[].id (both added this round)
- * so the "LEAVE BY" hero and the highlighted timeline row always point at
- * the real target event, never just "whichever one is first."
+ * Round 92 rewrite, per Jon: "lets have a comprehensive day commuting page,
+ * not quite a timeline but we have each event and then between them we have
+ * the commute time expected to get from one to the other... I also want
+ * daily total commute time and km... we should also eventually get into gas
+ * spend." This now shows the WHOLE day (matrix.commutePlan.legs, from
+ * lib/commute.js's refreshCommute) rather than just the next leg: every
+ * event in order, with a travel segment interleaved wherever a leg actually
+ * lands on it, plus a daily totals strip (time/km/gas — lib/commute.js's
+ * fuelCostCAD, from Jon's real 2.5L Golf MK6 figures in config.commute.
+ * vehicle, never a live gas-price API per his explicit "I dont want to be
+ * that guy with a gas price API") and the DeepSeek insight line
+ * (lib/commuteTake.js) — rush hour is the one thing that line is told to
+ * prioritize, since Jon called it out directly ("rush hour is a big deal to
+ * me").
+ *
+ * The "LEAVE BY" hero keeps using dayOverview.commuteMin/commuteEventId —
+ * that field is *derived* from commutePlan's own legs (see commute.js's
+ * backward-compat section) as "the next leg whose target hasn't happened
+ * yet," so it's never a second, possibly-disagreeing source of truth for
+ * the same immediate action; the full-day list below is what adds
+ * everything else the hero doesn't show.
  */
 function CommutePage() {
   const [matrix, setMatrix] = useState(null);
@@ -3017,6 +3031,7 @@ function CommutePage() {
   if (!matrix) return <p className="empty big-empty">Loading commute…</p>;
 
   const dov = matrix.dayOverview || {};
+  const plan = matrix.commutePlan || null;
   const events = matrix.events || [];
   const stops = events.filter((e) => e.location);
   const commuteEvent = dov.commuteEventId
@@ -3024,6 +3039,17 @@ function CommutePage() {
     : null;
   const haveEta = commuteEvent && dov.commuteMin != null;
   const leaveBy = haveEta ? minutesToClockStr(clockStrToMinutes(commuteEvent.time) - dov.commuteMin) : null;
+
+  // Every leg is keyed by the waypoint it arrives AT (toId — either an
+  // event id, or the implicit day-start home->first-stop leg keyed by that
+  // first located event's id). Keying the lookup this way, rather than
+  // walking waypoints separately, means the render below can just ask
+  // "does a leg land on this event?" for every event in the day's own
+  // chronological order, including events with no location in between —
+  // they simply have no entry and render as a plain row.
+  const legByToId = new Map((plan?.legs || []).map((l) => [l.toId, l]));
+
+  const haveGas = plan?.fuelCostCAD != null;
 
   return (
     <div className="page-commute">
@@ -3060,23 +3086,72 @@ function CommutePage() {
         </p>
       )}
 
-      {stops.length > 0 && (
-        <div className="cmtimeline">
-          <h3>Today's stops</h3>
-          {stops.map((e) => (
-            <div className={`cmstop${e.id === dov.commuteEventId ? " active" : ""}`} key={e.id}>
-              <span className="cmstop-time">{e.time}</span>
-              <div className="cmstop-body">
-                <span className="cmstop-title">{e.title}</span>
-                <span className="cmstop-loc">{e.location}</span>
-              </div>
-              {e.id === dov.commuteEventId && dov.commuteMin != null && (
-                <span className="cmstop-eta">{dov.commuteMin}m</span>
-              )}
+      {plan && (plan.legs?.length > 0) && (
+        <div className="cmtotals">
+          <div className="cmtotal-item">
+            <span className="cmtotal-value">{plan.totalMinutes}</span>
+            <span className="cmtotal-label">min today</span>
+          </div>
+          <div className="cmtotal-item">
+            <span className="cmtotal-value">{plan.totalKm}</span>
+            <span className="cmtotal-label">km today</span>
+          </div>
+          {haveGas && (
+            <div className="cmtotal-item">
+              <span className="cmtotal-value">${plan.fuelCostCAD.toFixed(2)}</span>
+              <span className="cmtotal-label">est. gas</span>
             </div>
-          ))}
+          )}
         </div>
       )}
+
+      {plan?.insight && <p className="cminsight">{plan.insight}</p>}
+
+      {events.length > 0 && (
+        <div className="cmtimeline">
+          <h3>Today's schedule</h3>
+          {events.map((e) => {
+            const leg = legByToId.get(e.id);
+            return (
+              <Fragment key={e.id}>
+                {leg && <CommuteLegRow leg={leg} />}
+                <div className={`cmstop${e.id === dov.commuteEventId ? " active" : ""}`}>
+                  <span className="cmstop-time">{e.time}</span>
+                  <div className="cmstop-body">
+                    <span className="cmstop-title">{e.title}</span>
+                    {e.location && <span className="cmstop-loc">{e.location}</span>}
+                  </div>
+                  {e.id === dov.commuteEventId && dov.commuteMin != null && (
+                    <span className="cmstop-eta">{dov.commuteMin}m</span>
+                  )}
+                </div>
+              </Fragment>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One travel segment between two of the day's waypoints, rendered inline in
+// the schedule right before the event it arrives at — that's the moment
+// it's actually actionable ("leave by X to make this"), not off in a
+// separate list. mode "buffer" is the flat walk-across-campus case (two
+// back-to-back events at the same known place, e.g. Carleton) — no drive,
+// no route, just the minutes; mode "drive" is a real Google Routes leg with
+// a route variant and, when available, a km figure.
+function CommuteLegRow({ leg }) {
+  return (
+    <div className={`cmleg${leg.isRush ? " rush" : ""}`}>
+      <span className="cmleg-icon">{leg.mode === "drive" ? "🚗" : "🚶"}</span>
+      <span className="cmleg-minutes">{leg.minutes} min</span>
+      <span className="cmleg-detail">
+        {leg.mode === "drive"
+          ? [leg.route && routeLabel(leg.route), leg.km != null && `${leg.km.toFixed(1)}km`].filter(Boolean).join(" · ")
+          : "walking buffer"}
+      </span>
+      {leg.isRush && <span className="cmleg-rush">{leg.isRush}</span>}
     </div>
   );
 }

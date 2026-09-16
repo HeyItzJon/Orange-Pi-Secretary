@@ -59,7 +59,7 @@
         "label": "School",
         "address": "Example University, Yourtown, ON, Canada",
         "matchText": ["example university"],
-        "arrivalBufferMin": 10,
+        "walkBufferMin": 10,
         "routeVariants": true
       },
       "example-work": {
@@ -70,11 +70,24 @@
         "routeVariants": false
       }
     },
-    "_locations_note": "matchText: case-insensitive substrings checked against an event's raw Google Calendar location text to classify it as one of these known places. arrivalBufferMin: flat walk-from-parking-to-destination minutes added on top of the drive itself. routeVariants: whether to also try an avoid-highways route and keep whichever comes out lower.",
+    "_locations_note": "matchText: case-insensitive substrings checked against an event's raw Google Calendar location text to classify it as one of these known places. walkBufferMin: a walk-to/from-parking buffer applied on BOTH ends of a drive that starts or ends here, and reused as the flat same-place buffer between two back-to-back events here (e.g. a campus, where 'anywhere to the lot' is roughly constant). arrivalBufferMin: a one-directional buffer applied only when arriving here by car (e.g. a workplace, where there's no buffer leaving). routeVariants: whether to also try an avoid-highways route and keep whichever comes out lower.",
     "betweenEventsBufferMin": 10,
-    "_betweenEventsBufferMin_note": "Used instead of a drive when the next event is at the SAME known place as the last one (e.g. two back-to-back on-campus classes).",
+    "_betweenEventsBufferMin_note": "Fallback flat buffer for a same-place gap between two events when that place has no walkBufferMin of its own configured.",
     "conservativeBufferPct": 10,
-    "_conservativeBufferPct_note": "Extra padding on top of whatever Google's Routes API predicts, rounded up — a 'leave by' time being a few minutes early is a shrug, being late is a missed class."
+    "_conservativeBufferPct_note": "Extra padding on top of whatever Google's Routes API predicts, rounded up — a 'leave by' time being a few minutes early is a shrug, being late is a missed class.",
+    "rushHours": {
+      "_comment": "A deterministic, weekday-only fact used by lib/commuteTake.js's insight line. A drive whose departure time falls in one of these windows is flagged as rush hour; the AI only narrates that already-decided fact, it never guesses at traffic itself.",
+      "weekdayOnly": true,
+      "windows": [
+        { "label": "morning rush", "start": "07:00", "end": "09:00" },
+        { "label": "evening rush", "start": "15:30", "end": "18:00" }
+      ]
+    },
+    "vehicle": {
+      "_comment": "For the Commute page's daily gas-cost estimate. Both are your own real-world numbers, not fetched — fuelLPer100km is your actual observed consumption; pricePerLiterCAD is a flat number you pick rather than a live gas-price API.",
+      "fuelLPer100km": 8,
+      "pricePerLiterCAD": 1.75
+    }
   },
   "categories": {
     "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",

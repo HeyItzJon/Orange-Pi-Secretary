@@ -51,22 +51,35 @@
         "label": "Carleton",
         "address": "Carleton University P6 Parking, Carleton University, Ottawa ON, Canada",
         "matchText": ["carleton", "p6"],
-        "arrivalBufferMin": 10,
+        "walkBufferMin": 10,
         "routeVariants": true
       },
       "richcraft": {
         "label": "Work",
         "address": "Richcraft Recreation Complex - Kanata, 4101 Innovation Dr, Ottawa, ON K2K 0J3, Canada",
         "matchText": ["richcraft"],
-        "arrivalBufferMin": 0,
+        "arrivalBufferMin": 5,
         "routeVariants": false
       }
     },
-    "_locations_note": "matchText: case-insensitive substrings checked against an event's raw Google Calendar location text (e.g. Jon's own 'Carleton University P6 Parking...' string) to classify it as one of these known places. arrivalBufferMin: flat walk-from-parking-to-class minutes added on top of the drive itself \u2014 Jon: 'we can assume 10 mins for that realistically for commuting in.' routeVariants: whether to also try an avoid-highways route and keep whichever comes out lower (Hunt-Club-surface-streets vs. highway); off for the work leg per Jon: 'no named variants for work.'",
+    "_locations_note": "matchText: case-insensitive substrings checked against an event's raw Google Calendar location text (e.g. Jon's own 'Carleton University P6 Parking...' string) to classify it as one of these known places. walkBufferMin (Carleton only): Jon: 'anywhere on campus to the parking lot is basically 10 minutes... any time im leaving or arriving to the carleton parking lot I want that 10 min walking buffer' \u2014 applied on BOTH ends of a drive that starts or ends at Carleton (walk to the car before driving away, walk from the car to class after driving in), and reused as the flat same-place buffer for two back-to-back Carleton events (no driving at all). arrivalBufferMin (Richcraft only): Jon: 'for work id like a 5 min buffer too. only on the way to richcraft from anywhere' \u2014 one-directional, arrival only, no buffer leaving work. routeVariants: whether to also try an avoid-highways route and keep whichever comes out lower (Hunt-Club-surface-streets vs. highway); off for the work leg per Jon: 'no named variants for work.'",
     "betweenEventsBufferMin": 10,
-    "_betweenEventsBufferMin_note": "Used instead of a drive when the next event is at the SAME known place as the last one (e.g. two back-to-back Carleton classes) \u2014 Jon: '10 mins between classes when im staying on campus.'",
+    "_betweenEventsBufferMin_note": "Fallback flat buffer for a same-place gap between two events when that place has no walkBufferMin of its own configured (Carleton always uses its own walkBufferMin above instead). Not currently reached by either configured location, kept as the default for any future 'known place' that doesn't define one.",
     "conservativeBufferPct": 10,
-    "_conservativeBufferPct_note": "Extra padding on top of whatever Google's Routes API predicts, rounded up \u2014 a 'leave by' time being a few minutes early is a shrug, being late is a missed class. Revisit once lib/commute.js has enough real logged history to use an actual observed percentile instead of a flat guess (see the plan doc's phase-2 notes)."
+    "_conservativeBufferPct_note": "Extra padding on top of whatever Google's Routes API predicts, rounded up \u2014 a 'leave by' time being a few minutes early is a shrug, being late is a missed class. Revisit once lib/commute.js has enough real logged history to use an actual observed percentile instead of a flat guess (see the plan doc's phase-2 notes).",
+    "rushHours": {
+      "_comment": "A deterministic, weekday-only fact used by lib/commuteTake.js's insight line \u2014 Jon: 'rush hour is a big deal to me.' A drive whose departure time falls in one of these windows is flagged as rush hour; DeepSeek only narrates that already-decided fact (plus the real, already-computed drive minutes), it never guesses at traffic itself.",
+      "weekdayOnly": true,
+      "windows": [
+        { "label": "morning rush", "start": "07:00", "end": "09:00" },
+        { "label": "evening rush", "start": "15:30", "end": "18:00" }
+      ]
+    },
+    "vehicle": {
+      "_comment": "For the Commute page's daily gas-cost estimate. Both numbers are Jon's own real-world figures, not fetched or fabricated \u2014 fuelLPer100km is his 2.5L Golf MK6's actual observed consumption; pricePerLiterCAD is a flat number he picked deliberately over a live gas-price API ('I dont want to be that guy with a gas price API... lets go high tho like 1.75', Sept 2026). Update pricePerLiterCAD by hand whenever it drifts meaningfully from what he's actually paying.",
+      "fuelLPer100km": 8,
+      "pricePerLiterCAD": 1.75
+    }
   },
   "categories": {
     "_comment": "How the system decides what KIND of thing something is. Every match is collected and the heaviest weight wins, so an exam on the 'School & Classes' calendar is still a Test. Nothing in the code knows your calendar names \u2014 this is the only place they appear.",

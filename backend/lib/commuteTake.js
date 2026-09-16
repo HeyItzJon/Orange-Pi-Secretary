@@ -1,0 +1,103 @@
+// lib/commuteTake.js
+//
+// One short, actionable line about today's driving day, for the Commute
+// page's full-day plan. Round 92's brief (Jon, verbatim): "I would be
+// inclined to pass all the travel times and destinations and routes if
+// possible to deepseek and get it to suggest. things like. this is peak
+// rush hour, consider staying on campus for an hour to avoid the worst of
+// it. or expect delays if im leaving to go to school at like 8AM for rush
+// hour. rush hour is a big deal to me. try and build a logical flow."
+//
+// Same split as every other AI feature here (see lib/ai.js's own header,
+// and lib/weatherTake.js which this is modeled on): lib/commute.js's
+// refreshCommute() has ALREADY decided every fact this reads — each leg's
+// minutes/km/route/mode, and critically whether a leg falls in a rush-hour
+// window (isRushHour(), a deterministic time-window check against
+// config.commute.rushHours — never left for the AI to guess at from a
+// timestamp). This file only turns those already-decided facts into one
+// well-written, genuinely useful line. It never sees a raw Google Routes
+// response or the calendar directly, and can't invent a duration, a
+// destination, or a delay that isn't already a decided fact handed to it.
+//
+// Rush hour is the one thing Jon explicitly called out as important, so the
+// prompt below makes it the top priority when it's real: if a leg is inside
+// a configured rush window, say so plainly, and — only when the day's own
+// events actually offer a realistic alternative (a gap before a later leg,
+// a same-place buffer that could just be waited out) — suggest it
+// concretely. On a light or rush-free day it falls back to something plain
+// and still useful (the day's total drive time) rather than forcing an
+// angle that isn't there.
+//
+// Cached by content hash (lib/ids.js's cacheKey) rather than a once-a-day
+// gate — same reasoning lib/newsDigest.js and lib/weatherTake.js give: the
+// facts change (a leg re-times, traffic re-estimates minutes, an event
+// moves), the cache key changes with them, and a genuinely unchanged plan
+// costs zero extra calls. Degrades to null on any failure (provider off,
+// bad response, network error) — refreshCommute() already falls back to
+// the previous plan's insight in that case, so a live commute plan is never
+// blocked on this line.
+
+import { ask } from "./ai.js";
+import { cacheKey } from "./ids.js";
+import { logger } from "./log.js";
+
+const log = logger("commuteTake");
+
+const SYSTEM = `You write one short, actionable line about today's driving commute for a personal dashboard. The reader already sees every leg's exact time, minutes, and route right next to this line — your only job is to add a genuinely useful suggestion or heads-up, grounded ONLY in the facts given below.
+
+Return json: {"summary":"..."}
+
+Rules:
+- 1 sentence, under 160 characters.
+- Only ever reference a leg, time, or number that is actually given below — never invent a duration, a destination, or a delay that isn't in the data.
+- Rush hour is the single most important thing to flag when it's real: if a leg's isRush is set, say so plainly and, if there's a genuine alternative visible in the data (e.g. a later leg to/from the same place that isn't rush hour, or enough of a gap to wait it out), suggest it concretely ("consider leaving after 9" / "staying on campus another hour avoids the worst of it") — but only suggest a delay that's actually realistic given the day's own events, never a vague "avoid rush hour" platitude.
+- If nothing today is genuinely notable (no rush-hour legs, a light day), it's fine to say something plain and useful instead — e.g. name the day's total drive time, or that the day is light on driving. Don't force a rush-hour angle that isn't there.
+- No emoji, no exclamation points, no filler like "have a great day" or "drive safe."`;
+
+function fmtForPrompt({ legs, totalMinutes, totalKm, fuelCostCAD }) {
+  const lines = [];
+  if (!legs.length) {
+    lines.push("No commute legs today.");
+  } else {
+    lines.push("Today's legs:");
+    for (const l of legs) {
+      const when = new Date(l.toStart).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" });
+      lines.push(
+        `- arriving ${l.toEventTitle || l.label} at ${when}: ${
+          l.mode === "drive" ? `${l.minutes}min drive (route: ${l.route})` : `${l.minutes}min buffer, no drive`
+        }${l.isRush ? ` [${l.isRush}]` : ""}`
+      );
+    }
+  }
+  lines.push(
+    `Daily totals: ${totalMinutes}min commuting, ${totalKm}km driven${
+      fuelCostCAD != null ? `, ~$${fuelCostCAD.toFixed(2)} in gas` : ""
+    }.`
+  );
+  return lines.join("\n");
+}
+
+// getCommuteInsight(config, plan, {previous}) -> {text, at} | {text: null, at: null | previous.at}
+//
+// plan is the full commutePlan blob refreshCommute() builds (legs[],
+// totalMinutes, totalKm, fuelCostCAD). previous is the prior commutePlan
+// (same shape, or null) — used only so a failed/empty result can carry
+// forward the previous insight's timestamp rather than lying about when it
+// was last refreshed.
+export async function getCommuteInsight(config, plan, { previous = null } = {}) {
+  if (!plan.legs?.length) return { text: null, at: null };
+  const key = cacheKey("commuteTake-v1", plan);
+  const parsed = await ask({
+    system: SYSTEM,
+    user: `Return json.\n\n${fmtForPrompt(plan)}`,
+    config,
+    maxTokens: 120,
+    json: true,
+    cacheAs: key,
+  });
+  const text = typeof parsed?.summary === "string" && parsed.summary.trim() ? parsed.summary.trim().slice(0, 220) : null;
+  if (!text) return { text: null, at: previous?.at || null };
+  const at = new Date().toISOString();
+  log.info(`refreshed: ${text}`);
+  return { text, at };
+}

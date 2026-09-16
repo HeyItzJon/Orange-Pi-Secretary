@@ -203,7 +203,7 @@ function formatLastPriceLabel(iso, tz) {
 app.get("/api/matrix", async (_req, res) => {
   try {
     const now = new Date();
-    const [items, money, marketPulse, brief, eventDigest, weatherMeta, commute] = await Promise.all([
+    const [items, money, marketPulse, brief, eventDigest, weatherMeta, commute, commutePlan] = await Promise.all([
       allItems(),
       getMeta("moneySummary", null),
       getMeta("marketPulse", null),
@@ -211,6 +211,7 @@ app.get("/api/matrix", async (_req, res) => {
       getMeta("eventDigest", null),
       getMeta("weather", null),
       getMeta("commute", null),
+      getMeta("commutePlan", null),
     ]);
     const eventDigestMap = eventDigest?.map || {};
 
@@ -504,6 +505,14 @@ app.get("/api/matrix", async (_req, res) => {
       allDayEvents, // round 76 — separate all-day list, see comment above
       dailyBusyPercent,
       dayOverview,
+      // commutePlan — round 92's full-day commute page: every leg between
+      // today's located events (see lib/commute.js's refreshCommute), plus
+      // daily totals (time/km/gas) and the DeepSeek insight line
+      // (lib/commuteTake.js). Only sent for TODAY specifically, same
+      // never-leak-yesterday's-cache rule dayOverview's commuteMin follows
+      // above — the frontend's CommutePage treats a missing/stale plan as
+      // "nothing computed yet," never as an empty day.
+      commutePlan: commutePlan?.day === today ? commutePlan : null,
       holdings,
       news,
       weather, // round 82 — see comment above

@@ -1459,6 +1459,17 @@
 .cmdetail-line b { color: var(--ink); font-weight: 640; }
 .cmdetail-sub { font-size: 13.5px; color: var(--muted); }
 
+.cmtotals { display: flex; gap: 28px; flex-shrink: 0; }
+.cmtotal-item { display: flex; flex-direction: column; gap: 2px; }
+.cmtotal-value { font-size: 22px; font-weight: 640; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cmtotal-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+.cminsight {
+  margin: 0; padding: 12px 16px; border-radius: 8px; flex-shrink: 0;
+  background: rgba(237,161,0,.10); border: 1px solid rgba(237,161,0,.25);
+  font-size: 14px; color: var(--ink-2); line-height: 1.4;
+}
+
 .cmtimeline { display: flex; flex-direction: column; gap: 4px; }
 .cmtimeline h3 {
   font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
@@ -1475,6 +1486,21 @@
 .cmstop-title { font-size: 15px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmstop-loc { font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmstop-eta { font-size: 13px; font-weight: 640; color: var(--accent); flex-shrink: 0; }
+
+.cmleg {
+  display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 30px;
+  font-size: 13px; color: var(--muted);
+}
+.cmleg-icon { flex-shrink: 0; }
+.cmleg-minutes { font-weight: 640; color: var(--ink-2); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.cmleg-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmleg.rush .cmleg-minutes { color: #e0562b; }
+.cmleg-rush {
+  margin-left: auto; flex-shrink: 0; font-size: 10.5px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase; color: #e0562b;
+  background: rgba(224,86,43,.12); border: 1px solid rgba(224,86,43,.3);
+  border-radius: 4px; padding: 2px 6px;
+}
 
 /* ========================================================= page: system */
 

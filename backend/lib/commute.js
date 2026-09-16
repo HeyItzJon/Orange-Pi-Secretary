@@ -1,9 +1,13 @@
 // lib/commute.js
 //
 // Round: commute/ETA feature (see claude/commute-eta-plan.md for the full
-// design history). Computes `commuteMin` for the LED wall's Commuting
-// screen (esp32-led-wall.ino's renderCommuting() has been waiting for this
-// since round 57/72 — "no real ETA source wired up yet").
+// design history). Computes a full day's commute plan — every consecutive
+// pair of today's located events, home included as the implicit start of
+// the day — for the dashboard's Commute page, the daily total time/km/gas
+// numbers, the DeepSeek insight line (lib/commuteTake.js), and the LED
+// wall's Commuting screen (esp32-led-wall.ino's renderCommuting(), which
+// only ever reads the single "next" leg — see the backward-compat section
+// near the bottom of refreshCommute()).
 //
 // Design, per Jon: "I can let the pi find out when I need to get to
 // campus. only for the first campus event of the day is assumed to be a
@@ -16,32 +20,42 @@
 // being silently skipped — never a fabricated one, per this project's
 // hard rule (secretary-proposal.md: rules decide facts, AI only narrates).
 //
+// Buffers, per Jon's follow-up round: Carleton's `walkBufferMin` (10) is
+// symmetric — "anywhere on campus to the parking lot is basically 10
+// minutes... any time im leaving or arriving to the carleton parking lot I
+// want that 10 min walking buffer" — applied whether Carleton is the
+// ORIGIN (walk to the car before a drive can start) or the DESTINATION
+// (walk from the car to class after a drive ends), and reused as the flat
+// same-place buffer between two back-to-back Carleton events. Richcraft's
+// `arrivalBufferMin` (5) is one-directional — "only on the way to richcraft
+// from anywhere" — no buffer leaving work.
+//
 // Cost discipline, same as eventDigest.js/newsDigest.js: this runs once
 // per scheduler tick (via refreshCommute(), called through the normal
 // source-collector pipeline — see brief/compose.js's collectCommute, folded
 // in so a bad key or a spent quota shows up as a real lastError_commute in
 // the dashboard's Sources panel ("Travel"), same as a dead Gmail token
 // shows up for Email, rather than a silently stale number), NEVER inside
-// the fast /api/matrix poll route, and only calls the Routes API at all
-// when today's "next event needing a drive" actually changed since the
-// last tick (cached by a content hash of that event's id+time).
+// the fast /api/matrix poll route. Each leg is cached independently by a
+// content hash of (origin kind, destination event id + start time), so a
+// tick where nothing about the day's plan changed costs zero Routes API
+// calls, and a change to one leg (a moved event, say) never forces every
+// other already-resolved leg to recompute too.
 //
-// refreshCommute() used to swallow every failure internally (never threw,
-// by design, back when scheduler.js called it standalone). Now that
-// collectCommute() is the only caller and runSources() already gives every
-// source that exact same per-source isolation (one source's exception
-// never blocks the others — see compose.js's runSources), a genuine
-// routing failure (bad key, spent quota, Routes API down) is allowed to
-// throw here so it actually surfaces instead of only ever reaching a log
-// line nobody's watching. "Nothing to compute right now" (not configured,
-// nothing left today with a location, already there) is NOT an error and
-// still just returns quietly — same distinction brightspace/weather draw
+// A genuine per-leg routing failure (bad key, spent quota, Routes API down)
+// does not blank out the whole day's plan — the other legs still compute
+// and are still shown — but IS collected and thrown once, at the end, so it
+// still surfaces as a real lastError_commute ("Travel" in the Sources
+// panel) exactly like every other source's failure does. "Nothing to
+// compute right now" (not configured, no located events today) is not a
+// failure and returns quietly — same distinction brightspace/weather draw
 // between "off" and "broken."
 
 import axios from "axios";
 import { logger } from "./log.js";
 import { allItems, getMeta, setMeta } from "./store.js";
 import { cacheKey } from "./ids.js";
+import { getCommuteInsight } from "./commuteTake.js";
 
 const log = logger("commute");
 
@@ -73,20 +87,92 @@ export function classifyLocation(locationText, locations) {
 }
 
 /**
+ * The walk-to/from-the-car buffer for a place you're DRIVING AWAY FROM.
+ * Only Carleton has one configured (walkBufferMin) — home needs none
+ * (you're already at your door), and Richcraft's buffer is arrival-only
+ * per Jon ("only on the way to richcraft from anywhere").
+ */
+export function departureBufferFor(cfg, kind) {
+  if (!kind || kind === "home") return 0;
+  return cfg?.locations?.[kind]?.walkBufferMin ?? 0;
+}
+
+/**
+ * The walk-from-the-car buffer for a place you're DRIVING TO. Falls back
+ * from arrivalBufferMin to walkBufferMin so a place like Carleton — which
+ * only defines walkBufferMin, being symmetric — still gets an arrival
+ * buffer without duplicating the number in config.
+ */
+export function arrivalBufferFor(cfg, kind) {
+  if (!kind) return 0;
+  const loc = cfg?.locations?.[kind];
+  if (!loc) return 0;
+  return loc.arrivalBufferMin ?? loc.walkBufferMin ?? 0;
+}
+
+/**
+ * The flat, no-driving buffer between two back-to-back events at the SAME
+ * known place (e.g. two Carleton classes) — a place's own walkBufferMin if
+ * it has one, else the generic config-level fallback.
+ */
+export function sameLocationBufferFor(cfg, kind) {
+  return cfg?.locations?.[kind]?.walkBufferMin ?? cfg?.betweenEventsBufferMin ?? 10;
+}
+
+/**
+ * A plain, deterministic time-of-day rule — never a model guess. Returns
+ * the matching window's label (e.g. "morning rush") if `date` (in `tz`)
+ * falls inside one of config.commute.rushHours.windows, else null. Jon:
+ * "rush hour is a big deal to me" — this is the real, decided fact
+ * lib/commuteTake.js's AI line is allowed to react to; it never decides
+ * for itself whether something is rush hour.
+ */
+export function isRushHour(date, cfg, tz) {
+  const rh = cfg?.rushHours;
+  if (!rh?.windows?.length) return null;
+
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz || "America/Toronto",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      weekday: "short",
+    })
+      .formatToParts(date)
+      .map((p) => [p.type, p.value])
+  );
+
+  if (rh.weekdayOnly && (parts.weekday === "Sat" || parts.weekday === "Sun")) return null;
+
+  const minutes = Number(parts.hour) * 60 + Number(parts.minute);
+  for (const w of rh.windows) {
+    const [sh, sm] = String(w.start).split(":").map(Number);
+    const [eh, em] = String(w.end).split(":").map(Number);
+    if (![sh, sm, eh, em].every(Number.isFinite)) continue;
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    if (minutes >= startMin && minutes < endMin) return w.label || "rush hour";
+  }
+  return null;
+}
+
+/**
  * Calls Google's Routes API once for a single origin/destination/departure
- * time, optionally avoiding highways. Returns { minutes, reason }: minutes
- * is null on any failure (bad key, API not enabled, quota, network, an
- * address neither Google nor Jon's own calendar string could be geocoded)
- * — a routing failure must degrade to "no commute info" like everywhere
- * else in this project, never to a guessed number — and `reason` carries
- * Google's own error message (or the network-level one) up to the caller,
- * so a real failure ends up somewhere Jon can actually read it (the
- * thrown error in refreshCommute below, which becomes lastError_commute /
- * the dashboard's "Travel" row) instead of only ever reaching a log line.
+ * time, optionally avoiding highways. Returns { minutes, km, reason }:
+ * minutes/km are null on any failure (bad key, API not enabled, quota,
+ * network, an address neither Google nor Jon's own calendar string could
+ * be geocoded) — a routing failure must degrade to "no commute info" like
+ * everywhere else in this project, never to a guessed number — and
+ * `reason` carries Google's own error message (or the network-level one)
+ * up to the caller, so a real failure ends up somewhere Jon can actually
+ * read it (the thrown error in refreshCommute below, which becomes
+ * lastError_commute / the dashboard's "Travel" row) instead of only ever
+ * reaching a log line.
  */
 async function computeRoute({ originAddress, destinationAddress, departureTime, avoidHighways }) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return { minutes: null, reason: "no GOOGLE_MAPS_API_KEY set" };
+  if (!apiKey) return { minutes: null, km: null, reason: "no GOOGLE_MAPS_API_KEY set" };
   try {
     const res = await axios.post(
       "https://routes.googleapis.com/directions/v2:computeRoutes",
@@ -120,15 +206,17 @@ async function computeRoute({ originAddress, destinationAddress, departureTime, 
       }
     );
     const route = res.data?.routes?.[0];
-    if (!route?.duration) return { minutes: null, reason: "Google returned no route (0 routes in the response)" };
+    if (!route?.duration) return { minutes: null, km: null, reason: "Google returned no route (0 routes in the response)" };
     const seconds = parseInt(route.duration, 10);
-    return Number.isFinite(seconds)
-      ? { minutes: Math.round(seconds / 60), reason: null }
-      : { minutes: null, reason: `unparseable duration in response: ${route.duration}` };
+    if (!Number.isFinite(seconds)) {
+      return { minutes: null, km: null, reason: `unparseable duration in response: ${route.duration}` };
+    }
+    const km = Number.isFinite(route.distanceMeters) ? route.distanceMeters / 1000 : null;
+    return { minutes: Math.round(seconds / 60), km, reason: null };
   } catch (err) {
     const reason = err.response?.data?.error?.message || err.message;
     log.error(`Routes API call failed (${originAddress} -> ${destinationAddress}): ${reason}`);
-    return { minutes: null, reason };
+    return { minutes: null, km: null, reason };
   }
 }
 
@@ -152,8 +240,8 @@ async function bestRouteMinutes({ originAddress, destinationAddress, departureTi
   const results = [];
   const failures = [];
   for (const a of attempts) {
-    const { minutes, reason } = await computeRoute({ originAddress, destinationAddress, departureTime, avoidHighways: a.avoidHighways });
-    if (minutes != null) results.push({ label: a.label, minutes });
+    const { minutes, km, reason } = await computeRoute({ originAddress, destinationAddress, departureTime, avoidHighways: a.avoidHighways });
+    if (minutes != null) results.push({ label: a.label, minutes, km });
     else failures.push(`${a.label}: ${reason}`);
   }
   // Every variant attempted failed — return the reasons instead of just
@@ -164,7 +252,7 @@ async function bestRouteMinutes({ originAddress, destinationAddress, departureTi
   results.sort((a, b) => a.minutes - b.minutes);
   const best = results[0];
   const buffered = applyConservativeBuffer(best.minutes, conservativeBufferPct);
-  return { result: { minutes: buffered, route: best.label, rawMinutes: best.minutes }, failures: [] };
+  return { result: { minutes: buffered, rawMinutes: best.minutes, km: best.km, route: best.label }, failures: [] };
 }
 
 /** Pure so it's easy to test on its own: round a raw drive time up by a
@@ -175,13 +263,81 @@ export function applyConservativeBuffer(minutes, pct) {
 }
 
 /**
+ * One leg of the day: either a real drive (with buffers on whichever end
+ * touches a place that has one) or a flat walking buffer when both ends
+ * are the same known place. Returns null (never throws) when an address
+ * can't be resolved at all — same "unresolved, never guessed" behavior an
+ * event with no location gets — and throws only on a genuine routing
+ * failure, which the caller (refreshCommute) collects rather than letting
+ * kill the rest of the day's plan.
+ */
+async function computeLeg({ cfg, fromKind, toKind, toLocationText, departureTime, conservativeBufferPct }) {
+  const destLoc = toKind ? cfg.locations[toKind] : null;
+  const label = destLoc?.label || toLocationText;
+
+  // Already at the same kind of place as this event (e.g. two back-to-back
+  // Carleton classes) — no drive needed, just the flat walk-across-campus
+  // buffer Jon gave us, not a routing call.
+  if (toKind && toKind === fromKind) {
+    return { mode: "buffer", minutes: sameLocationBufferFor(cfg, toKind), km: 0, route: null, label: "already there" };
+  }
+
+  const originAddress = fromKind === "home" ? cfg.home.address : cfg.locations[fromKind]?.address;
+  // Unknown place (not home/Carleton/Richcraft) still gets a real, live
+  // one-off ETA using the event's own raw location text — never skipped,
+  // never faked. Just no named route variants or buffers, since those are
+  // only defined for the known places.
+  const destinationAddress = destLoc?.address || toLocationText;
+  if (!originAddress || !destinationAddress) return null;
+
+  const { result, failures } = await bestRouteMinutes({
+    originAddress,
+    destinationAddress,
+    // Predictive traffic for roughly when this drive actually happens —
+    // the event's own start time is used as the departure-time sample
+    // (see commute-eta-plan.md: "close enough" for a commute-length
+    // window; the conservative buffer below absorbs the residual error
+    // rather than solving a full leave-by fixed point).
+    departureTime,
+    tryVariants: Boolean(destLoc?.routeVariants),
+    conservativeBufferPct,
+  });
+  if (!result) {
+    // A genuine routing failure (bad key, spent quota, Routes API down, an
+    // address Google couldn't geocode) — thrown, not swallowed, so
+    // refreshCommute can collect it and still surface it as a real
+    // lastError_commute ("Travel" in the Sources panel) without letting it
+    // blank out the rest of the day's already-resolved legs.
+    throw new Error(`no route found ${originAddress} -> ${destinationAddress} (${failures.join("; ") || "unknown reason"})`);
+  }
+
+  const departureBuffer = departureBufferFor(cfg, fromKind);
+  const arrivalBuffer = arrivalBufferFor(cfg, toKind);
+  return {
+    mode: "drive",
+    minutes: result.minutes + departureBuffer + arrivalBuffer,
+    driveMinutes: result.minutes,
+    departureBufferMin: departureBuffer,
+    arrivalBufferMin: arrivalBuffer,
+    km: result.km,
+    route: result.route,
+    label,
+  };
+}
+
+/**
  * Called once per scheduler tick (via collectCommute, brief/compose.js).
- * Figures out whether the NEXT upcoming event with a resolved location
- * requires a drive (vs. "already there"), and if so, caches a real
- * commuteMin for /api/matrix to read. Throws on a genuine routing failure
- * (see the header comment above) — runSources() catches that and records
- * it as lastError_commute, same isolation every other source already gets.
- * "Nothing to compute right now" is not a failure and returns normally.
+ * Builds the WHOLE day's commute plan — home, then every one of today's
+ * located events in order, with a leg computed (or reused from cache)
+ * between every consecutive pair — not just "the next" one. Caches the
+ * full plan as `commutePlan` (what the dashboard's Commute page reads) and
+ * derives the single "next upcoming leg" as `commute` (the legacy shape
+ * the LED wall firmware's dov.commuteMin/hasCommute contract already
+ * expects, unchanged). Throws once, at the end, if any leg's FRESH
+ * computation this tick genuinely failed — runSources() catches that and
+ * records it as lastError_commute, same isolation every other source
+ * already gets. "Nothing to compute right now" (not configured, no located
+ * events today) is not a failure and returns quietly.
  */
 export async function refreshCommute(config) {
   const cfg = config.commute;
@@ -196,103 +352,132 @@ export async function refreshCommute(config) {
   const items = await allItems();
   const todaysEvents = items
     .filter((i) => i.source === "calendar" && !i.meta?.allDay && i.dueAt?.startsWith(today) && i.status === "open")
-    .map((i) => ({ id: i.id, start: new Date(i.dueAt), location: i.meta?.location || null }))
+    .map((i) => ({ id: i.id, start: new Date(i.dueAt), title: i.title || "", location: i.meta?.location || null }))
     .sort((a, b) => a.start - b.start);
 
-  // Walk today's events in order to find where Jon would actually be
-  // right now: the location of the most recent event that has already
-  // started, or "home" if none have yet (or none of today's past events
-  // had a location at all — never assume you moved somewhere you can't
-  // confirm from real data).
-  let lastKnownKind = "home";
-  for (const e of todaysEvents) {
-    if (e.start > now) break;
-    const kind = classifyLocation(e.location, cfg.locations);
-    if (kind) lastKnownKind = kind;
-  }
+  // Waypoints: an implicit "home" start-of-day, then every located event
+  // in order. Events with no location don't change "where you are" and
+  // aren't drive destinations (same rule the old single-leg version used),
+  // so they're simply not waypoints — they still show up in the day's full
+  // event list elsewhere (server.js's todayEvents), just without a leg.
+  const located = todaysEvents
+    .filter((e) => e.location)
+    .map((e) => ({ ...e, kind: classifyLocation(e.location, cfg.locations) }));
+  const waypoints = [{ id: "home", start: null }, ...located];
 
-  const next = todaysEvents.find((e) => e.start > now && e.location);
-  if (!next) {
-    // Nothing left today with a location to drive to — same "unresolved,
-    // never guessed" behavior as an event with no location at all.
+  if (located.length === 0) {
+    // Nothing today with a location to route to at all — clear any stale
+    // plan/next-leg from a previous day rather than leaving old data
+    // sitting there looking current.
+    await setMeta("commutePlan", null);
+    await setMeta("commute", null);
     return;
   }
 
-  const nextKind = classifyLocation(next.location, cfg.locations);
+  const previousPlan = await getMeta("commutePlan", null);
+  const previousLegs = previousPlan?.day === today ? previousPlan.legs || [] : [];
+  const legByKey = new Map(previousLegs.map((l) => [l.key, l]));
 
-  // Already at the same kind of place as the next event (e.g. two
-  // back-to-back Carleton classes) — no drive needed, just the flat
-  // walk-across-campus buffer Jon gave us, not a routing call.
-  if (nextKind && nextKind === lastKnownKind) {
-    const key = cacheKey("commute-v1", { eventId: next.id, kind: "buffer" });
-    const previous = await getMeta("commute", null);
-    if (previous?.key === key) return; // nothing changed since last tick
-    await setMeta("commute", {
-      key,
-      day: today,
-      minutes: cfg.betweenEventsBufferMin ?? 10,
-      route: null,
-      label: "already there",
-      eventId: next.id,
-      computedAt: now.toISOString(),
-    });
-    log.info(`${next.id}: already at ${nextKind}, using ${cfg.betweenEventsBufferMin ?? 10}min buffer`);
-    return;
+  const legs = [];
+  const freshFailures = [];
+
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    const from = waypoints[i];
+    const to = waypoints[i + 1];
+    const key = `${from.id}->${to.id}`;
+    const fromKind = i === 0 ? "home" : from.kind;
+    // A leg is only worth recomputing when something about it could have
+    // actually changed: where you're coming from, or the target event's
+    // id/start time (a moved or replaced event). Unchanged, the cached
+    // result is reused untouched — this is what keeps a 20s-tick scheduler
+    // from re-calling the Routes API for the same day's plan all morning.
+    const hash = cacheKey("leg-v2", { fromKind, toId: to.id, toStart: to.start.toISOString() });
+
+    const cached = legByKey.get(key);
+    if (cached && cached.hash === hash) {
+      legs.push(cached);
+      continue;
+    }
+
+    try {
+      const leg = await computeLeg({
+        cfg,
+        fromKind,
+        toKind: to.kind,
+        toLocationText: to.location,
+        departureTime: to.start.toISOString(),
+        conservativeBufferPct: cfg.conservativeBufferPct ?? 10,
+      });
+      if (!leg) continue; // unresolved origin/destination address — skip silently, same as before
+      const withMeta = {
+        key,
+        hash,
+        fromId: from.id,
+        toId: to.id,
+        toEventTitle: to.title,
+        toStart: to.start.toISOString(),
+        isRush: isRushHour(to.start, cfg, config.timezone),
+        ...leg,
+        computedAt: now.toISOString(),
+      };
+      legs.push(withMeta);
+      log.info(`${key}: ${leg.mode} ${leg.minutes}min${leg.route ? ` (route: ${leg.route})` : ""}`);
+    } catch (err) {
+      freshFailures.push(`${key}: ${err.message}`);
+      // Keep whatever was cached for this leg before, if anything, rather
+      // than letting one bad recompute blank out a previously-good number
+      // for the rest of the day.
+      if (cached) legs.push(cached);
+    }
   }
 
-  // A real drive is needed. Skip the Routes API call entirely if nothing
-  // about the target event has changed since the last successful compute
-  // — this is what keeps a 20s-tick scheduler from burning API calls on
-  // every tick for the same commute all morning.
-  const key = cacheKey("commute-v1", { eventId: next.id, start: next.start.toISOString(), lastKnownKind });
-  const previous = await getMeta("commute", null);
-  if (previous?.key === key && previous?.day === today) return;
+  const totalMinutes = legs.reduce((sum, l) => sum + (l.minutes || 0), 0);
+  const totalKm = legs.reduce((sum, l) => sum + (l.km || 0), 0);
+  const vehicle = cfg.vehicle || {};
+  const fuelCostCAD =
+    vehicle.fuelLPer100km != null && vehicle.pricePerLiterCAD != null
+      ? Math.round(totalKm * (vehicle.fuelLPer100km / 100) * vehicle.pricePerLiterCAD * 100) / 100
+      : null;
 
-  const originAddress = lastKnownKind === "home" ? cfg.home.address : cfg.locations[lastKnownKind]?.address;
-  const destLoc = nextKind ? cfg.locations[nextKind] : null;
-  // Unknown place (not home/Carleton/Richcraft) still gets a real, live
-  // one-off ETA using the event's own raw location text — never skipped,
-  // never faked. Just no named route variants or arrival buffer, since
-  // those are only defined for the known places.
-  const destinationAddress = destLoc?.address || next.location;
-  if (!originAddress || !destinationAddress) return;
-
-  const { result, failures } = await bestRouteMinutes({
-    originAddress,
-    destinationAddress,
-    // Predictive traffic for roughly when this drive actually happens —
-    // the event's own start time is used as the departure-time sample
-    // (see commute-eta-plan.md: "close enough" for a commute-length
-    // window; the conservative buffer below absorbs the residual error
-    // rather than solving a full leave-by fixed point).
-    departureTime: next.start.toISOString(),
-    tryVariants: Boolean(destLoc?.routeVariants),
-    conservativeBufferPct: cfg.conservativeBufferPct ?? 10,
-  });
-  if (!result) {
-    // A genuine routing failure (bad key, spent quota, Routes API down, an
-    // address Google couldn't geocode) — thrown, not swallowed, so it
-    // reaches collectCommute -> runSources and shows up as a real
-    // lastError_commute ("Travel" in the Sources panel) instead of a
-    // silent log line. `failures` carries Google's own error message per
-    // variant attempted, so the message actually says WHY, not just THAT.
-    throw new Error(
-      `no route found ${originAddress} -> ${destinationAddress} (${failures.join("; ") || "unknown reason"})`
-    );
-  }
-
-  const arrivalBuffer = destLoc?.arrivalBufferMin ?? 0;
-  await setMeta("commute", {
-    key,
+  const plan = {
     day: today,
-    minutes: result.minutes + arrivalBuffer,
-    route: result.route,
-    label: destLoc?.label || next.location,
-    eventId: next.id,
-    computedAt: now.toISOString(),
-  });
-  log.info(
-    `${next.id}: ${originAddress} -> ${destinationAddress} = ${result.rawMinutes}min raw, ` +
-      `${result.minutes}min buffered + ${arrivalBuffer}min arrival (route: ${result.route})`
+    legs,
+    totalMinutes: Math.round(totalMinutes),
+    totalKm: Math.round(totalKm * 10) / 10,
+    fuelCostCAD,
+    generatedAt: now.toISOString(),
+  };
+
+  // One DeepSeek line reacting to the day's already-decided facts (rush
+  // hour, real minutes, real totals) — never gating the real numbers
+  // above, which are already written regardless of whether this succeeds.
+  const insight = await getCommuteInsight(config, plan, { previous: previousPlan });
+  plan.insight = insight?.text ?? (previousPlan?.day === today ? previousPlan.insight : null) ?? null;
+  plan.insightAt = insight?.at ?? (previousPlan?.day === today ? previousPlan.insightAt : null) ?? null;
+
+  await setMeta("commutePlan", plan);
+
+  // Backward-compat: the LED wall firmware only ever reads a single "next"
+  // leg (dov.commuteMin/hasCommute — esp32-led-wall.ino's renderCommuting()
+  // predates this round's full-day plan). Derived from the plan above
+  // rather than computed separately, so it's never a second, possibly-
+  // disagreeing source of truth for the same leg.
+  const nextLeg = legs.find((l) => new Date(l.toStart) > now);
+  await setMeta(
+    "commute",
+    nextLeg
+      ? {
+          day: today,
+          minutes: nextLeg.minutes,
+          route: nextLeg.route,
+          label: nextLeg.label,
+          eventId: nextLeg.toId,
+          computedAt: nextLeg.computedAt,
+        }
+      : null
   );
+
+  if (freshFailures.length) {
+    throw new Error(`${freshFailures.length} leg(s) failed: ${freshFailures.join("; ")}`);
+  }
 }
