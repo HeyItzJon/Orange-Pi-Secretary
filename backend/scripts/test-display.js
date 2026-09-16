@@ -769,7 +769,7 @@ test("the display model carries the tasks page and a badge count", () => {
     config, now: NOW,
   });
   assert.equal(d.schema, "display-v2");
-  assert.deepEqual(d.pages.map((p) => p.id), ["today", "week", "tasks", "money", "year", "wall", "system"]);
+  assert.deepEqual(d.pages.map((p) => p.id), ["today", "week", "tasks", "money", "year", "weather", "wall", "system"]);
   assert.equal(d.pages.find((p) => p.id === "tasks").badge, 1);
 });
 
@@ -783,12 +783,12 @@ test("the Today tab's badge counts every one of today's events — all-day and t
   assert.equal(d.pages.find((p) => p.id === "today").badge, 3, "all 3 of today's events, not just the 2 still upcoming");
 });
 
-test("the menu reads Day, Week, Tasks, Portfolio, Stats, Wall, System — Jon's round-47 relabel plus round-51's ESP wall control tab and round-53's System health tab", () => {
+test("the menu reads Day, Week, Tasks, Portfolio, Stats, Weather, Wall, System — Jon's round-47 relabel, round-51's ESP wall control tab, round-53's System health tab, and round-86's Weather tab", () => {
   const d = buildDisplay({ items: [], config, now: NOW });
-  assert.deepEqual(d.pages.map((p) => p.label), ["Day", "Week", "Tasks", "Portfolio", "Stats", "Wall", "System"]);
+  assert.deepEqual(d.pages.map((p) => p.label), ["Day", "Week", "Tasks", "Portfolio", "Stats", "Weather", "Wall", "System"]);
   // The `id` values are the real routing keys (PAGES map in Display.jsx) and
   // stayed put — only the display label changed.
-  assert.deepEqual(d.pages.map((p) => p.id), ["today", "week", "tasks", "money", "year", "wall", "system"]);
+  assert.deepEqual(d.pages.map((p) => p.id), ["today", "week", "tasks", "money", "year", "weather", "wall", "system"]);
 });
 
 test("the Money and Year tabs never carry a badge — nothing on either page explains one", () => {
