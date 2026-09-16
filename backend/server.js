@@ -203,13 +203,14 @@ function formatLastPriceLabel(iso, tz) {
 app.get("/api/matrix", async (_req, res) => {
   try {
     const now = new Date();
-    const [items, money, marketPulse, brief, eventDigest, weatherMeta] = await Promise.all([
+    const [items, money, marketPulse, brief, eventDigest, weatherMeta, commute] = await Promise.all([
       allItems(),
       getMeta("moneySummary", null),
       getMeta("marketPulse", null),
       getMeta("lastBrief", null),
       getMeta("eventDigest", null),
       getMeta("weather", null),
+      getMeta("commute", null),
     ]);
     const eventDigestMap = eventDigest?.map || {};
 
@@ -308,12 +309,30 @@ app.get("/api/matrix", async (_req, res) => {
         // there's no cached digest entry yet for this event.
         const desc = eventDigestMap[e.id] ?? shortDescFallback(e.detail);
         return {
+          // id: the raw item id, added this round so the commute page (and
+          // anything else that needs to point at a specific row) can match
+          // dayOverview.commuteEventId back to the actual event it's for,
+          // instead of assuming "commuteMin is always for the next event" —
+          // it isn't, when a closer event has no location (see commute.js's
+          // header comment: commuteMin is computed for the next event WITH
+          // A LOCATION, which can be later in the list than the very next
+          // event). Existing firmware ignores fields it doesn't know about.
+          id: e.id,
           time: e.clockTime || e.dueAt?.slice(11, 16) || "",
           title: sanitizeForWall((e.title || "").slice(0, 30)), // truncate for display
           busyLevel: e.meta?.busyLevel || "medium", // "busy" | "medium" | "light"
           cal: e.swatch || "",
           dur,
           desc: sanitizeForWall(desc),
+          // location: the event's raw Google Calendar location, untouched —
+          // NOT for display (round 77 already stripped it out of `desc` for
+          // exactly that reason). This is for the commute/ETA feature
+          // (claude/commute-eta-plan.md) to read: a null here means "no
+          // location on this event," which the commute job treats as
+          // unresolved rather than guessing. Existing firmware just ignores
+          // an extra field it doesn't know about, same as every other
+          // additive contract change in this project.
+          location: e.meta?.location || null,
         };
       })
       .sort((a, b) => a.time.localeCompare(b.time));
@@ -329,10 +348,7 @@ app.get("/api/matrix", async (_req, res) => {
     // punch-list gap. Same weekForecast() math the Week page already uses
     // (see brief/display.js's buildDayContext for the identical filterLive
     // -> calendar-only -> weekForecast pattern), just asked for a single
-    // day (today) instead of the 7-day window. commuteMin is deliberately
-    // NOT included here — no real ETA source wired up yet (Jon: "I haven't
-    // figured out the logic for that"); the Commuting screen keeps
-    // degrading gracefully to "COMMUTE ETA COMING SOON" until it exists.
+    // day (today) instead of the 7-day window.
     const liveItems = filterLive(items, now);
     const calendarEvents = liveItems
       .filter((i) => i.source === "calendar" && i.dueAt && i.kind !== "system")
@@ -344,6 +360,30 @@ app.get("/api/matrix", async (_req, res) => {
     }).days[0];
     const dayOverview = {
       hoursBusy: todayForecast?.busyHours ?? 0,
+      // commuteMin — real ETA source as of this round (lib/commute.js,
+      // refreshed once per scheduler tick, never computed here). Only
+      // included when there's a real number cached for TODAY specifically
+      // — a stale entry from yesterday (server restarted overnight before
+      // the next tick ran, say) must never leak through as if it were
+      // current. The firmware's own dov.containsKey("commuteMin") check
+      // is what gates the Commuting screen off the fallback card, so
+      // omitting the key entirely (not sending null/0) is what keeps that
+      // "never fabricate" contract intact end to end.
+      // commuteEventId/commuteLabel/commuteRoute ride along with commuteMin
+      // for the same reason `id` was just added to todayEvents above: the
+      // event commuteMin applies to is "the next event with a resolved
+      // location," not necessarily events[0] in the list, so the dashboard
+      // page needs the id to attach "LEAVE BY" to the right row instead of
+      // guessing it's always the first one. label/route are the same
+      // human-readable strings refresh-commute.js already prints.
+      ...(commute?.day === today
+        ? {
+            commuteMin: commute.minutes,
+            commuteEventId: commute.eventId,
+            commuteLabel: commute.label,
+            commuteRoute: commute.route,
+          }
+        : {}),
       hoursFree: todayForecast?.freeHours ?? 0,
     };
 

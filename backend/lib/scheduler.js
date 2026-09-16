@@ -22,6 +22,7 @@ import { runSources, buildBrief } from "../brief/compose.js";
 import { getMeta, setMeta, prune, bumpRemindCounts } from "./store.js";
 import { SOURCES } from "./sources.js";
 import { refreshEventDigest } from "./eventDigest.js";
+import { refreshCommute } from "./commute.js";
 
 const log = logger("scheduler");
 
@@ -79,6 +80,16 @@ export function startScheduler(config) {
           await refreshEventDigest(config);
         } catch (err) {
           log.error(`eventDigest refresh failed: ${err.message}`);
+        }
+        // Commute ETA — same isolation as eventDigest above: a Routes API
+        // hiccup (bad key, quota, network) must never block the brief.
+        // refreshCommute() itself already no-ops fast when nothing about
+        // today's next commute-worthy event has changed, so this costs a
+        // real API call only when it's actually needed, not every tick.
+        try {
+          await refreshCommute(config);
+        } catch (err) {
+          log.error(`commute refresh failed: ${err.message}`);
         }
         // Recompose so the API serves the new data immediately, but don't pay
         // for a narration line every quarter hour.

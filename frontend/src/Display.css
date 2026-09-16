@@ -1443,6 +1443,39 @@
 .wxhour-label { font-size: 11.5px; color: var(--muted); letter-spacing: .02em; }
 .wxhour-glyph { font-size: 22px; line-height: 1; }
 
+/* ---------------------------------------------------------------- commute
+   Round — claude/commute-eta-plan.md. Same page-shell pattern as
+   .page-weather right above: flex column, scrolls if it has to. */
+.page-commute { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; gap: 22px; }
+.cmhead { display: flex; align-items: baseline; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+.cmhead h2 { margin: 0; font-size: 21px; font-weight: 620; }
+
+.cmhero { display: flex; align-items: center; gap: 26px; padding: 18px 20px; background: var(--raise); border-radius: 10px; flex-shrink: 0; }
+.cmleaveby { display: flex; flex-direction: column; gap: 6px; }
+.cmleaveby-label { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.cmleaveby-time { font-size: 44px; font-weight: 640; line-height: 1; font-variant-numeric: tabular-nums; }
+.cmdetail { display: flex; flex-direction: column; gap: 6px; }
+.cmdetail-line { font-size: 17px; color: var(--ink-2); }
+.cmdetail-line b { color: var(--ink); font-weight: 640; }
+.cmdetail-sub { font-size: 13.5px; color: var(--muted); }
+
+.cmtimeline { display: flex; flex-direction: column; gap: 4px; }
+.cmtimeline h3 {
+  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 8px;
+}
+.cmstop {
+  display: flex; align-items: center; gap: 14px; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid transparent;
+}
+.cmstop.active { background: rgba(237,161,0,.12); border-color: rgba(237,161,0,.35); }
+.cmstop-time { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); width: 58px; flex-shrink: 0; }
+.cmstop.active .cmstop-time { color: var(--accent); font-weight: 640; }
+.cmstop-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.cmstop-title { font-size: 15px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmstop-loc { font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmstop-eta { font-size: 13px; font-weight: 640; color: var(--accent); flex-shrink: 0; }
+
 /* ========================================================= page: system */
 
 .page-system { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }

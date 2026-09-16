@@ -1706,6 +1706,13 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
       // could put on the tab without wiring weather into the daily-brief
       // model just for a badge number.
       { id: "weather", label: "Weather", badge: null },
+      // Commute/ETA feature — same self-polling shape as Weather just
+      // above: this page reads dayOverview.commuteMin and events[].location
+      // straight off /api/matrix (lib/commute.js), neither of which is
+      // threaded into buildDisplay()'s own inputs, so there's nothing this
+      // compose pass could put on the tab badge without wiring commute data
+      // into the daily-brief model just for a number.
+      { id: "commute", label: "Commute", badge: null },
       // ESP32 LED wall live control (Round 49 §6) — no badge: there's no
       // single count on this page that would mean anything from the tab
       // alone, same reasoning as Money/Year just above.

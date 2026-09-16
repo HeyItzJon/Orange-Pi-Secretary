@@ -2971,6 +2971,143 @@ function WeatherPage() {
   );
 }
 
+/**
+ * Commute/ETA page (claude/commute-eta-plan.md). Mirrors WeatherPage just
+ * above: standalone, self-polling /api/matrix, no `d` prop — the same
+ * reasoning applies (this reads dayOverview.commuteMin/commuteEventId and
+ * events[].location, neither of which is threaded into buildDisplay()'s
+ * own compose pass).
+ *
+ * The one thing this page has to get right that Weather doesn't: commuteMin
+ * is computed for "the next event with a resolved location" (lib/
+ * commute.js), which is NOT always events[0] — a closer, location-less
+ * event can sit in between. dayOverview.commuteEventId is exactly what
+ * fixes that: it's matched against events[].id (both added this round)
+ * so the "LEAVE BY" hero and the highlighted timeline row always point at
+ * the real target event, never just "whichever one is first."
+ */
+function CommutePage() {
+  const [matrix, setMatrix] = useState(null);
+  const [err, setErr] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/matrix");
+      if (!r.ok) throw new Error(`status ${r.status}`);
+      setMatrix(await r.json());
+      setErr(null);
+    } catch (e) {
+      // Same "drop it silently, keep the last good screen" call WeatherPage
+      // makes — a missed poll every 30s isn't worth an error flash when the
+      // next tick will most likely just succeed.
+      setErr(e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    // commute.js only recomputes on a real change (event start time, or
+    // "where Jon would be" flipping) gated inside the scheduler's own tick,
+    // so this doesn't need Weather's full 60s — 30s keeps "LEAVE BY" from
+    // visibly drifting stale while someone's actually looking at the page.
+    const t = setInterval(load, 30000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  if (!matrix) return <p className="empty big-empty">Loading commute…</p>;
+
+  const dov = matrix.dayOverview || {};
+  const events = matrix.events || [];
+  const stops = events.filter((e) => e.location);
+  const commuteEvent = dov.commuteEventId
+    ? events.find((e) => e.id === dov.commuteEventId)
+    : null;
+  const haveEta = commuteEvent && dov.commuteMin != null;
+  const leaveBy = haveEta ? minutesToClockStr(clockStrToMinutes(commuteEvent.time) - dov.commuteMin) : null;
+
+  return (
+    <div className="page-commute">
+      <div className="cmhead">
+        <h2>Commute</h2>
+      </div>
+
+      {err && <p className="mwarn">{err}</p>}
+
+      {haveEta ? (
+        <div className="cmhero">
+          <div className="cmleaveby">
+            <span className="cmleaveby-label">Leave by</span>
+            <span className="cmleaveby-time">{leaveBy}</span>
+          </div>
+          <div className="cmdetail">
+            <div className="cmdetail-line">
+              <b>{dov.commuteMin} min</b> to {commuteEvent.title}
+            </div>
+            {(dov.commuteLabel || dov.commuteRoute) && (
+              <div className="cmdetail-sub">
+                {dov.commuteLabel}
+                {dov.commuteLabel && dov.commuteRoute ? " · " : ""}
+                {dov.commuteRoute && routeLabel(dov.commuteRoute)}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="empty big-empty">
+          {stops.length
+            ? "Already where you need to be — no drive needed right now."
+            : "No upcoming events today with a location to route to."}
+        </p>
+      )}
+
+      {stops.length > 0 && (
+        <div className="cmtimeline">
+          <h3>Today's stops</h3>
+          {stops.map((e) => (
+            <div className={`cmstop${e.id === dov.commuteEventId ? " active" : ""}`} key={e.id}>
+              <span className="cmstop-time">{e.time}</span>
+              <div className="cmstop-body">
+                <span className="cmstop-title">{e.title}</span>
+                <span className="cmstop-loc">{e.location}</span>
+              </div>
+              {e.id === dov.commuteEventId && dov.commuteMin != null && (
+                <span className="cmstop-eta">{dov.commuteMin}m</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// clockStrToMinutes/minutesToClockStr: same "H:MMAM/PM" convention as the
+// LED wall's own minutesToClockStr() (esp32-led-wall.ino) — kept identical
+// on purpose so "LEAVE BY" reads the same on the wall and the dashboard.
+function clockStrToMinutes(hhmm) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+  return h * 60 + m;
+}
+
+function minutesToClockStr(totalMin) {
+  if (totalMin == null || !Number.isFinite(totalMin)) return "—";
+  const mins = ((Math.round(totalMin) % 1440) + 1440) % 1440;
+  let hh = Math.floor(mins / 60);
+  const mm = mins % 60;
+  const pm = hh >= 12;
+  hh = hh % 12;
+  if (hh === 0) hh = 12;
+  return `${hh}:${String(mm).padStart(2, "0")}${pm ? "PM" : "AM"}`;
+}
+
+function routeLabel(route) {
+  if (route === "avoid-highway") return "avoiding highways";
+  if (route === "fastest") return "fastest route";
+  return route;
+}
+
 /* ================================================================= sources */
 
 function ago(iso) {
@@ -3441,7 +3578,7 @@ function SystemPage() {
 
 /* =================================================================== shell */
 
-const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage, weather: WeatherPage, wall: WallPage, system: SystemPage };
+const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage, weather: WeatherPage, commute: CommutePage, wall: WallPage, system: SystemPage };
 
 /**
  * Strip one id out of every Tasks-page list it could be sitting in,
