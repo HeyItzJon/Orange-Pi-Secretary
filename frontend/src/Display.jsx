@@ -2607,6 +2607,17 @@ function WallPage({ d }) {
 
   if (!status) return <p className="empty big-empty">Loading wall control…</p>;
 
+  // Defensive fallbacks — a backend that hasn't picked up this round's
+  // matrixControl.js yet (mid-deploy, or a deploy that stopped short of
+  // the restart) can hand back a status blob missing screens/overlayScreens
+  // entirely. Previously only overlayScreens had this guard; screens
+  // didn't, and status.screens.map()/.find() on undefined is exactly what
+  // blanked this whole page — a crash mid-render with no error boundary
+  // around it takes the entire page down, not just the section reading
+  // the missing field. Bad data should shrink a section, never blank one.
+  const screens = status.screens || [];
+  const overlayScreens = status.overlayScreens || [];
+
   const enabledSet = new Set(status.enabledScreens);
 
   const toggleScreen = (id) => {
@@ -2662,7 +2673,7 @@ function WallPage({ d }) {
         <section className="zone wscreens">
           <h2>Screens</h2>
           <div className="wscreen-list">
-            {status.screens.map((s) => (
+            {screens.map((s) => (
               <label key={s.id} className={`wscreen-row${s.hasData ? "" : " soon"}`}>
                 <input
                   type="checkbox"
@@ -2698,9 +2709,8 @@ function WallPage({ d }) {
             </select>
             {status.pushedScreen && (
               <span className="wpush-live">
-                pushing <b>{(status.screens.find((s) => s.id === status.pushedScreen.id)
-                  || status.benchScreens.find((s) => s.id === status.pushedScreen.id)
-                  || (status.overlayScreens || []).find((s) => s.id === status.pushedScreen.id))?.label
+                pushing <b>{(screens.find((s) => s.id === status.pushedScreen.id)
+                  || overlayScreens.find((s) => s.id === status.pushedScreen.id))?.label
                   || status.pushedScreen.id}</b>
                 {" "}· {status.pushedScreen.secondsRemaining}s left
                 <button className="wnclear" disabled={busy === "push-clear"} onClick={clearPush}>Clear</button>
@@ -2716,19 +2726,27 @@ function WallPage({ d }) {
               Auto-rotate
             </button>
           </div>
-          {/* Round 78 — three groups instead of one flat list: Data screens
-              (the same six toggled for rotation above — Portfolio, Markets,
-              Holdings, Today, News, Weather), Other screens (ambient/local,
-              never rotation-eligible — Clock, Today's Timeline, Commute,
-              Stars, Balls), and System states (simulated overlay conditions,
-              currently just No Connection — see matrixControl.js's
-              OVERLAY_SCREENS comment for why previewing this is always safe).
-              `|| []` on overlayScreens covers a backend that hasn't been
-              redeployed with this round yet. */}
+          {/* Round 91 — down to two groups. Clock/Today's Timeline/Commute/
+              Stars/Balls used to be a separate "Other screens" bench group
+              (status.benchScreens) because they weren't rotation-eligible;
+              round 91 merged them into the main screen catalog (they're all
+              real, backend-known screens now — see matrixControl.js), so
+              status.screens already covers them and that group is gone.
+              Sleep & Alarm and Wake Up Mode (hasData: false, no backend
+              source yet) also live in status.screens now — pin/push-only
+              until a real data source exists, same as any other
+              hasData:false entry. System states (simulated overlay
+              conditions, currently just No Connection — see
+              matrixControl.js's OVERLAY_SCREENS comment for why previewing
+              this is always safe) stays its own group. Both groups read
+              from the `screens`/`overlayScreens` fallback consts above
+              (not status.screens/status.overlayScreens directly) — a
+              backend that hasn't picked up this round yet, or answers
+              mid-deploy, must never crash this whole page over a missing
+              field; it should just render an empty group. */}
           {[
-            { label: "Data screens", items: status.screens },
-            { label: "Other screens", items: status.benchScreens },
-            { label: "System states", items: status.overlayScreens || [] },
+            { label: "Screens", items: screens },
+            { label: "System states", items: overlayScreens },
           ].map((group) => group.items.length > 0 && (
             <div key={group.label} className="wpin-group">
               <div className="wpin-group-label">{group.label}</div>
