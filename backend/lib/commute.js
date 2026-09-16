@@ -74,14 +74,19 @@ export function classifyLocation(locationText, locations) {
 
 /**
  * Calls Google's Routes API once for a single origin/destination/departure
- * time, optionally avoiding highways. Returns duration in whole minutes,
- * or null on any failure (bad key, API not enabled, quota, network) — a
- * routing failure must degrade to "no commute info" like everywhere else
- * in this project, never to a guessed number.
+ * time, optionally avoiding highways. Returns { minutes, reason }: minutes
+ * is null on any failure (bad key, API not enabled, quota, network, an
+ * address neither Google nor Jon's own calendar string could be geocoded)
+ * — a routing failure must degrade to "no commute info" like everywhere
+ * else in this project, never to a guessed number — and `reason` carries
+ * Google's own error message (or the network-level one) up to the caller,
+ * so a real failure ends up somewhere Jon can actually read it (the
+ * thrown error in refreshCommute below, which becomes lastError_commute /
+ * the dashboard's "Travel" row) instead of only ever reaching a log line.
  */
 async function computeRoute({ originAddress, destinationAddress, departureTime, avoidHighways }) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return null;
+  if (!apiKey) return { minutes: null, reason: "no GOOGLE_MAPS_API_KEY set" };
   try {
     const res = await axios.post(
       "https://routes.googleapis.com/directions/v2:computeRoutes",
@@ -102,13 +107,15 @@ async function computeRoute({ originAddress, destinationAddress, departureTime, 
       }
     );
     const route = res.data?.routes?.[0];
-    if (!route?.duration) return null;
+    if (!route?.duration) return { minutes: null, reason: "Google returned no route (0 routes in the response)" };
     const seconds = parseInt(route.duration, 10);
-    return Number.isFinite(seconds) ? Math.round(seconds / 60) : null;
+    return Number.isFinite(seconds)
+      ? { minutes: Math.round(seconds / 60), reason: null }
+      : { minutes: null, reason: `unparseable duration in response: ${route.duration}` };
   } catch (err) {
     const reason = err.response?.data?.error?.message || err.message;
     log.error(`Routes API call failed (${originAddress} -> ${destinationAddress}): ${reason}`);
-    return null;
+    return { minutes: null, reason };
   }
 }
 
@@ -130,16 +137,21 @@ async function bestRouteMinutes({ originAddress, destinationAddress, departureTi
     : [{ label: "fastest", avoidHighways: false }];
 
   const results = [];
+  const failures = [];
   for (const a of attempts) {
-    const minutes = await computeRoute({ originAddress, destinationAddress, departureTime, avoidHighways: a.avoidHighways });
+    const { minutes, reason } = await computeRoute({ originAddress, destinationAddress, departureTime, avoidHighways: a.avoidHighways });
     if (minutes != null) results.push({ label: a.label, minutes });
+    else failures.push(`${a.label}: ${reason}`);
   }
-  if (!results.length) return null;
+  // Every variant attempted failed — return the reasons instead of just
+  // null, so the caller can build an error message that actually says WHY
+  // (bad key, address not found, quota) instead of a generic "no route".
+  if (!results.length) return { result: null, failures };
 
   results.sort((a, b) => a.minutes - b.minutes);
   const best = results[0];
   const buffered = applyConservativeBuffer(best.minutes, conservativeBufferPct);
-  return { minutes: buffered, route: best.label, rawMinutes: best.minutes };
+  return { result: { minutes: buffered, route: best.label, rawMinutes: best.minutes }, failures: [] };
 }
 
 /** Pure so it's easy to test on its own: round a raw drive time up by a
@@ -232,7 +244,7 @@ export async function refreshCommute(config) {
   const destinationAddress = destLoc?.address || next.location;
   if (!originAddress || !destinationAddress) return;
 
-  const result = await bestRouteMinutes({
+  const { result, failures } = await bestRouteMinutes({
     originAddress,
     destinationAddress,
     // Predictive traffic for roughly when this drive actually happens —
@@ -245,11 +257,15 @@ export async function refreshCommute(config) {
     conservativeBufferPct: cfg.conservativeBufferPct ?? 10,
   });
   if (!result) {
-    // A genuine routing failure (bad key, spent quota, Routes API down, or
-    // just no route exists) — thrown, not swallowed, so it reaches
-    // collectCommute -> runSources and shows up as a real lastError_commute
-    // ("Travel" in the Sources panel) instead of a silent log line.
-    throw new Error(`no route found ${originAddress} -> ${destinationAddress} (check GOOGLE_MAPS_API_KEY / Routes API quota)`);
+    // A genuine routing failure (bad key, spent quota, Routes API down, an
+    // address Google couldn't geocode) — thrown, not swallowed, so it
+    // reaches collectCommute -> runSources and shows up as a real
+    // lastError_commute ("Travel" in the Sources panel) instead of a
+    // silent log line. `failures` carries Google's own error message per
+    // variant attempted, so the message actually says WHY, not just THAT.
+    throw new Error(
+      `no route found ${originAddress} -> ${destinationAddress} (${failures.join("; ") || "unknown reason"})`
+    );
   }
 
   const arrivalBuffer = destLoc?.arrivalBufferMin ?? 0;
