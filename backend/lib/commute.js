@@ -173,6 +173,23 @@ export function isRushHour(date, cfg, tz) {
 async function computeRoute({ originAddress, destinationAddress, departureTime, avoidHighways }) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) return { minutes: null, km: null, reason: "no GOOGLE_MAPS_API_KEY set" };
+
+  // Google rejects departureTime outright under the default TRAFFIC_UNAWARE
+  // mode ("Timestamp cannot be set for TRAFFIC_UNAWARE routing mode" — hit
+  // live, round: Travel source) AND rejects any departureTime that isn't
+  // strictly in the future ("Timestamp must be set to a future time" — hit
+  // live, round 92, once the full-day plan started computing legs for
+  // events EARLIER today too, not just the next upcoming one). So a real
+  // future drive gets predictive live-traffic routing (TRAFFIC_AWARE, the
+  // cheaper of the two traffic-aware modes — see the cost note below), and
+  // a leg whose event has already happened today gets a plain routingPreference,
+  // no departureTime, since Google has no historical-traffic mode to ask
+  // for anyway — this is the best honest estimate available for "how long
+  // would that drive have taken," not a fabricated number. The 60s margin
+  // absorbs the time between deciding "future" here and the request
+  // actually reaching Google.
+  const isFuture = departureTime && new Date(departureTime).getTime() > Date.now() + 60000;
+
   try {
     const res = await axios.post(
       "https://routes.googleapis.com/directions/v2:computeRoutes",
@@ -180,20 +197,21 @@ async function computeRoute({ originAddress, destinationAddress, departureTime, 
         origin: { address: originAddress },
         destination: { address: destinationAddress },
         travelMode: "DRIVE",
-        departureTime,
-        // Google rejects departureTime outright under the default
-        // TRAFFIC_UNAWARE mode ("Timestamp cannot be set for
-        // TRAFFIC_UNAWARE routing mode" — hit live, round: Travel source).
-        // TRAFFIC_AWARE is the cheaper of the two traffic-aware modes
-        // (TRAFFIC_AWARE_OPTIMAL trades latency for a bit more accuracy,
-        // at the same billing tier) and is exactly what a predictive,
-        // time-of-day-aware ETA needs anyway. Real cost note, verified
-        // Sept 2026: this moves Compute Routes calls from the Essentials
-        // SKU (10,000 free/month) to the Pro SKU (5,000 free/month, then
-        // $10/1,000) — still enormous headroom at Jon's real usage (a
-        // handful to a few dozen calls/day), see claude/commute-eta-
-        // plan.md's pricing section.
-        routingPreference: "TRAFFIC_AWARE",
+        ...(isFuture
+          ? {
+              departureTime,
+              // TRAFFIC_AWARE_OPTIMAL trades latency for a bit more
+              // accuracy, at the same billing tier — TRAFFIC_AWARE is
+              // exactly what a predictive, time-of-day-aware ETA needs.
+              // Real cost note, verified Sept 2026: this moves Compute
+              // Routes calls from the Essentials SKU (10,000 free/month)
+              // to the Pro SKU (5,000 free/month, then $10/1,000) — still
+              // enormous headroom at Jon's real usage (a handful to a few
+              // dozen calls/day), see claude/commute-eta-plan.md's
+              // pricing section.
+              routingPreference: "TRAFFIC_AWARE",
+            }
+          : { routingPreference: "TRAFFIC_UNAWARE" }),
         routeModifiers: avoidHighways ? { avoidHighways: true } : undefined,
       },
       {
@@ -387,11 +405,26 @@ export async function refreshCommute(config) {
     const key = `${from.id}->${to.id}`;
     const fromKind = i === 0 ? "home" : from.kind;
     // A leg is only worth recomputing when something about it could have
-    // actually changed: where you're coming from, or the target event's
-    // id/start time (a moved or replaced event). Unchanged, the cached
-    // result is reused untouched — this is what keeps a 20s-tick scheduler
-    // from re-calling the Routes API for the same day's plan all morning.
-    const hash = cacheKey("leg-v2", { fromKind, toId: to.id, toStart: to.start.toISOString() });
+    // actually changed: where you're coming from (fromKind), the target
+    // event's own start time (a moved event), or — per Jon's round-92
+    // follow-up ("if an event is ... changed ... make sure we ... reflect
+    // that") — the target event's LOCATION. toKind covers a destination
+    // reclassifying to/from a known place (e.g. its address text edited so
+    // it no longer matches Carleton), and the raw toLocation text covers an
+    // unclassified destination's address itself changing (its own text IS
+    // the routed address in that case — see computeLeg's destinationAddress
+    // fallback below). Any of these changing produces a different hash, so
+    // the stale cached leg is never silently kept around pointing at the
+    // wrong place. Unchanged, the cached result is reused untouched — this
+    // is what keeps a 20s-tick scheduler from re-calling the Routes API for
+    // the same day's plan all morning.
+    const hash = cacheKey("leg-v3", {
+      fromKind,
+      toId: to.id,
+      toStart: to.start.toISOString(),
+      toKind: to.kind ?? null,
+      toLocation: to.location ?? null,
+    });
 
     const cached = legByKey.get(key);
     if (cached && cached.hash === hash) {
