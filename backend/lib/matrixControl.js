@@ -31,7 +31,7 @@ export const SCREENS = [
   { id: "portfolio", label: "Portfolio", description: "Total value and today's change", hasData: true },
   { id: "markets", label: "Markets", description: "TSX / NASDAQ / S&P plus today's top movers", hasData: true },
   { id: "holdings", label: "Holdings", description: "Top 5 positions by value", hasData: true },
-  { id: "events", label: "Today", description: "Today's calendar events and busy score", hasData: true },
+  { id: "events", label: "Today", description: "Today's calendar events", hasData: true },
   { id: "news", label: "News", description: "Latest market headlines", hasData: true },
   // Round 82 — real data now (sources/weather.js, Open-Meteo): current
   // temp, today's high/low, and a plain-language description. The
@@ -39,32 +39,47 @@ export const SCREENS = [
   // the HUB75 Twin mockup is what's settling that look before it gets
   // ported over for real.
   { id: "weather", label: "Weather", description: "Current temp, today's high/low, and a plain-language description", hasData: true },
+  // Round 91 — Jon: "auto rotate should be able to rotate through every
+  // single page available, selectable in the checkbox menu" and "I cant
+  // find it [the busy score page] normally." These five used to live in
+  // BENCH_SCREENS (pin/push-only, invisible to the rotation checkboxes) —
+  // but the firmware's getActiveScreens() was *already* forcing clock,
+  // dayoverview, and commuting into rotation unconditionally regardless of
+  // enabledScreens, which is exactly why dayoverview ("Today's Timeline",
+  // the busy-score page) showed up in rotation with no way to find or
+  // toggle it on the dashboard. Fix: these are real, backend-known screens
+  // now (hasData: true — clock/dayoverview/commuting/stars/balls all
+  // render from state the firmware already has), the firmware's hardcoded
+  // injection is removed (see esp32-led-wall.ino), and rotation membership
+  // is genuinely controlled from here like everything else.
+  { id: "clock", label: "Clock", description: "Large digital clock — no live data needed", hasData: true },
+  { id: "dayoverview", label: "Today's Timeline", description: "Hours busy vs. free today, plus event count and busy score", hasData: true },
+  { id: "commuting", label: "Commute", description: "Commute ETA placeholder screen — coming soon", hasData: true },
+  { id: "stars", label: "Stars", description: "Ambient starfield effect", hasData: true },
+  { id: "balls", label: "Balls", description: "Ambient bouncing-balls effect", hasData: true },
+  // Round 91 — new this round, ported from the HUB75 Twin's prototypes.
+  // Sleep & Alarm: hasData false because there's no real bedtime/alarm
+  // source in server.js yet — same "on record, not faked" treatment
+  // weather/markets got before their real sources landed; its firmware
+  // renderer shows a "coming soon" card until one exists.
+  //
+  // Wake Up Mode is different: it's a fully working, fully animated
+  // sunrise takeover in firmware now (no "coming soon" fallback — it just
+  // plays), but it isn't backend-data-driven at all, and a 14s one-shot
+  // intro-then-hold animation isn't something that belongs cycling
+  // anonymously into a 12s rotation slot with everything else — it's a
+  // takeover screen (same category as Sleep & Alarm in the Twin's own
+  // "Morning" group), meant to be triggered on purpose. hasData: false
+  // keeps both out of DEFAULT_ENABLED/the rotation checkboxes for that
+  // reason, not a real-data gap for wakeup — both stay fully pin/push-able
+  // (see ALL_PIN_IDS below), which is exactly how you'd trigger and watch
+  // Wake Up Mode run.
+  { id: "sleep", label: "Sleep & Alarm", description: "Bedtime/wake window and next alarm — coming soon", hasData: false },
+  { id: "wakeup", label: "Wake Up Mode", description: "Animated sunrise takeover — pin/push to preview, not in auto-rotation", hasData: false },
 ];
 const SCREEN_IDS = new Set(SCREENS.map((s) => s.id));
 const DATA_SCREEN_IDS = new Set(SCREENS.filter((s) => s.hasData).map((s) => s.id));
 const DEFAULT_ENABLED = SCREENS.filter((s) => s.hasData).map((s) => s.id);
-
-// Round 75 — Jon: "we need to have every single screen possibility,
-// including the extra ones... everything that we have in the LED panel
-// code should be controllable from the website." These are the firmware's
-// LOCAL_ONLY / ambient screens (esp32-led-wall.ino's own comment: "stars"/
-// "balls" are ambient demo effects, not data screens") — they render from
-// on-device state, not /api/matrix data, so they never belong in the
-// rotation-membership toggle list above (there's nothing for the backend
-// to enable/disable), but the firmware has always been willing to render
-// any of them the moment pinnedScreen names one (loop() just does
-// renderScreen(pinnedScreen, ...) with no allowlist check). The only thing
-// missing was a way to reach them from the web page — this catalog is
-// that: pin- and push-only, kept separate from SCREENS so the Screens
-// section's checkboxes don't imply you can add these to auto-rotation.
-export const BENCH_SCREENS = [
-  { id: "clock", label: "Clock", description: "Large digital clock — no live data needed" },
-  { id: "dayoverview", label: "Today's Timeline", description: "Hours busy vs. free today, computed on-device" },
-  { id: "commuting", label: "Commute", description: "Commute ETA placeholder screen — coming soon" },
-  { id: "stars", label: "Stars", description: "Ambient starfield effect" },
-  { id: "balls", label: "Balls", description: "Ambient bouncing-balls effect" },
-];
-const BENCH_IDS = new Set(BENCH_SCREENS.map((s) => s.id));
 
 // Round 78 — Jon: "redo this one. I need every single screen that we have
 // design, including the alerts, including the warnings, including the
@@ -89,13 +104,14 @@ export const OVERLAY_SCREENS = [
 ];
 const OVERLAY_IDS = new Set(OVERLAY_SCREENS.map((s) => s.id));
 
-// Everything pin/push can legally target: the data screens, the bench-only
-// ones, and the overlay/system-state ones. Deliberately does NOT require
-// enabledScreens membership (see setPinnedScreen below) — pinning or
-// pushing a screen already bypasses rotation entirely, so there was never
-// a real reason to also demand it be in rotation, and bench/overlay
-// screens could never be in rotation in the first place.
-const ALL_PIN_IDS = new Set([...SCREEN_IDS, ...BENCH_IDS, ...OVERLAY_IDS]);
+// Everything pin/push can legally target: every catalog screen (rotation-
+// eligible or not) plus the overlay/system-state ones. Deliberately does
+// NOT require enabledScreens/hasData — pinning or pushing a screen already
+// bypasses rotation entirely, so there was never a real reason to also
+// demand it be in rotation, and a hasData:false screen (sleep, wakeup)
+// still needs to be previewable on demand even though it stays out of
+// auto-rotation.
+const ALL_PIN_IDS = new Set([...SCREEN_IDS, ...OVERLAY_IDS]);
 
 // The wall is 192px wide (three 64px panels) at a small pixel font — a long
 // notification just scrolls off into nothing useful. 60 chars is generous
@@ -185,13 +201,12 @@ export async function setPinnedScreen(id) {
     return writeRaw(state);
   }
   // Round 75 — Jon: "every single screen possibility... should be
-  // controllable." Validated against the full pin-eligible universe (data
-  // screens + bench-only ones) instead of just SCREEN_IDS, and no longer
-  // requires the id be in enabledScreens: pinning already means "ignore
+  // controllable." Validated against the full pin-eligible universe
+  // (ALL_PIN_IDS) instead of just SCREEN_IDS/DATA_SCREEN_IDS, and doesn't
+  // require the id be in enabledScreens: pinning already means "ignore
   // rotation and show this," so there was never a real reason to also
-  // require rotation membership, and bench screens (clock, stars, ...)
-  // could never be enabled in the first place, which made them permanently
-  // unpinnable under the old rule.
+  // require rotation membership — this is what still lets a hasData:false
+  // screen like sleep/wakeup be previewed on demand.
   if (!ALL_PIN_IDS.has(id)) throw new MatrixControlError(`unknown screen: ${id}`);
   state.pinnedScreen = id;
   return writeRaw(state);
@@ -340,7 +355,6 @@ export async function statusPayload(now = new Date(), { onlineWithinMs = 10_000 
   const online = state.lastPolledAt != null && now.getTime() - new Date(state.lastPolledAt).getTime() < onlineWithinMs;
   return {
     screens: SCREENS,
-    benchScreens: BENCH_SCREENS,
     overlayScreens: OVERLAY_SCREENS,
     enabledScreens: state.enabledScreens,
     pinnedScreen: state.pinnedScreen,
