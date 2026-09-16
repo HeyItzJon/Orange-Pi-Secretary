@@ -118,6 +118,10 @@ test("arrivalBufferFor: Carleton falls back to walkBufferMin (symmetric, no sepa
   assert.equal(arrivalBufferFor(CFG, "carleton"), 10);
 });
 
+test("arrivalBufferFor: 'home' (the round-92 synthetic end-of-day waypoint) needs no arrival buffer — you're just walking into your own house", () => {
+  assert.equal(arrivalBufferFor(CFG, "home"), 0);
+});
+
 test("arrivalBufferFor: an unrecognized/missing kind is 0, never throws", () => {
   assert.equal(arrivalBufferFor(CFG, "somewhere-unknown"), 0);
   assert.equal(arrivalBufferFor(CFG, null), 0);

@@ -54,7 +54,7 @@ Rules:
 - If nothing today is genuinely notable (no rush-hour legs, a light day), it's fine to say something plain and useful instead — e.g. name the day's total drive time, or that the day is light on driving. Don't force a rush-hour angle that isn't there.
 - No emoji, no exclamation points, no filler like "have a great day" or "drive safe."`;
 
-function fmtForPrompt({ legs, totalMinutes, totalKm, fuelCostCAD }) {
+function fmtForPrompt({ legs, totalDriveMinutes, totalKm, fuelCostCAD }) {
   const lines = [];
   if (!legs.length) {
     lines.push("No commute legs today.");
@@ -62,15 +62,23 @@ function fmtForPrompt({ legs, totalMinutes, totalKm, fuelCostCAD }) {
     lines.push("Today's legs:");
     for (const l of legs) {
       const when = new Date(l.toStart).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" });
+      // Drive legs are broken out as pure driving vs. the walk-to/from-the-
+      // car buffers baked onto either end — Jon: "the walking doesnt count
+      // for drive time... its just needed for timing." Kept visible here
+      // (not folded away) since a walk buffer still shifts WHEN you need to
+      // leave, which matters for a rush-hour suggestion.
+      const walk = (l.departureBufferMin || 0) + (l.arrivalBufferMin || 0);
       lines.push(
         `- arriving ${l.toEventTitle || l.label} at ${when}: ${
-          l.mode === "drive" ? `${l.minutes}min drive (route: ${l.route})` : `${l.minutes}min buffer, no drive`
+          l.mode === "drive"
+            ? `${l.driveMinutes}min drive${walk ? ` + ${walk}min walk` : ""} (route: ${l.route})`
+            : `${l.minutes}min walk buffer, no drive`
         }${l.isRush ? ` [${l.isRush}]` : ""}`
       );
     }
   }
   lines.push(
-    `Daily totals: ${totalMinutes}min commuting, ${totalKm}km driven${
+    `Daily totals: ${totalDriveMinutes}min driving, ${totalKm}km driven${
       fuelCostCAD != null ? `, ~$${fuelCostCAD.toFixed(2)} in gas` : ""
     }.`
   );
@@ -80,7 +88,7 @@ function fmtForPrompt({ legs, totalMinutes, totalKm, fuelCostCAD }) {
 // getCommuteInsight(config, plan, {previous}) -> {text, at} | {text: null, at: null | previous.at}
 //
 // plan is the full commutePlan blob refreshCommute() builds (legs[],
-// totalMinutes, totalKm, fuelCostCAD). previous is the prior commutePlan
+// totalDriveMinutes, totalKm, fuelCostCAD). previous is the prior commutePlan
 // (same shape, or null) — used only so a failed/empty result can carry
 // forward the previous insight's timestamp rather than lying about when it
 // was last refreshed.

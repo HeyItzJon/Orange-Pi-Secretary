@@ -1492,6 +1492,10 @@
   font-size: 13px; color: var(--muted);
 }
 .cmleg-icon { flex-shrink: 0; }
+.cmleg-leaveby {
+  font-weight: 640; color: var(--accent); font-variant-numeric: tabular-nums;
+  flex-shrink: 0; text-transform: uppercase; font-size: 11.5px; letter-spacing: .04em;
+}
 .cmleg-minutes { font-weight: 640; color: var(--ink-2); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .cmleg-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmleg.rush .cmleg-minutes { color: #e0562b; }

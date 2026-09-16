@@ -377,12 +377,18 @@ app.get("/api/matrix", async (_req, res) => {
       // page needs the id to attach "LEAVE BY" to the right row instead of
       // guessing it's always the first one. label/route are the same
       // human-readable strings refresh-commute.js already prints.
+      // commuteTargetAt (round 92 follow-up) — the leg's own raw target
+      // timestamp, so the dashboard can compute "leave by" directly instead
+      // of re-deriving it from a matching todayEvents row's formatted time
+      // string. Needed now that "next" can be lib/commute.js's synthetic
+      // end-of-day "drive home" leg, which has no todayEvents entry at all.
       ...(commute?.day === today
         ? {
             commuteMin: commute.minutes,
             commuteEventId: commute.eventId,
             commuteLabel: commute.label,
             commuteRoute: commute.route,
+            commuteTargetAt: commute.targetAt,
           }
         : {}),
       hoursFree: todayForecast?.freeHours ?? 0,

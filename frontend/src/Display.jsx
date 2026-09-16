@@ -3037,8 +3037,17 @@ function CommutePage() {
   const commuteEvent = dov.commuteEventId
     ? events.find((e) => e.id === dov.commuteEventId)
     : null;
-  const haveEta = commuteEvent && dov.commuteMin != null;
-  const leaveBy = haveEta ? minutesToClockStr(clockStrToMinutes(commuteEvent.time) - dov.commuteMin) : null;
+  // The "next" leg's target isn't always a real event to look up — round
+  // 92's implicit end-of-day "drive home" leg has no todayEvents entry at
+  // all (dov.commuteEventId === "home-end"). dov.commuteLabel is always
+  // there either way (the leg's own destination label, "Home" included),
+  // so it's the fallback title, and dov.commuteTargetAt (the leg's own raw
+  // target timestamp) replaces re-deriving "leave by" from a matched
+  // event's formatted time string — works identically for a real event or
+  // the synthetic one.
+  const commuteTitle = commuteEvent?.title || dov.commuteLabel || null;
+  const haveEta = commuteTitle && dov.commuteMin != null && dov.commuteTargetAt;
+  const leaveBy = haveEta ? minutesToClockStr(isoToMinutesOfDay(dov.commuteTargetAt) - dov.commuteMin) : null;
 
   // Every leg is keyed by the waypoint it arrives AT (toId — either an
   // event id, or the implicit day-start home->first-stop leg keyed by that
@@ -3046,8 +3055,11 @@ function CommutePage() {
   // walking waypoints separately, means the render below can just ask
   // "does a leg land on this event?" for every event in the day's own
   // chronological order, including events with no location in between —
-  // they simply have no entry and render as a plain row.
+  // they simply have no entry and render as a plain row. The implicit
+  // trailing "drive home" leg (toId "home-end") is never an events[] id, so
+  // it's rendered separately, after the loop, as its own pseudo-stop.
   const legByToId = new Map((plan?.legs || []).map((l) => [l.toId, l]));
+  const homeLeg = legByToId.get("home-end") || null;
 
   const haveGas = plan?.fuelCostCAD != null;
 
@@ -3067,7 +3079,7 @@ function CommutePage() {
           </div>
           <div className="cmdetail">
             <div className="cmdetail-line">
-              <b>{dov.commuteMin} min</b> to {commuteEvent.title}
+              <b>{dov.commuteMin} min</b> to {commuteTitle}
             </div>
             {(dov.commuteLabel || dov.commuteRoute) && (
               <div className="cmdetail-sub">
@@ -3089,12 +3101,12 @@ function CommutePage() {
       {plan && (plan.legs?.length > 0) && (
         <div className="cmtotals">
           <div className="cmtotal-item">
-            <span className="cmtotal-value">{plan.totalMinutes}</span>
-            <span className="cmtotal-label">min today</span>
+            <span className="cmtotal-value">{plan.totalDriveMinutes}</span>
+            <span className="cmtotal-label">min driving</span>
           </div>
           <div className="cmtotal-item">
             <span className="cmtotal-value">{plan.totalKm}</span>
-            <span className="cmtotal-label">km today</span>
+            <span className="cmtotal-label">km driving</span>
           </div>
           {haveGas && (
             <div className="cmtotal-item">
@@ -3128,6 +3140,26 @@ function CommutePage() {
               </Fragment>
             );
           })}
+          {/* The implicit end-of-day "drive home" leg (round 92) — never a
+              real events[] row, so it's appended here as its own pseudo-stop
+              rather than being found by the map above. Only shown when
+              lib/commute.js actually had a real end time to base it on. */}
+          {homeLeg && (
+            <Fragment>
+              <CommuteLegRow leg={homeLeg} />
+              <div className={`cmstop${homeLeg.toId === dov.commuteEventId ? " active" : ""}`}>
+                <span className="cmstop-time">
+                  {minutesToClockStr(isoToMinutesOfDay(homeLeg.toStart))}
+                </span>
+                <div className="cmstop-body">
+                  <span className="cmstop-title">Home</span>
+                </div>
+                {homeLeg.toId === dov.commuteEventId && dov.commuteMin != null && (
+                  <span className="cmstop-eta">{dov.commuteMin}m</span>
+                )}
+              </div>
+            </Fragment>
+          )}
         </div>
       )}
     </div>
@@ -3141,10 +3173,23 @@ function CommutePage() {
 // back-to-back events at the same known place, e.g. Carleton) — no drive,
 // no route, just the minutes; mode "drive" is a real Google Routes leg with
 // a route variant and, when available, a km figure.
+//
+// Round 92 follow-up, per Jon: "what is also missing is a leave by time
+// before each transit block ... its more the driving legs I want a leave
+// by." Every drive leg gets its own "leave by" clock time, computed the
+// same way the top hero always has (target arrival time minus the leg's
+// full minutes, which already bundles in whichever walk buffers apply on
+// either end — "if im at home, the leave by includes drive +10 min walk...
+// if im on campus going to work, leave by includes walk+drive+potential 5
+// min buffer"). Walk-only buffer legs deliberately get none — "the walking
+// doesnt need to be specified."
 function CommuteLegRow({ leg }) {
+  const leaveBy =
+    leg.mode === "drive" ? minutesToClockStr(isoToMinutesOfDay(leg.toStart) - leg.minutes) : null;
   return (
     <div className={`cmleg${leg.isRush ? " rush" : ""}`}>
       <span className="cmleg-icon">{leg.mode === "drive" ? "🚗" : "🚶"}</span>
+      {leaveBy && <span className="cmleg-leaveby">leave {leaveBy}</span>}
       <span className="cmleg-minutes">{leg.minutes} min</span>
       <span className="cmleg-detail">
         {leg.mode === "drive"
@@ -3175,6 +3220,19 @@ function minutesToClockStr(totalMin) {
   hh = hh % 12;
   if (hh === 0) hh = 12;
   return `${hh}:${String(mm).padStart(2, "0")}${pm ? "PM" : "AM"}`;
+}
+
+// An ISO timestamp (a leg's own toStart/commuteTargetAt, always real UTC
+// from the server) to minutes-past-midnight in the BROWSER's local time —
+// the basis every per-leg and hero "leave by" is computed from now (round
+// 92), replacing the old approach of re-parsing a matched event's own
+// pre-formatted time string, which doesn't exist for a leg whose target
+// isn't a real calendar event (the synthetic end-of-day "drive home" leg).
+function isoToMinutesOfDay(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.getHours() * 60 + d.getMinutes();
 }
 
 function routeLabel(route) {

@@ -288,10 +288,21 @@ export function applyConservativeBuffer(minutes, pct) {
  * event with no location gets — and throws only on a genuine routing
  * failure, which the caller (refreshCommute) collects rather than letting
  * kill the rest of the day's plan.
+ *
+ * toKind "home" is a synthetic third "known place" — refreshCommute's
+ * implicit trailing "drive home" leg after the day's last located event
+ * (round 92 follow-up: "there seems to be some of these missing" — the
+ * plan used to just stop at the last event, never accounting for the real
+ * drive back). It isn't in cfg.locations (home lives at cfg.home
+ * separately), so it needs its own address/label resolution here rather
+ * than falling through the destLoc lookup — arrivalBufferFor/
+ * departureBufferFor already return 0 for it with no code change (neither
+ * has a "home" entry in cfg.locations either), matching "no buffer walking
+ * into your own house."
  */
 async function computeLeg({ cfg, fromKind, toKind, toLocationText, departureTime, conservativeBufferPct }) {
-  const destLoc = toKind ? cfg.locations[toKind] : null;
-  const label = destLoc?.label || toLocationText;
+  const destLoc = toKind && toKind !== "home" ? cfg.locations[toKind] : null;
+  const label = toKind === "home" ? "Home" : destLoc?.label || toLocationText;
 
   // Already at the same kind of place as this event (e.g. two back-to-back
   // Carleton classes) — no drive needed, just the flat walk-across-campus
@@ -305,7 +316,7 @@ async function computeLeg({ cfg, fromKind, toKind, toLocationText, departureTime
   // one-off ETA using the event's own raw location text — never skipped,
   // never faked. Just no named route variants or buffers, since those are
   // only defined for the known places.
-  const destinationAddress = destLoc?.address || toLocationText;
+  const destinationAddress = toKind === "home" ? cfg.home.address : destLoc?.address || toLocationText;
   if (!originAddress || !destinationAddress) return null;
 
   const { result, failures } = await bestRouteMinutes({
@@ -370,7 +381,18 @@ export async function refreshCommute(config) {
   const items = await allItems();
   const todaysEvents = items
     .filter((i) => i.source === "calendar" && !i.meta?.allDay && i.dueAt?.startsWith(today) && i.status === "open")
-    .map((i) => ({ id: i.id, start: new Date(i.dueAt), title: i.title || "", location: i.meta?.location || null }))
+    .map((i) => ({
+      id: i.id,
+      start: new Date(i.dueAt),
+      // Real event end time, when Google gave one (sources/calendar.js
+      // already stores it in meta.end for every calendar item — round 62
+      // wired this up for the LED wall's Events screen). Used below for the
+      // implicit trailing "drive home" leg's departure time; never
+      // fabricated when it's missing.
+      end: i.meta?.end ? new Date(i.meta.end) : null,
+      title: i.title || "",
+      location: i.meta?.location || null,
+    }))
     .sort((a, b) => a.start - b.start);
 
   // Waypoints: an implicit "home" start-of-day, then every located event
@@ -390,6 +412,18 @@ export async function refreshCommute(config) {
     await setMeta("commutePlan", null);
     await setMeta("commute", null);
     return;
+  }
+
+  // Round 92 follow-up, per Jon: "for the first and last carleton events of
+  // the day, I expect ... the relevant drive time to or from my other
+  // off-campus events. there seems to be some of these missing." The plan
+  // used to stop at the day's last located event — there's a real drive
+  // home after it too, same as the implicit "home" start-of-day waypoint
+  // above. Only added when the last located event has a real END time to
+  // depart from (see todaysEvents above); never guessed if it's missing.
+  const lastLocated = located[located.length - 1];
+  if (lastLocated.end) {
+    waypoints.push({ id: "home-end", start: lastLocated.end, end: null, kind: "home", title: "Home", location: null });
   }
 
   const previousPlan = await getMeta("commutePlan", null);
@@ -464,7 +498,16 @@ export async function refreshCommute(config) {
     }
   }
 
-  const totalMinutes = legs.reduce((sum, l) => sum + (l.minutes || 0), 0);
+  // Round 92 follow-up, per Jon: "the walking doesnt count for drive time
+  // and drive km ... lets only count the driving minutes and name the
+  // total drive time (since I dont walk anywhere important)." So the
+  // headline daily number is the sum of each drive leg's OWN driveMinutes
+  // (the real Routes API estimate, conservative-padded — never including
+  // the walk-to/from-the-car buffers baked into that leg's full `minutes`),
+  // and walk-only "buffer" legs (mode: "buffer" — two back-to-back events
+  // at the same place) don't contribute at all. totalKm was already
+  // drive-only (a buffer leg's km is always 0), so it needs no change.
+  const totalDriveMinutes = legs.reduce((sum, l) => (l.mode === "drive" ? sum + (l.driveMinutes || 0) : sum), 0);
   const totalKm = legs.reduce((sum, l) => sum + (l.km || 0), 0);
   const vehicle = cfg.vehicle || {};
   const fuelCostCAD =
@@ -475,7 +518,7 @@ export async function refreshCommute(config) {
   const plan = {
     day: today,
     legs,
-    totalMinutes: Math.round(totalMinutes),
+    totalDriveMinutes: Math.round(totalDriveMinutes),
     totalKm: Math.round(totalKm * 10) / 10,
     fuelCostCAD,
     generatedAt: now.toISOString(),
@@ -494,18 +537,28 @@ export async function refreshCommute(config) {
   // leg (dov.commuteMin/hasCommute — esp32-led-wall.ino's renderCommuting()
   // predates this round's full-day plan). Derived from the plan above
   // rather than computed separately, so it's never a second, possibly-
-  // disagreeing source of truth for the same leg.
-  const nextLeg = legs.find((l) => new Date(l.toStart) > now);
+  // disagreeing source of truth for the same leg. Round 92 follow-up, per
+  // Jon: "the walking doesnt need to be specified its more the driving legs
+  // I want a leave by" — a walk-only buffer leg was never really an ETA to
+  // begin with (no route, no km), so "next" only ever considers a real
+  // drive now, same distinction the daily totals above make.
+  const nextDriveLeg = legs.find((l) => l.mode === "drive" && new Date(l.toStart) > now);
   await setMeta(
     "commute",
-    nextLeg
+    nextDriveLeg
       ? {
           day: today,
-          minutes: nextLeg.minutes,
-          route: nextLeg.route,
-          label: nextLeg.label,
-          eventId: nextLeg.toId,
-          computedAt: nextLeg.computedAt,
+          minutes: nextDriveLeg.minutes,
+          route: nextDriveLeg.route,
+          label: nextDriveLeg.label,
+          eventId: nextDriveLeg.toId,
+          // The leg's own target time (its "leave by" is this minus
+          // minutes) — added so the dashboard can compute a leave-by
+          // without needing a matching events[] entry, since the target can
+          // now be the synthetic "drive home" leg above, which isn't a real
+          // calendar event.
+          targetAt: nextDriveLeg.toStart,
+          computedAt: nextDriveLeg.computedAt,
         }
       : null
   );
