@@ -102,6 +102,17 @@
 }
 .refresh:hover { color: var(--ink); border-color: var(--fill); }
 .refresh.spin { color: var(--accent); border-color: var(--accent); }
+/* Jon: "a simple animation, either the dots pulsing or jumping" — reuses
+   the same bouncing-dots language the Ask panel's typing indicator already
+   established (.ask-typing/@keyframes ask-bounce) rather than inventing a
+   second animation style, just sized to sit inline in the button. */
+.refresh-dots { display: inline-flex; align-items: center; gap: 4px; height: 14px; padding: 0 2px; }
+.refresh-dots i {
+  width: 5px; height: 5px; border-radius: 50%; background: currentColor;
+  animation: ask-bounce 1.1s ease-in-out infinite;
+}
+.refresh-dots i:nth-child(2) { animation-delay: .15s; }
+.refresh-dots i:nth-child(3) { animation-delay: .3s; }
 
 /* Top padding gives the page's own content room to breathe below the nav
    bar — bumped up again (26px → 32px) per Jon's ask for more air between the
@@ -1447,64 +1458,87 @@
    Round — claude/commute-eta-plan.md. Same page-shell pattern as
    .page-weather right above: flex column, scrolls if it has to. */
 .page-commute { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; gap: 22px; }
+/* Round 92 follow-up, per Jon: "Id also like the commute page to have
+   larger text. that goes for everything. bigger like the other pages."
+   Every size below is bumped to match the scale TodayPage's own .trow
+   already uses (.trow .t 15.5px / .trow .title 19px / .trow .meta 15px),
+   rather than the smaller scale this page shipped with originally. */
 .cmhead { display: flex; align-items: baseline; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
 .cmhead h2 { margin: 0; font-size: 21px; font-weight: 620; }
 
 .cmhero { display: flex; align-items: center; gap: 26px; padding: 18px 20px; background: var(--raise); border-radius: 10px; flex-shrink: 0; }
 .cmleaveby { display: flex; flex-direction: column; gap: 6px; }
-.cmleaveby-label { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
-.cmleaveby-time { font-size: 44px; font-weight: 640; line-height: 1; font-variant-numeric: tabular-nums; }
+.cmleaveby-label { font-size: 12.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.cmleaveby-time { font-size: 50px; font-weight: 640; line-height: 1; font-variant-numeric: tabular-nums; }
 .cmdetail { display: flex; flex-direction: column; gap: 6px; }
-.cmdetail-line { font-size: 17px; color: var(--ink-2); }
+.cmdetail-line { font-size: 19px; color: var(--ink-2); }
 .cmdetail-line b { color: var(--ink); font-weight: 640; }
-.cmdetail-sub { font-size: 13.5px; color: var(--muted); }
+.cmdetail-sub { font-size: 15px; color: var(--muted); }
 
 .cmtotals { display: flex; gap: 28px; flex-shrink: 0; }
 .cmtotal-item { display: flex; flex-direction: column; gap: 2px; }
-.cmtotal-value { font-size: 22px; font-weight: 640; color: var(--ink); font-variant-numeric: tabular-nums; }
-.cmtotal-label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.cmtotal-value { font-size: 26px; font-weight: 640; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cmtotal-label { font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 
 .cminsight {
-  margin: 0; padding: 12px 16px; border-radius: 8px; flex-shrink: 0;
+  margin: 0; padding: 13px 17px; border-radius: 8px; flex-shrink: 0;
   background: rgba(237,161,0,.10); border: 1px solid rgba(237,161,0,.25);
-  font-size: 14px; color: var(--ink-2); line-height: 1.4;
+  font-size: 16px; color: var(--ink-2); line-height: 1.45;
 }
 
 .cmtimeline { display: flex; flex-direction: column; gap: 4px; }
 .cmtimeline h3 {
-  font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  font-size: 12.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
   color: var(--muted); margin: 0 0 8px;
 }
 .cmstop {
-  display: flex; align-items: center; gap: 14px; padding: 10px 12px;
+  display: flex; align-items: center; gap: 14px; padding: 11px 12px;
   border-radius: 8px; border: 1px solid transparent;
 }
 .cmstop.active { background: rgba(237,161,0,.12); border-color: rgba(237,161,0,.35); }
-.cmstop-time { font-size: 14px; font-variant-numeric: tabular-nums; color: var(--muted); width: 58px; flex-shrink: 0; }
+.cmstop-time { font-size: 15.5px; font-variant-numeric: tabular-nums; color: var(--muted); width: 64px; flex-shrink: 0; }
 .cmstop.active .cmstop-time { color: var(--accent); font-weight: 640; }
 .cmstop-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.cmstop-title { font-size: 15px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmstop-loc { font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmstop-eta { font-size: 13px; font-weight: 640; color: var(--accent); flex-shrink: 0; }
+.cmstop-title { font-size: 19px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmstop-loc { font-size: 15px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmstop-eta { font-size: 15px; font-weight: 640; color: var(--accent); flex-shrink: 0; }
 
+/* One drive/walk leg. Round 92 follow-up: "Im not seeing the visual
+   walking indicators, where they should be placed based on our
+   discussions." A drive leg's walk-to/from-the-car buffers used to be
+   invisible — folded silently into the leg's total minutes with no marker
+   of their own anywhere in the UI. .cmleg-main is the summary row (icon,
+   leave-by, total minutes, route/km, rush badge) exactly as before;
+   .cmleg-breakdown is new — a small walk/drive/walk strip underneath,
+   shown only when a drive leg actually has a buffer on either end, so the
+   walk portions are now something you can actually see and place on the
+   clock, not just a number quietly baked into the total. */
 .cmleg {
-  display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 30px;
-  font-size: 13px; color: var(--muted);
+  display: flex; flex-direction: column; gap: 4px; padding: 8px 12px 8px 30px;
+  font-size: 15px; color: var(--muted);
 }
+.cmleg-main { display: flex; align-items: center; gap: 10px; }
 .cmleg-icon { flex-shrink: 0; }
 .cmleg-leaveby {
   font-weight: 640; color: var(--accent); font-variant-numeric: tabular-nums;
-  flex-shrink: 0; text-transform: uppercase; font-size: 11.5px; letter-spacing: .04em;
+  flex-shrink: 0; text-transform: uppercase; font-size: 13px; letter-spacing: .04em;
 }
 .cmleg-minutes { font-weight: 640; color: var(--ink-2); font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .cmleg-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cmleg.rush .cmleg-minutes { color: #e0562b; }
 .cmleg-rush {
-  margin-left: auto; flex-shrink: 0; font-size: 10.5px; font-weight: 700;
+  margin-left: auto; flex-shrink: 0; font-size: 11.5px; font-weight: 700;
   letter-spacing: .06em; text-transform: uppercase; color: #e0562b;
   background: rgba(224,86,43,.12); border: 1px solid rgba(224,86,43,.3);
   border-radius: 4px; padding: 2px 6px;
 }
+.cmleg-breakdown { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-left: 24px; }
+.cmleg-seg {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 13px;
+  color: var(--faint); background: var(--fill); border-radius: 5px; padding: 2px 8px;
+}
+.cmleg-seg.walk { color: var(--muted); }
+.cmleg-seg-arrow { color: var(--faint); font-size: 11px; }
 
 /* ========================================================= page: system */
 

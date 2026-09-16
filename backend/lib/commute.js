@@ -299,8 +299,20 @@ export function applyConservativeBuffer(minutes, pct) {
  * departureBufferFor already return 0 for it with no code change (neither
  * has a "home" entry in cfg.locations either), matching "no buffer walking
  * into your own house."
+ *
+ * Origin resolution needs the SAME "fall back to the event's own raw
+ * location text" treatment the destination side always had. Round 92 bug,
+ * per Jon: a leg FROM an unclassified place (e.g. Infinity Convention
+ * Centre, not Carleton/Richcraft/home) back to a known one — Infinity ->
+ * Carleton — was silently dropped, because originAddress only ever looked
+ * up cfg.home.address or cfg.locations[fromKind].address, with no fallback
+ * for an unrecognized fromKind. Jon: "if two event locations arent the
+ * same then there is inevitably travel. make sure this is caught in the
+ * future for all events" — fromLocationText (the FROM waypoint's own raw
+ * location, threaded in from refreshCommute below) closes that gap
+ * symmetrically with the destination side.
  */
-async function computeLeg({ cfg, fromKind, toKind, toLocationText, departureTime, conservativeBufferPct }) {
+async function computeLeg({ cfg, fromKind, fromLocationText, toKind, toLocationText, departureTime, conservativeBufferPct }) {
   const destLoc = toKind && toKind !== "home" ? cfg.locations[toKind] : null;
   const label = toKind === "home" ? "Home" : destLoc?.label || toLocationText;
 
@@ -311,11 +323,13 @@ async function computeLeg({ cfg, fromKind, toKind, toLocationText, departureTime
     return { mode: "buffer", minutes: sameLocationBufferFor(cfg, toKind), km: 0, route: null, label: "already there" };
   }
 
-  const originAddress = fromKind === "home" ? cfg.home.address : cfg.locations[fromKind]?.address;
   // Unknown place (not home/Carleton/Richcraft) still gets a real, live
   // one-off ETA using the event's own raw location text — never skipped,
   // never faked. Just no named route variants or buffers, since those are
-  // only defined for the known places.
+  // only defined for the known places. Applies to EITHER end: an
+  // unclassified origin (originAddress falling back to fromLocationText)
+  // is exactly as valid a leg as an unclassified destination always was.
+  const originAddress = fromKind === "home" ? cfg.home.address : cfg.locations[fromKind]?.address || fromLocationText;
   const destinationAddress = toKind === "home" ? cfg.home.address : destLoc?.address || toLocationText;
   if (!originAddress || !destinationAddress) return null;
 
@@ -439,21 +453,20 @@ export async function refreshCommute(config) {
     const key = `${from.id}->${to.id}`;
     const fromKind = i === 0 ? "home" : from.kind;
     // A leg is only worth recomputing when something about it could have
-    // actually changed: where you're coming from (fromKind), the target
-    // event's own start time (a moved event), or — per Jon's round-92
-    // follow-up ("if an event is ... changed ... make sure we ... reflect
-    // that") — the target event's LOCATION. toKind covers a destination
-    // reclassifying to/from a known place (e.g. its address text edited so
-    // it no longer matches Carleton), and the raw toLocation text covers an
-    // unclassified destination's address itself changing (its own text IS
-    // the routed address in that case — see computeLeg's destinationAddress
-    // fallback below). Any of these changing produces a different hash, so
+    // actually changed: where you're coming from — both its kind (fromKind)
+    // and, for an unclassified origin, its own raw location text
+    // (fromLocation, round-92 fix below) — the target event's own start
+    // time (a moved event), or — per Jon's round-92 follow-up ("if an event
+    // is ... changed ... make sure we ... reflect that") — the target
+    // event's LOCATION (toKind/toLocation, the same treatment applied to
+    // the other end). Any of these changing produces a different hash, so
     // the stale cached leg is never silently kept around pointing at the
     // wrong place. Unchanged, the cached result is reused untouched — this
     // is what keeps a 20s-tick scheduler from re-calling the Routes API for
     // the same day's plan all morning.
-    const hash = cacheKey("leg-v3", {
+    const hash = cacheKey("leg-v4", {
       fromKind,
+      fromLocation: from.location ?? null,
       toId: to.id,
       toStart: to.start.toISOString(),
       toKind: to.kind ?? null,
@@ -470,6 +483,7 @@ export async function refreshCommute(config) {
       const leg = await computeLeg({
         cfg,
         fromKind,
+        fromLocationText: from.location,
         toKind: to.kind,
         toLocationText: to.location,
         departureTime: to.start.toISOString(),

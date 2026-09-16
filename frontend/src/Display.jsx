@@ -3183,20 +3183,43 @@ function CommutePage() {
 // if im on campus going to work, leave by includes walk+drive+potential 5
 // min buffer"). Walk-only buffer legs deliberately get none — "the walking
 // doesnt need to be specified."
+//
+// Second round-92 follow-up: "Im not seeing the visual walking indicators,
+// where they should be placed based on our discussions." The walk-to/from-
+// the-car buffers baked into a drive leg's total minutes had no visual
+// presence anywhere — .cmleg-breakdown below makes them an actual walk/
+// drive/walk strip under the summary row, only when a buffer is real on
+// that end (Carleton has one on both ends; Richcraft only on arrival).
 function CommuteLegRow({ leg }) {
   const leaveBy =
     leg.mode === "drive" ? minutesToClockStr(isoToMinutesOfDay(leg.toStart) - leg.minutes) : null;
+  const hasWalkBreakdown = leg.mode === "drive" && (leg.departureBufferMin > 0 || leg.arrivalBufferMin > 0);
   return (
     <div className={`cmleg${leg.isRush ? " rush" : ""}`}>
-      <span className="cmleg-icon">{leg.mode === "drive" ? "🚗" : "🚶"}</span>
-      {leaveBy && <span className="cmleg-leaveby">leave {leaveBy}</span>}
-      <span className="cmleg-minutes">{leg.minutes} min</span>
-      <span className="cmleg-detail">
-        {leg.mode === "drive"
-          ? [leg.route && routeLabel(leg.route), leg.km != null && `${leg.km.toFixed(1)}km`].filter(Boolean).join(" · ")
-          : "walking buffer"}
-      </span>
-      {leg.isRush && <span className="cmleg-rush">{leg.isRush}</span>}
+      <div className="cmleg-main">
+        <span className="cmleg-icon">{leg.mode === "drive" ? "🚗" : "🚶"}</span>
+        {leaveBy && <span className="cmleg-leaveby">leave {leaveBy}</span>}
+        <span className="cmleg-minutes">{leg.minutes} min</span>
+        <span className="cmleg-detail">
+          {leg.mode === "drive"
+            ? [leg.route && routeLabel(leg.route), leg.km != null && `${leg.km.toFixed(1)}km`].filter(Boolean).join(" · ")
+            : "walking buffer"}
+        </span>
+        {leg.isRush && <span className="cmleg-rush">{leg.isRush}</span>}
+      </div>
+      {hasWalkBreakdown && (
+        <div className="cmleg-breakdown">
+          {leg.departureBufferMin > 0 && <span className="cmleg-seg walk">🚶 {leg.departureBufferMin}m to car</span>}
+          <span className="cmleg-seg-arrow">→</span>
+          <span className="cmleg-seg">🚗 {leg.driveMinutes}m drive</span>
+          {leg.arrivalBufferMin > 0 && (
+            <>
+              <span className="cmleg-seg-arrow">→</span>
+              <span className="cmleg-seg walk">🚶 {leg.arrivalBufferMin}m in</span>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -3305,6 +3328,21 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
   // fetch on mount for when this panel is opened on its own, refresh idle.
   useEffect(() => { load(); }, [load, refreshing]);
 
+  // Jon: "I want it updated after every different refresh, so separate them
+  // and update not just at the end." runSources() on the backend already
+  // writes each source's lastRun_<name>/lastError_<name> the moment THAT
+  // source finishes (brief/compose.js — it's a sequential for-of, not a
+  // single batched write), so /api/sources already reflects live, per-
+  // source progress mid-refresh; this panel just wasn't asking again until
+  // the whole thing was done. Polling here while refreshing is true is what
+  // turns that into rows updating one at a time as they actually complete,
+  // instead of everything jumping at once at the end.
+  useEffect(() => {
+    if (!refreshing) return;
+    const t = setInterval(load, 1200);
+    return () => clearInterval(t);
+  }, [refreshing, load]);
+
   return (
     <div
       className="panel"
@@ -3331,7 +3369,14 @@ function SourcePanel({ onClose, report, refreshing, onMouseEnter, onMouseLeave }
                 ) : (
                   <>
                     {ago(s.lastRun)}
-                    {r?.ok && <em className="just">{r.detail || `${r.found} items`} · {r.ms}ms</em>}
+                    {/* Jon: "for travel I dont need info on the popup, just
+                        the last refresh time like the others (or error
+                        msg)." Every other source's routing/leg detail isn't
+                        useful status info here the way "14 items" is for
+                        Email — just the plain time-or-error every other row
+                        already falls back to when it has nothing extra to
+                        say. */}
+                    {s.name !== "commute" && r?.ok && <em className="just">{r.detail || `${r.found} items`} · {r.ms}ms</em>}
                   </>
                 )}
               </span>
@@ -3869,6 +3914,11 @@ export default function Display() {
     if (refreshing) return;
     setRefreshing(true);
     setPanel(true);
+    // Clear the previous run's report so a mid-refresh SourcePanel never
+    // shows a stale "found N items" line next to a row whose lastRun the
+    // live polling above has already updated to "just now" — the two would
+    // otherwise disagree about how current that row's detail actually is.
+    setReport(null);
     try {
       const res = await fetch("/api/refresh", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ force: true }),
@@ -3989,7 +4039,13 @@ export default function Display() {
             onClick={(e) => { e.stopPropagation(); lastInput.current = Date.now(); refresh(); }}
             title="Rerun every source now (r)"
           >
-            {refreshing ? "running…" : "↻ refresh"}
+            {refreshing ? (
+              <span className="refresh-dots" aria-label="refreshing">
+                <i></i><i></i><i></i>
+              </span>
+            ) : (
+              "↻ refresh"
+            )}
           </button>
         </span>
       </header>
