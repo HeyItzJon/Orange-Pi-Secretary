@@ -729,7 +729,19 @@ app.get("/api/system-health", async (_req, res) => {
   try {
     const health = await collectSystemHealth(config, SOURCE_NAMES);
     const problems = evaluateProblems(health, config);
-    res.json({ ...health, problems });
+    // Round 92 follow-up — Jon: "I want lat and lng displayed somewhere on
+    // the system page." Not really a "system health" fact (it's about
+    // Jon's phone, not the Pi), but this is the one endpoint the System
+    // page already polls every 15s for a combined snapshot, so it rides
+    // along here rather than adding a second poll loop just for one field.
+    // meta.lastLocation is the same "always latest point" value POST
+    // /api/location writes (see server.js's own comment there) — no
+    // staleness gating on the read side here either, same reasoning: the
+    // System page shows capturedAt itself (via the frontend's ago()), so
+    // the person looking at it can judge freshness themselves rather than
+    // the backend silently hiding an old point.
+    const location = await getMeta("lastLocation", null);
+    res.json({ ...health, problems, location });
   } catch (err) {
     log.error(`GET /api/system-health failed: ${err.message}`);
     res.status(500).json({ error: err.message });

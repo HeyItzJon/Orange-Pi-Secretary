@@ -3787,6 +3787,20 @@ function SystemPage() {
                 min
               </span>
             </div>
+            {/* Round 92 follow-up — last point the location iOS Shortcut
+                posted (see POST /api/location). No staleness cutoff here on
+                purpose, unlike the LED wall's sleep block: this just shows
+                whatever the server last has and how old it is via ago(),
+                so a paused/uninstalled Shortcut reads as "3d ago" rather
+                than silently vanishing. */}
+            <div className="systat">
+              <span className="systat-label">Last location</span>
+              <span className="systat-val">
+                {health.location
+                  ? `${health.location.lat.toFixed(5)}, ${health.location.lng.toFixed(5)} · ${ago(health.location.capturedAt)}`
+                  : "not posted yet"}
+              </span>
+            </div>
           </div>
         </section>
 
