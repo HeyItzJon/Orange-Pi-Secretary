@@ -15,6 +15,7 @@ import {
   computeIcyRoadRisk,
   buildWeatherFacts,
   buildFallbackSummary,
+  buildHourlySlots,
 } from "../sources/weather.js";
 
 let pass = 0, fail = 0;
@@ -140,6 +141,62 @@ test("a missing low temperature never risks a false positive", () => {
 });
 
 // ====================================================================
+group("buildHourlySlots — round 86, the hourly timeline bar's real data");
+
+function hourlyFixture(hours, { withTemp = true } = {}) {
+  const time = hours.map((h) => `2026-09-15T${String(h).padStart(2, "0")}:00`);
+  const weather_code = hours.map(() => 0);
+  const precipitation_probability = hours.map(() => 0);
+  const fixture = { time, weather_code, precipitation_probability };
+  if (withTemp) fixture.temperature_2m = hours.map((h) => 10 + h);
+  return fixture;
+}
+
+test("buckets a full day into one slot per hour across the fixed 6am-10pm window", () => {
+  const hourly = hourlyFixture(Array.from({ length: 24 }, (_, h) => h));
+  const slots = buildHourlySlots(hourly);
+  assert.equal(slots.length, 17); // 6..22 inclusive
+  assert.equal(slots[0].hour, 6);
+  assert.equal(slots[slots.length - 1].hour, 22);
+});
+
+test("each slot carries an hour label, temp, icon, and precip probability", () => {
+  const hourly = hourlyFixture([6, 7, 8]);
+  hourly.weather_code = [0, 61, 73];
+  hourly.precipitation_probability = [0, 80, 40];
+  const slots = buildHourlySlots(hourly, { startHour: 6, endHour: 8 });
+  assert.deepEqual(slots[0], { hour: 6, hourLabel: "6 AM", tempC: 16, icon: "sun", pop: 0 });
+  assert.deepEqual(slots[1], { hour: 7, hourLabel: "7 AM", tempC: 17, icon: "rain", pop: 80 });
+  assert.deepEqual(slots[2], { hour: 8, hourLabel: "8 AM", tempC: 18, icon: "snow", pop: 40 });
+});
+
+test("hour labels cross noon and midnight correctly (12 AM / 12 PM, not 0/24)", () => {
+  const hourly = hourlyFixture([0, 12, 23]);
+  const slots = buildHourlySlots(hourly, { startHour: 0, endHour: 23 });
+  assert.equal(slots.find((s) => s.hour === 0).hourLabel, "12 AM");
+  assert.equal(slots.find((s) => s.hour === 12).hourLabel, "12 PM");
+  assert.equal(slots.find((s) => s.hour === 23).hourLabel, "11 PM");
+});
+
+test("a missing temperature_2m array degrades slots to a null tempC rather than throwing", () => {
+  const hourly = hourlyFixture([6, 7], { withTemp: false });
+  const slots = buildHourlySlots(hourly, { startHour: 6, endHour: 7 });
+  assert.equal(slots[0].tempC, null);
+  assert.equal(slots[1].tempC, null);
+});
+
+test("missing/empty hourly data returns [] without throwing", () => {
+  assert.deepEqual(buildHourlySlots(null), []);
+  assert.deepEqual(buildHourlySlots({ time: [] }), []);
+});
+
+test("a custom window narrows or widens which hours come back", () => {
+  const hourly = hourlyFixture(Array.from({ length: 24 }, (_, h) => h));
+  const slots = buildHourlySlots(hourly, { startHour: 9, endHour: 11 });
+  assert.deepEqual(slots.map((s) => s.hour), [9, 10, 11]);
+});
+
+// ====================================================================
 group("buildWeatherFacts — assembling one Open-Meteo response into facts");
 
 test("a typical clear, mild response", () => {
@@ -156,6 +213,8 @@ test("a typical clear, mild response", () => {
   assert.equal(facts.lowC, 12);
   assert.equal(facts.precipWindow, null);
   assert.equal(facts.icyRoadRisk, false);
+  assert.equal(facts.hourlySlots.length, 1);
+  assert.equal(facts.hourlySlots[0].icon, "sun");
 });
 
 test("a cold day with afternoon snow flags icy roads", () => {
@@ -181,6 +240,7 @@ test("missing fields degrade to nulls rather than throwing", () => {
   assert.equal(facts.highC, null);
   assert.equal(facts.lowC, null);
   assert.equal(facts.conditionKey, "cloud"); // code defaults to 3 (overcast) when nothing is sent
+  assert.deepEqual(facts.hourlySlots, []);
 });
 
 // ====================================================================

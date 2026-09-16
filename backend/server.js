@@ -421,6 +421,17 @@ app.get("/api/matrix", async (_req, res) => {
     // rather than a block of zeros if the source hasn't produced anything
     // yet (fresh install, first pull still pending), so the firmware/wall
     // doesn't mistake "no data yet" for a real 0°C reading.
+    //
+    // `hourly` — round 86. One icon-bucket string per hour across the fixed
+    // 6am-11pm window (sources/weather.js's buildHourlySlots, 17 entries),
+    // deliberately flattened to just the icon here (not the richer
+    // {hourLabel, tempC, icon, pop} shape buildHourlySlots produces) —
+    // this is the same "flat JSON, short field names" convention the wall
+    // endpoint has followed since its original design doc, and both the
+    // ESP32 firmware's hourly timeline bar and the website's Weather page
+    // only ever draw the icon per hour, so there's nothing else to send
+    // here. Omitted (undefined) rather than [] when there's no weather
+    // data yet at all, same reasoning as the `weather: null` case below.
     const weather = weatherMeta
       ? {
           tempC: weatherMeta.currentTempC,
@@ -428,6 +439,8 @@ app.get("/api/matrix", async (_req, res) => {
           lowC: weatherMeta.lowC,
           icon: weatherMeta.conditionKey, // sun | partly_sunny | cloud | rain | snow | lightning
           summary: sanitizeForWall(weatherMeta.summary || ""),
+          hourly: (weatherMeta.hourlySlots || []).map((slot) => slot.icon),
+          updatedAt: weatherMeta.at, // round 86 — the website's Weather page shows "updated Xm ago"; the firmware ignores this field
         }
       : null;
 

@@ -1,9 +1,9 @@
 // sources/weather.js
 //
 // Round 82. The Weather screen's real backend: current temp, today's high/
-// low, and a short plain-language description, for the LED wall (and later
-// a small chip on the website's Today page — see round 81's planning doc,
-// claude/round-81-weather-mode-planning.md, and this round's follow-up).
+// low, and a short plain-language description, for the LED wall and the
+// website's Weather page (round 86 — see claude/round-81-weather-mode-
+// planning.md for the original plan and this round's follow-up).
 //
 // Two halves, the same split every other source in this app uses:
 //
@@ -11,8 +11,10 @@
 //     API key, no account, no billing tier, 10,000 calls/day free. This was
 //     already the pick in claude/integration-roadmap.md over OpenWeatherMap,
 //     which paywalls the tier you'd actually want. Current temperature,
-//     today's high/low, a WMO weather code, and hourly precipitation
-//     probability for the rest of the day.
+//     today's high/low, a WMO weather code, and hourly temperature/
+//     precipitation-probability/weather-code arrays (the last covers both
+//     the "when does rain hit today" precip window and, since round 86, the
+//     hourly icon timeline — see buildHourlySlots below).
 //   - A small set of RULES (never the model) turn those raw numbers into
 //     the facts that actually matter: which of six icon buckets the
 //     condition maps to (iconForWmoCode — the same six keys the HUB75 Twin's
@@ -98,6 +100,57 @@ function periodLabelForHour(hour) {
   return "overnight";
 }
 
+// Round 86 — the hourly timeline bar, prototyped in the HUB75 Twin
+// (claude/hub75-twin.html, rounds 84-85) and now wired to real data. The
+// Twin's fake `hourly` array was one icon bucket per hour across a fixed
+// 6am-11pm window, matching the same day window the Events screen's own
+// timeline already uses (minutesToFrac's dayStart=6*60, dayEnd=23*60) — 17
+// one-hour columns, each column i covering [6+i, 7+i) o'clock, so the last
+// column (i=16) covers 10pm-11pm. HOURLY_WINDOW_START_HOUR/END_HOUR below
+// are that same window's endpoints (end inclusive, since it's "the hour
+// this column starts at").
+export const HOURLY_WINDOW_START_HOUR = 6;
+export const HOURLY_WINDOW_END_HOUR = 22;
+
+function formatHourLabel(hour) {
+  const period = hour < 12 ? "AM" : "PM";
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h12} ${period}`;
+}
+
+/**
+ * Buckets Open-Meteo's hourly arrays into one slot per hour across the
+ * fixed display window, always the full window regardless of the current
+ * time — same reasoning the Twin's fake data used a full-day array: the
+ * wall and dashboard show the whole day's shape, not just what's left of
+ * it. Pure and exported for the same no-network-call testing convention
+ * as buildPrecipWindow. Returns [] (never throws) if hourly data wasn't
+ * sent, so a slow/failed forecast degrades to "no timeline" rather than
+ * breaking the rest of the facts object.
+ */
+export function buildHourlySlots(hourly, { startHour = HOURLY_WINDOW_START_HOUR, endHour = HOURLY_WINDOW_END_HOUR } = {}) {
+  if (!hourly?.time?.length) return [];
+  const indexByHour = new Map();
+  for (let i = 0; i < hourly.time.length; i++) {
+    indexByHour.set(hourOf(hourly.time[i]), i);
+  }
+  const slots = [];
+  for (let hour = startHour; hour <= endHour; hour++) {
+    const i = indexByHour.get(hour);
+    if (i == null) continue; // Open-Meteo sends a full 24h day for forecast_days>=1, so this shouldn't happen in practice
+    const tempC = hourly.temperature_2m?.[i] != null ? Math.round(hourly.temperature_2m[i]) : null;
+    const pop = hourly.precipitation_probability?.[i] ?? null;
+    slots.push({
+      hour,
+      hourLabel: formatHourLabel(hour),
+      tempC,
+      icon: iconForWmoCode(hourly.weather_code?.[i]),
+      pop,
+    });
+  }
+  return slots;
+}
+
 // Open-Meteo returns hourly.time as local wall-clock strings ("2026-09-15T14:00")
 // once a timezone param is given — parsed directly rather than via `new
 // Date()`, which would otherwise reinterpret an offset-less string in
@@ -156,8 +209,9 @@ export function buildWeatherFacts(payload) {
   const fromHour = typeof cur.time === "string" ? hourOf(cur.time) : 0;
   const precipWindow = buildPrecipWindow(hourly, { fromHour });
   const icyRoadRisk = computeIcyRoadRisk({ lowC, precipWindow, conditionKey });
+  const hourlySlots = buildHourlySlots(hourly);
 
-  return { conditionKey, conditionLabel, currentTempC, highC, lowC, precipWindow, icyRoadRisk };
+  return { conditionKey, conditionLabel, currentTempC, highC, lowC, precipWindow, icyRoadRisk, hourlySlots };
 }
 
 const TEMP_WORDS = [
@@ -202,7 +256,7 @@ async function fetchForecast(cfg, tz) {
     longitude: cfg.longitude ?? DEFAULT_LONGITUDE,
     current: "temperature_2m,weather_code",
     daily: "temperature_2m_max,temperature_2m_min,weather_code",
-    hourly: "precipitation_probability,weather_code",
+    hourly: "temperature_2m,precipitation_probability,weather_code",
     timezone: tz,
     forecast_days: 1,
     temperature_unit: cfg.units === "fahrenheit" ? "fahrenheit" : "celsius",

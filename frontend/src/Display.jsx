@@ -2844,6 +2844,115 @@ function WallPage({ d }) {
   );
 }
 
+/* ================================================================ weather */
+
+// Round 86 — a simple, glanceable weather page mirroring the LED wall's
+// Weather screen: current conditions + hi/lo + the plain-language AI
+// summary, plus the same hourly icon timeline the wall draws as a strip of
+// colored bars. Self-contained like WallPage — its own poll of
+// /api/matrix, independent of the main /api/display refresh loop, since
+// weather isn't threaded into buildDisplay()'s own inputs (see the
+// pages-array comment in brief/display.js).
+const WEATHER_ICON_GLYPH = {
+  sun: "☀️",
+  partly_sunny: "⛅",
+  cloud: "☁️",
+  rain: "🌧️",
+  snow: "❄️",
+  lightning: "⛈️",
+};
+
+// Same fixed 6am-11pm window backend/sources/weather.js's buildHourlySlots
+// uses for /api/matrix's weather.hourly array — that array is just a flat
+// list of icon strings in order (same convention the LED wall firmware
+// reads), so the hour label for slot i is computed here rather than sent
+// over the wire, one less thing to keep in sync between backend and page.
+const HOURLY_WINDOW_START_HOUR = 6;
+function hourlyLabelFor(index) {
+  const hour = HOURLY_WINDOW_START_HOUR + index;
+  const period = hour < 12 ? "AM" : "PM";
+  const h12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h12}${period}`;
+}
+
+function WeatherPage() {
+  const [matrix, setMatrix] = useState(null);
+  const [err, setErr] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/matrix");
+      if (!r.ok) throw new Error(`status ${r.status}`);
+      setMatrix(await r.json());
+      setErr(null);
+    } catch (e) {
+      // Same "drop it silently, keep the last good screen" call WallPage's
+      // load() makes — a missed poll every 60s isn't worth an error flash
+      // when the next tick will most likely just succeed.
+      setErr(e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    // Weather refreshes on its own ~15-minute source clock server-side, so
+    // this doesn't need to poll anywhere near as often as the wall's live
+    // control panel — 60s is just "feels current" without hammering the Pi.
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  if (!matrix) return <p className="empty big-empty">Loading weather…</p>;
+
+  const w = matrix.weather;
+  if (!w) {
+    return (
+      <div className="page-weather">
+        <h2>Weather</h2>
+        <p className="empty big-empty">No weather data yet — check back after the next refresh.</p>
+      </div>
+    );
+  }
+
+  const glyph = WEATHER_ICON_GLYPH[w.icon] || "☁️";
+  const hourly = w.hourly || [];
+
+  return (
+    <div className="page-weather">
+      <div className="wxhead">
+        <h2>Weather</h2>
+        {w.updatedAt && <span className="wxupdated">updated {ago(w.updatedAt)}</span>}
+      </div>
+
+      {err && <p className="mwarn">{err}</p>}
+
+      <div className="wxnow">
+        <div className="wxglyph">{glyph}</div>
+        <div className="wxtemps">
+          <div className="wxcurrent">{w.tempC != null ? `${w.tempC}°` : "—"}</div>
+          <div className="wxhilo">
+            <span className="wxhi">H:{w.highC != null ? `${w.highC}°` : "—"}</span>
+            <span className="wxlo">L:{w.lowC != null ? `${w.lowC}°` : "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      {w.summary && <p className="wxsummary">{w.summary}</p>}
+
+      {hourly.length > 0 && (
+        <div className="wxhourly">
+          {hourly.map((icon, i) => (
+            <div key={i} className="wxhour">
+              <span className="wxhour-label">{hourlyLabelFor(i)}</span>
+              <span className="wxhour-glyph">{WEATHER_ICON_GLYPH[icon] || "☁️"}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ================================================================= sources */
 
 function ago(iso) {
@@ -3313,7 +3422,7 @@ function SystemPage() {
 
 /* =================================================================== shell */
 
-const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage, wall: WallPage, system: SystemPage };
+const PAGES = { today: TodayPage, tasks: TasksPage, money: MoneyPage, year: YearPage, week: WeekPage, weather: WeatherPage, wall: WallPage, system: SystemPage };
 
 /**
  * Strip one id out of every Tasks-page list it could be sitting in,

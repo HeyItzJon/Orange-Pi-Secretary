@@ -1415,6 +1415,34 @@
   .wcols { grid-template-columns: 1fr; }
 }
 
+/* ---------------------------------------------------------------- weather
+   Round 86 — a simple, glanceable mirror of the LED wall's Weather screen.
+   Same page-shell pattern as .page-wall: flex column, scrolls if it has to,
+   nothing fancier than that. */
+.page-weather { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; gap: 26px; }
+.wxhead { display: flex; align-items: baseline; gap: 14px; padding-bottom: 15px; border-bottom: 1px solid var(--rule); flex-shrink: 0; }
+.wxhead h2 { margin: 0; font-size: 21px; font-weight: 620; }
+.wxupdated { font-size: 13px; color: var(--muted); }
+
+.wxnow { display: flex; align-items: center; gap: 26px; }
+.wxglyph { font-size: 72px; line-height: 1; }
+.wxtemps { display: flex; flex-direction: column; gap: 6px; }
+.wxcurrent { font-size: 56px; font-weight: 640; line-height: 1; }
+.wxhilo { display: flex; gap: 14px; font-size: 15px; }
+.wxhi { color: var(--ink-2); }
+.wxlo { color: var(--muted); }
+
+.wxsummary { font-size: 16px; color: var(--ink-2); max-width: 640px; line-height: 1.5; margin: 0; }
+
+.wxhourly { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; }
+.wxhour {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  min-width: 46px; padding: 12px 4px; background: var(--raise); border-radius: 8px;
+  flex-shrink: 0;
+}
+.wxhour-label { font-size: 11.5px; color: var(--muted); letter-spacing: .02em; }
+.wxhour-glyph { font-size: 22px; line-height: 1; }
+
 /* ========================================================= page: system */
 
 .page-system { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; }

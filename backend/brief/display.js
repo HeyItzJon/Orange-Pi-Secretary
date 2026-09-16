@@ -1699,6 +1699,13 @@ export function buildDisplay({ items = [], money = null, marketPulse = null, pri
       { id: "tasks", label: "Tasks", badge: tasks.inbox.total || null },
       { id: "money", label: "Portfolio", badge: null },
       { id: "year", label: "Stats", badge: null },
+      // Round 86 — a simple weather page mirroring the LED wall's Weather
+      // screen. No badge, same reasoning as Wall/System below: this page
+      // self-polls /api/matrix directly (weatherMeta isn't threaded into
+      // buildDisplay()'s own inputs), so there's nothing this compose pass
+      // could put on the tab without wiring weather into the daily-brief
+      // model just for a badge number.
+      { id: "weather", label: "Weather", badge: null },
       // ESP32 LED wall live control (Round 49 §6) — no badge: there's no
       // single count on this page that would mean anything from the tab
       // alone, same reasoning as Money/Year just above.
