@@ -347,6 +347,65 @@ app.get("/api/matrix", async (_req, res) => {
         cal: e.swatch || "",
       }));
 
+    // Sleep & Alarm screen's "nearby events" — Jon: "the sleep and alarms
+    // page doesnt seem to be picking up events that encroach on the sleep
+    // schedule... I want any event from say 9pm to 9am to show up." The
+    // firmware's own nearbyEvents parsing/rendering has been wired since
+    // round 91 (see SleepAlarmData/SleepEvent in esp32-led-wall.ino) but
+    // this route never actually filled it in, so the screen always showed
+    // "no events nearby" no matter what was on the calendar. Deterministic
+    // backend rule, not a DeepSeek judgment call — same "rules decide
+    // facts" discipline busyLevel/commuteStats already follow. "late"/
+    // "early" match the firmware's own SleepEvent.period field
+    // (lateColor/earlyColor). All-day events are excluded — they have no
+    // meaningful clock time to place on the sleep-window bar (same reason
+    // they're split out of `todayEvents` above).
+    //
+    // Round 96ish follow-up, per Jon: "still no nearby events... ANY EVENT
+    // THAT EXTENDS PAST 9PM OR STARTS BEFORE 9AM must be shown." The first
+    // pass only ever checked an event's own START time against 9pm — so an
+    // event that starts earlier in the evening (7:30-9:30pm, say) and
+    // genuinely does run past 9pm never matched, because 7:30pm is well
+    // before the 9pm cutoff. "Encroaches on the sleep schedule" is about
+    // whether the event is still going/about to start inside the window,
+    // not literally when it began — extendsPastLateStart() below checks
+    // the event's END time instead (falling back to its start only when
+    // there's no known end at all to check, same never-guess rule
+    // everywhere else in this file follows). The early side was already
+    // right — "starts before 9am" needs no end-time check, tomorrow
+    // morning's events haven't started yet.
+    const tomorrow = new Intl.DateTimeFormat("en-CA", {
+      timeZone: config.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+    const clockTimeOf = (e) => e.clockTime || e.dueAt?.slice(11, 16) || "";
+    const endDateOf = (e) => e.meta?.end?.slice(0, 10) || "";
+    const endClockTimeOf = (e) => e.meta?.end?.slice(11, 16) || "";
+    const NEARBY_LATE_START = "21:00"; // 9:00 PM
+    const NEARBY_EARLY_END = "09:00"; // 9:00 AM
+    // True when the event's real end time is known and falls at/after 9pm
+    // — either later today, or on any later calendar day at all (it ran
+    // straight through midnight, so it trivially extends past 9pm too).
+    const extendsPastLateStart = (e) => {
+      const endDate = endDateOf(e);
+      if (!endDate) return false; // no known end — never guessed, see clockTimeOf(e) fallback below instead
+      return endDate !== today || endClockTimeOf(e) >= NEARBY_LATE_START;
+    };
+    const tomorrowCalendarItems = items.filter(
+      (i) => i.source === "calendar" && i.dueAt?.startsWith(tomorrow) && i.status === "open"
+    );
+    const lateEvents = todayCalendarItems
+      .filter((e) => !e.meta?.allDay && (clockTimeOf(e) >= NEARBY_LATE_START || extendsPastLateStart(e)))
+      .map((e) => ({ label: sanitizeForWall((e.title || "").slice(0, 24)), time: clockTimeOf(e), period: "late" }));
+    const earlyEvents = tomorrowCalendarItems
+      .filter((e) => !e.meta?.allDay && clockTimeOf(e) && clockTimeOf(e) < NEARBY_EARLY_END)
+      .map((e) => ({ label: sanitizeForWall((e.title || "").slice(0, 24)), time: clockTimeOf(e), period: "early" }));
+    const nearbyEvents = [...lateEvents, ...earlyEvents]
+      .sort((a, b) => a.time.localeCompare(b.time))
+      .slice(0, 4); // matches firmware's MAX_SLEEP_EVENTS
+
     // Day Overview's hoursBusy/hoursFree — round 72, closes the round-64
     // punch-list gap. Same weekForecast() math the Week page already uses
     // (see brief/display.js's buildDayContext for the identical filterLive
@@ -554,7 +613,12 @@ app.get("/api/matrix", async (_req, res) => {
       // in spirit, rather than showing a week-old bedtime forever.
       sleep:
         sleepMeta?.updatedAt && Date.now() - new Date(sleepMeta.updatedAt).getTime() < 20 * 60 * 60 * 1000
-          ? { bedTime: sleepMeta.bedTime, wakeTime: sleepMeta.wakeTime, nextAlarm: sleepMeta.nextAlarm || sleepMeta.wakeTime }
+          ? {
+              bedTime: sleepMeta.bedTime,
+              wakeTime: sleepMeta.wakeTime,
+              nextAlarm: sleepMeta.nextAlarm || sleepMeta.wakeTime,
+              nearbyEvents, // round 94ish — see computation above
+            }
           : null,
       holdings,
       news,
