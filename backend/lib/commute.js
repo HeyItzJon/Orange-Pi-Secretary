@@ -37,9 +37,10 @@
 // the dashboard's Sources panel ("Travel"), same as a dead Gmail token
 // shows up for Email, rather than a silently stale number), NEVER inside
 // the fast /api/matrix poll route. Each leg is cached independently by a
-// content hash of (origin kind, destination event id + start time), so a
-// tick where nothing about the day's plan changed costs zero Routes API
-// calls, and a change to one leg (a moved event, say) never forces every
+// content hash of (origin kind, destination event id + start time) AND a
+// staleness window — see the leg loop's own comment below for why an
+// UPCOMING leg still gets re-asked periodically even when its hash hasn't
+// changed. A change to one leg (a moved event, say) never forces every
 // other already-resolved leg to recompute too.
 //
 // A genuine per-leg routing failure (bad key, spent quota, Routes API down)
@@ -502,9 +503,7 @@ export async function refreshCommute(config) {
     // event's LOCATION (toKind/toLocation, the same treatment applied to
     // the other end). Any of these changing produces a different hash, so
     // the stale cached leg is never silently kept around pointing at the
-    // wrong place. Unchanged, the cached result is reused untouched — this
-    // is what keeps a 20s-tick scheduler from re-calling the Routes API for
-    // the same day's plan all morning.
+    // wrong place.
     const hash = cacheKey("leg-v4", {
       fromKind,
       fromLocation: from.location ?? null,
@@ -514,8 +513,30 @@ export async function refreshCommute(config) {
       toLocation: to.location ?? null,
     });
 
+    // Round 95ish — Jon: "its hard to get the times right in the past
+    // since the API doesnt allow it but upcoming events and travel times
+    // should refresh periodically, probably at the same frequency as the
+    // system refreshes (15 mins) just so I get accurate road conditions."
+    // Before this, an unchanged hash meant "reused forever, no matter how
+    // long ago it was computed" — a drive-time estimate for tonight's
+    // class, first computed the moment that event appeared on the
+    // calendar this morning, would still be showing this morning's
+    // traffic prediction come 5pm. A leg whose target has already passed
+    // is exempt from this — Jon's own point: computeRoute only ever asks
+    // for live predictive traffic (TRAFFIC_AWARE) on a leg with a real
+    // FUTURE departureTime; a past leg gets the plain, non-time-aware
+    // TRAFFIC_UNAWARE mode with no departureTime at all, so re-asking it
+    // would just burn a Routes API call for the exact same answer. An
+    // upcoming leg's cached result is only trusted as fresh for as long as
+    // the rest of the system trusts any other cached number —
+    // config.schedule.pullEveryMinutes — so road conditions actually
+    // update as its departure gets closer, at the same cadence
+    // refreshCommute's own caller (runSources) already runs on.
+    const isPastLeg = to.start.getTime() <= now.getTime();
+    const staleMs = (config.schedule?.pullEveryMinutes ?? 15) * 60 * 1000;
     const cached = legByKey.get(key);
-    if (cached && cached.hash === hash) {
+    const isFresh = !!cached?.computedAt && now.getTime() - new Date(cached.computedAt).getTime() < staleMs;
+    if (cached && cached.hash === hash && (isPastLeg || isFresh)) {
       legs.push(cached);
       continue;
     }

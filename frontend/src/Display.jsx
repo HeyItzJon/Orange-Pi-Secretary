@@ -3047,7 +3047,22 @@ function CommutePage() {
   // the synthetic one.
   const commuteTitle = commuteEvent?.title || dov.commuteLabel || null;
   const haveEta = commuteTitle && dov.commuteMin != null && dov.commuteTargetAt;
-  const leaveBy = haveEta ? minutesToClockStr(isoToMinutesOfDay(dov.commuteTargetAt) - dov.commuteMin) : null;
+  // Round 95ish, per Jon: "you were trying to get me home for 5:25 for
+  // some reason which is actually when my last class ENDS... the earliest
+  // I can leave would be 5:25." When the "next" leg IS the implicit
+  // drive-home leg (commuteEventId "home-end"), commuteTargetAt is that
+  // last event's END time — when he's free to go, not an arrival deadline
+  // to subtract travel time from the way a real event's start time is for
+  // every other leg. Subtracting dov.commuteMin from it produced a "leave
+  // by" earlier than he could physically leave. This hero just states the
+  // fact instead: "Free at" the target time, unmodified.
+  const isHomeNext = dov.commuteEventId === "home-end";
+  const leaveByLabel = isHomeNext ? "Free at" : "Leave by";
+  const leaveBy = haveEta
+    ? isHomeNext
+      ? minutesToClockStr(isoToMinutesOfDay(dov.commuteTargetAt))
+      : minutesToClockStr(isoToMinutesOfDay(dov.commuteTargetAt) - dov.commuteMin)
+    : null;
 
   // Every leg is keyed by the waypoint it arrives AT (toId — either an
   // event id, or the implicit day-start home->first-stop leg keyed by that
@@ -3074,7 +3089,7 @@ function CommutePage() {
       {haveEta ? (
         <div className="cmhero">
           <div className="cmleaveby">
-            <span className="cmleaveby-label">Leave by</span>
+            <span className="cmleaveby-label">{leaveByLabel}</span>
             <span className="cmleaveby-time">{leaveBy}</span>
           </div>
           <div className="cmdetail">
@@ -3143,13 +3158,25 @@ function CommutePage() {
           {/* The implicit end-of-day "drive home" leg (round 92) — never a
               real events[] row, so it's appended here as its own pseudo-stop
               rather than being found by the map above. Only shown when
-              lib/commute.js actually had a real end time to base it on. */}
+              lib/commute.js actually had a real end time to base it on.
+              Round 95ish bug fix, per Jon: "you were trying to get me home
+              for 5:25 for some reason which is actually when my last class
+              ENDS." homeLeg.toStart is that class's end time — the earliest
+              he's free to leave, i.e. lib/commute.js's departure-time
+              proxy for this leg — never an arrival deadline the way a real
+              event's own start time is for every other stop above. This
+              row used to print toStart unmodified next to "Home," which
+              read as "you'll be home at 5:25" when 5:25 was actually just
+              when he walks out of class. The real arrival estimate is
+              toStart + the leg's own minutes (which already bundles the
+              walk-to-the-car buffer and the drive itself — see
+              computeLeg's departureBuffer/arrivalBuffer). */}
           {homeLeg && (
             <Fragment>
               <CommuteLegRow leg={homeLeg} />
               <div className={`cmstop${homeLeg.toId === dov.commuteEventId ? " active" : ""}`}>
                 <span className="cmstop-time">
-                  {minutesToClockStr(isoToMinutesOfDay(homeLeg.toStart))}
+                  {minutesToClockStr(isoToMinutesOfDay(homeLeg.toStart) + homeLeg.minutes)}
                 </span>
                 <div className="cmstop-body">
                   <span className="cmstop-title">Home</span>
@@ -3245,8 +3272,19 @@ function CommuteAlternatives({ legKey }) {
 }
 
 function CommuteLegRow({ leg }) {
+  // Round 95ish, per Jon: "the earliest I can leave would be 5:25" — the
+  // home leg's toStart is the last located event's END time, i.e. when
+  // he's actually free to go, not an arrival deadline the way every other
+  // leg's toStart is (a real event you're driving TO). "leave by
+  // toStart - minutes" isn't just mislabeled for it, it's nonsense — a
+  // time earlier than he's physically able to leave. This leg gets its
+  // own "free X" label (toStart, unmodified) instead of "leave by X".
+  const isHomeLeg = leg.toId === "home-end";
   const leaveBy =
-    leg.mode === "drive" ? minutesToClockStr(isoToMinutesOfDay(leg.toStart) - leg.minutes) : null;
+    leg.mode === "drive" && !isHomeLeg
+      ? minutesToClockStr(isoToMinutesOfDay(leg.toStart) - leg.minutes)
+      : null;
+  const freeAt = leg.mode === "drive" && isHomeLeg ? minutesToClockStr(isoToMinutesOfDay(leg.toStart)) : null;
   const hasWalkBreakdown = leg.mode === "drive" && (leg.departureBufferMin > 0 || leg.arrivalBufferMin > 0);
   const canOfferAlternatives = leg.mode === "drive" && !!leg.isRush && new Date(leg.toStart).getTime() > Date.now();
   return (
@@ -3254,6 +3292,7 @@ function CommuteLegRow({ leg }) {
       <div className="cmleg-main">
         <span className="cmleg-icon">{leg.mode === "drive" ? "🚗" : "🚶"}</span>
         {leaveBy && <span className="cmleg-leaveby">leave {leaveBy}</span>}
+        {freeAt && <span className="cmleg-leaveby">free {freeAt}</span>}
         <span className="cmleg-minutes">{leg.minutes} min</span>
         <span className="cmleg-detail">
           {leg.mode === "drive"
