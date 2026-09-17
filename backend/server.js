@@ -356,10 +356,12 @@ app.get("/api/matrix", async (_req, res) => {
     // "no events nearby" no matter what was on the calendar. Deterministic
     // backend rule, not a DeepSeek judgment call — same "rules decide
     // facts" discipline busyLevel/commuteStats already follow. "late"/
-    // "early" match the firmware's own SleepEvent.period field
-    // (lateColor/earlyColor). All-day events are excluded — they have no
-    // meaningful clock time to place on the sleep-window bar (same reason
-    // they're split out of `todayEvents` above).
+    // "early" match the firmware's own SleepEvent.period field (used only
+    // to pick which event(s) to show/cycle — see the firmware's own
+    // comment for why the actual paint color comes from `cal` instead).
+    // All-day events are excluded — they have no meaningful clock time to
+    // place on the sleep-window bar (same reason they're split out of
+    // `todayEvents` above).
     //
     // Round 96ish follow-up, per Jon: "still no nearby events... ANY EVENT
     // THAT EXTENDS PAST 9PM OR STARTS BEFORE 9AM must be shown." The first
@@ -396,12 +398,38 @@ app.get("/api/matrix", async (_req, res) => {
     const tomorrowCalendarItems = items.filter(
       (i) => i.source === "calendar" && i.dueAt?.startsWith(tomorrow) && i.status === "open"
     );
+    // Round 96ish — Jon: "the display is goofy asf, its like a little
+    // plus. I need at least a similar thing to the timeline that is
+    // roughly representative of start and end time. in the correct
+    // colour from calendars too." The firmware now draws each nearby
+    // event as a real start-to-end segment (like the Events screen's own
+    // timeline bar) in its actual calendar color, so it needs the same
+    // `dur`/`cal` facts `todayEvents` above already sends — same formula,
+    // reused as-is rather than re-derived: real end-minus-start minutes,
+    // clamped to a sane 5-600 range, falling back to 30 when there's no
+    // known end time to compute from.
+    const durOf = (e) =>
+      e.meta?.end
+        ? Math.min(600, Math.max(5, Math.round((new Date(e.meta.end) - new Date(e.dueAt)) / 60000)))
+        : 30;
     const lateEvents = todayCalendarItems
       .filter((e) => !e.meta?.allDay && (clockTimeOf(e) >= NEARBY_LATE_START || extendsPastLateStart(e)))
-      .map((e) => ({ label: sanitizeForWall((e.title || "").slice(0, 24)), time: clockTimeOf(e), period: "late" }));
+      .map((e) => ({
+        label: sanitizeForWall((e.title || "").slice(0, 24)),
+        time: clockTimeOf(e),
+        period: "late",
+        dur: durOf(e),
+        cal: e.swatch || "",
+      }));
     const earlyEvents = tomorrowCalendarItems
       .filter((e) => !e.meta?.allDay && clockTimeOf(e) && clockTimeOf(e) < NEARBY_EARLY_END)
-      .map((e) => ({ label: sanitizeForWall((e.title || "").slice(0, 24)), time: clockTimeOf(e), period: "early" }));
+      .map((e) => ({
+        label: sanitizeForWall((e.title || "").slice(0, 24)),
+        time: clockTimeOf(e),
+        period: "early",
+        dur: durOf(e),
+        cal: e.swatch || "",
+      }));
     const nearbyEvents = [...lateEvents, ...earlyEvents]
       .sort((a, b) => a.time.localeCompare(b.time))
       .slice(0, 4); // matches firmware's MAX_SLEEP_EVENTS
